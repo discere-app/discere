@@ -30,8 +30,9 @@
 # Das Skript setzt schemas["<--schema>"] auf das neue Release und nur bei
 # Schemaversion 1 zusätzlich die oberste Ebene. Alle anderen Einträge bleiben.
 # Fehlt "schemas" (ein Manifest mit nur der obersten Ebene), legt es sie an
-# und übernimmt die bisherige oberste Ebene unter ihrer Schemaversion, damit
-# beide Darstellungen übereinstimmen.
+# und übernimmt die bisherige oberste Ebene als schemas["1"], damit beide
+# Darstellungen übereinstimmen. Hat diese oberste Ebene eine andere
+# Schemaversion als 1, bricht es ab.
 #
 # Ob das Release veröffentlicht werden darf (Version, Vorgänger), prüft
 # core/check_publishable.sh vorher; dieses Skript schreibt nur.
@@ -81,6 +82,16 @@ done
 [[ -n "$SHA256" ]] || plugin_fail "--sha256 ist erforderlich."
 [[ -n "$PUBLISHED_AT" ]] || plugin_fail "--published-at ist erforderlich."
 
+# Ohne "schemas" wird die oberste Ebene schemas["<ihre Schemaversion>"] und
+# bleibt oben stehen. Dort darf nur ein Release mit Schemaversion 1 stehen:
+# Ältere Apps lesen allein sie und lehnen jede andere ab.
+if ! jq -e 'has("schemas")' "$MANIFEST" > /dev/null; then
+    top_schema="$(jq -r '.schemaVersion' "$MANIFEST")" \
+        || plugin_fail "Manifest ist kein lesbares JSON: $MANIFEST"
+    [[ "$top_schema" == 1 ]] \
+        || plugin_fail "Die oberste Ebene von $MANIFEST hat Schemaversion $top_schema, erlaubt ist nur 1 (für Apps, die \"schemas\" nicht kennen). Manifest von Hand richtigstellen."
+fi
+
 updated="$(mktemp "$MANIFEST.XXXXXX")"
 trap 'rm -f "$updated"' EXIT
 
@@ -93,11 +104,7 @@ jq \
     --arg publishedAt "$PUBLISHED_AT" '
     {version: $version, url: $url, sha256: $sha256,
      compressedSizeBytes: $size, publishedAt: $publishedAt} as $release
-    | if has("schemas") then .
-      elif (.schemaVersion | type) != "number" then
-          error("ohne schemas und ohne schemaVersion auf der obersten Ebene")
-      else .schemas = {(.schemaVersion | tostring): del(.schemaVersion)}
-      end
+    | if has("schemas") then . else .schemas = {"1": del(.schemaVersion)} end
     | .schemas[$schema | tostring] = $release
     | .schemas |= (to_entries | sort_by(.key | tonumber) | from_entries)
     | if $schema == 1 then . + $release + {schemaVersion: 1} else . end

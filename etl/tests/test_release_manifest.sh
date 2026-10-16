@@ -155,6 +155,21 @@ test_manifest_update_then_newest_finds_schema_2_release() {
     assert_eq "3 2 sha-v3" "$(jq -r '"\(.version) \(.schemaVersion) \(.sha256)"' <<< "$OUT")" "Release"
 }
 
+# Oben steht immer ein Release mit Schemaversion 1; eine flache oberste Ebene
+# mit einer anderen wiese ältere Apps ab. Das Skript repariert sie nicht
+# stillschweigend.
+test_manifest_update_rejects_flat_top_level_of_other_schema() {
+    write_flat_manifest
+    jq '.schemaVersion = 2' "$TEST_TMP/manifest.json" > "$TEST_TMP/m.json"
+    mv "$TEST_TMP/m.json" "$TEST_TMP/manifest.json"
+    local before
+    before="$(cat "$TEST_TMP/manifest.json")"
+    manifest_update 2 3
+    assert_status 1
+    assert_contains "$ERR" "Die oberste Ebene von $TEST_TMP/manifest.json hat Schemaversion 2, erlaubt ist nur 1"
+    assert_eq "$before" "$(cat "$TEST_TMP/manifest.json")" "Manifest unverändert"
+}
+
 test_manifest_update_rejects_bad_arguments() {
     write_flat_manifest
     run_capture "$ETL_DIR/core/manifest_update.sh" --manifest "$TEST_TMP/manifest.json" \
