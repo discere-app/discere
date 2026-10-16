@@ -73,23 +73,6 @@ class FlashcardStatRepository {
     return maps.map((map) => FlashcardStat.fromMap(map)).toList();
   }
 
-  Future<List<DateTime?>> getAllNextReviewDates() async {
-    final db = await _database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'flashcard_stats',
-      columns: ['next_review_date'],
-    );
-    return maps
-        .map(
-          (map) => map['next_review_date'] != null
-              ? DateTime.fromMillisecondsSinceEpoch(
-                  map['next_review_date'] as int,
-                )
-              : null,
-        )
-        .toList();
-  }
-
   Future<void> deleteFlashcardStats(
     String deckId,
     Set<String> speciesIds,

@@ -1,7 +1,6 @@
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
-import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/review_reminder_planner.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
@@ -17,7 +16,6 @@ import 'package:discere/shared/util/logger.dart';
 /// (`FlashcardReviewService`).
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);
-  final FlashcardStatRepository _flashcardStatRepository;
   final AnswerableCardsService _answerableCards;
   final NotificationService _notificationService;
   final DeckConfigRepository? _deckConfigRepository;
@@ -25,7 +23,6 @@ class FlashcardService {
   static const ReviewReminderPlanner _reminderPlanner = ReviewReminderPlanner();
 
   const FlashcardService(
-    this._flashcardStatRepository,
     this._notificationService, {
     required AnswerableCardsService answerableCards,
     DeckConfigRepository? deckConfigRepository,
@@ -79,8 +76,7 @@ class FlashcardService {
   }) async {
     // DeckPage.dispose() calls this without awaiting it.
     await runToleratingClosedDatabase(_log, () async {
-      final nextReviewDates = await _flashcardStatRepository
-          .getAllNextReviewDates();
+      final nextReviewDates = await _answerableCards.reviewDatesOfCards();
 
       await _notificationService.cancelAllScheduled();
       if (!await _notificationService.hasPermission()) return;

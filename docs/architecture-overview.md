@@ -543,14 +543,19 @@ can change it, so `AnswerableCardsService` (`lib/learning/service/`) works it
 out for every question instead of storing it — from the deck's species and
 `TaxonAssignmentRepository`'s ids and placeholder flags of their chain, not
 from full species. Species mode asks nothing a species could lack and costs
-no query. The rows stay: deleting them would drop a species with rows only in
-that mode from the deck. Instead a session start resets the mode's rows of
-such species to uninitialized (`FlashcardReviewService._prepareCards`, inside
-`UserDataWrites.run`), only in that mode, so a review date from when the
-species was still asked as "Not assigned" disappears and the species starts
-fresh should it gain an answer. Until that reset, `AnswerableCardsService.deckStat`
-counts from the rows of the species with an answer rather than from all of
-them.
+no query.
+
+Such rows are only left out when read, never changed or deleted. They are
+what makes the species a member of the deck, and a row reviewed before the
+species lost its answer may carry a real learning state — a release whose
+data drops a rank by mistake must not cost it, and once the species has an
+answer again it carries on from that state. So card sourcing skips them
+(`getUninitializedStats` reads past them, the due cards are filtered),
+`AnswerableCardsService.deckStat` counts from the rows of the species with an
+answer, and reminders count `AnswerableCardsService.reviewDatesOfCards`: per
+deck only the rows of its active learning mode and name type, without the
+species that have no answer in it — one user-DB query across all decks, plus
+one reference-DB lookup when some deck is in genus or family mode.
 
 ### Key Parameters (per deck, configurable)
 
@@ -602,9 +607,9 @@ drift out of sync as the pipeline keeps changing.
 ### 7.2 Review Session
 
 1. `FlashcardReviewService.getFlashCardsForReview(deckId)` seeds the rows of
-   the deck's learning mode and resets those of species without an answer in
-   it (§6, "Cards without an answer"), queries `flashcard_stats` for due
-   cards, then hands the whole species set to
+   the deck's learning mode, queries `flashcard_stats` for due cards, leaving
+   out the species without an answer in the mode (§6, "Cards without an
+   answer"), then hands the whole species set to
    `SpeciesMediaService.resolveAllFromCache` — one species load, one
    photo-cache read and one path resolution per storage directory for the
    entire session, so the time to the first card does not depend on how many

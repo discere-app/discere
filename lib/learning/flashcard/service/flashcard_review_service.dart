@@ -62,16 +62,18 @@ class FlashcardReviewService {
     DeckConfig config,
   ) async {
     final currentDate = DateTime.now();
-    // A species without an answer in the mode is reset to uninitialized
-    // here, so it is never due below.
-    await _prepareCards(deckId, config);
-    final List<FlashcardStat> statsForReview = await _flashcardStatRepository
-        .getFlashcardStatsForReview(
-          deckId,
-          currentDate,
-          config.learningMode,
-          config.nameType,
-        );
+    final withoutAnswer = await _prepareCards(deckId, config);
+    // A row without an answer may still carry a review date from before the
+    // species lost its answer; it stays as it is, and is no card.
+    final statsForReview =
+        (await _flashcardStatRepository.getFlashcardStatsForReview(
+              deckId,
+              currentDate,
+              config.learningMode,
+              config.nameType,
+            ))
+            .where((stat) => !withoutAnswer.contains(stat.speciesId))
+            .toList();
 
     if (statsForReview.isEmpty) {
       return [];
@@ -169,21 +171,17 @@ class FlashcardReviewService {
     );
   }
 
-  /// Seeds a row of [config]'s mode for every species of the deck and
-  /// resets the rows of those without an answer in it, which are no card
-  /// (see [AnswerableCardsService]); returns those species.
-  Future<Set<String>> _prepareCards(String deckId, DeckConfig config) =>
-      _writes.run(() async {
-        await _flashcardStatRepository.ensureStatsForLearningMode(
-          deckId,
-          config.learningMode,
-          config.nameType,
-        );
-        return _answerableCards.resetCardsWithoutAnswer(
-          deckId,
-          config.learningMode,
-        );
-      });
+  /// Seeds a row of [config]'s mode for every species of the deck, and
+  /// returns the species without an answer in it, which are no card (see
+  /// [AnswerableCardsService]).
+  Future<Set<String>> _prepareCards(String deckId, DeckConfig config) async {
+    await _flashcardStatRepository.ensureStatsForLearningMode(
+      deckId,
+      config.learningMode,
+      config.nameType,
+    );
+    return _answerableCards.speciesWithoutAnswer(deckId, config.learningMode);
+  }
 
   /// Grades a single card. Does not touch notification scheduling — callers
   /// reviewing multiple cards in a row (e.g. a review session) should call

@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
@@ -9,9 +10,12 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 ///
 /// A species without an answer in the mode ([LearningMode.hasNoAnswerFor]) —
 /// no genus in genus mode, no family or a placeholder family in family mode
-/// — is no card there: never initialized, never counted, never due. Its rows
-/// stay, because rows are what makes it a member of the deck, and a species
-/// with rows only in this mode would otherwise drop out of it entirely.
+/// — is no card there: never initialized, never counted, never due, never
+/// in a reminder. Its rows are only left out when read, never changed: they
+/// are what makes it a member of the deck, and a row reviewed before the
+/// species lost its answer carries a learning state that may well be real —
+/// a release whose data drops a rank by mistake must not cost it. Should
+/// the species gain an answer again, it carries on from that state.
 ///
 /// Which species these are is the reference database's answer, and a new
 /// reference database can change it. So it is worked out again for every
@@ -43,9 +47,8 @@ class AnswerableCardsService {
   /// an answer in [learningMode].
   ///
   /// Counted from the mode's rows themselves once some species are left
-  /// out: a row of such a species may still carry a review date from before
-  /// it lost its answer, until the next session resets it, and must not
-  /// count as initialized or due meanwhile.
+  /// out: a row of such a species may carry a review date from before it
+  /// lost its answer, and must not count as initialized or due.
   Future<DeckStat> deckStat(
     String deckId, {
     required LearningMode learningMode,
@@ -80,18 +83,31 @@ class AnswerableCardsService {
     return DeckStat(cards.length, cards.length - initialized, due);
   }
 
-  /// Resets every row of [deckId] for [learningMode] whose species has no
-  /// answer in it — a review date from before it lost its answer, or from
-  /// when it was asked as "Not assigned" — and returns those species. Rows
-  /// of other modes are not touched: the species may well have an answer
-  /// there.
-  Future<Set<String>> resetCardsWithoutAnswer(
-    String deckId,
-    LearningMode learningMode,
-  ) async {
-    final withoutAnswer = await speciesWithoutAnswer(deckId, learningMode);
-    await _modeStats.resetStats(deckId, learningMode, withoutAnswer);
-    return withoutAnswer;
+  /// The review dates a reminder counts, across all decks: those of the
+  /// cards of each deck's active learning mode and name type. A row of a
+  /// mode the deck is not in, or of a species without an answer in it, is
+  /// no card due.
+  ///
+  /// Runs whenever a session ends, for every deck at once, so it costs one
+  /// query on the user database and, only when some deck is in genus or
+  /// family mode, one lookup of those decks' species in the reference
+  /// database.
+  Future<List<DateTime>> reviewDatesOfCards() async {
+    final rows = await _modeStats.getActiveModeReviewDates();
+    final asking = {
+      for (final row in rows)
+        if (row.learningMode.askedRank != null) row.speciesId,
+    };
+    final unassigned = asking.isEmpty
+        ? const <String, Set<TaxonRank>>{}
+        : await _assignments.unassignedRanksOf(asking);
+    return [
+      for (final row in rows)
+        if (!row.learningMode.hasNoAnswerGiven(
+          unassigned[row.speciesId] ?? const {},
+        ))
+          row.due,
+    ];
   }
 
   Future<Set<String>> _withoutAnswerAmong(

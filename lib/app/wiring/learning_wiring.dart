@@ -242,7 +242,6 @@ buildLearningReviewServices({
   required UserPreferencesService userPreferencesService,
 }) {
   final flashcardService = FlashcardService(
-    deckServices.flashcardStatRepository,
     notificationService,
     answerableCards: deckServices.answerableCardsService,
     deckConfigRepository: deckServices.deckConfigRepository,

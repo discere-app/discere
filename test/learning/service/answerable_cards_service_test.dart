@@ -51,6 +51,7 @@ void main() {
   late AnswerableCardsService answerableCards;
   late MockSpeciesMediaService media;
   late FlashcardReviewService review;
+  late String amphiprionFamily;
 
   Future<void> addRows(Set<String> speciesIds, LearningMode mode) =>
       stats.insertOrUpdateFlashcardStats({
@@ -88,6 +89,14 @@ void main() {
     final path = p.join(tempDir.path, 'reference.db');
     await File('test/fixtures/discere_reference_test.db').copy(path);
     referenceDb = await databaseFactoryFfi.openDatabase(path);
+    amphiprionFamily =
+        (await referenceDb.query(
+              'genera',
+              columns: ['family'],
+              where: 'id = ?',
+              whereArgs: ['discere:genus:5106'],
+            )).single['family']
+            as String;
     await referenceDb.update(
       'genera',
       {'family': null},
@@ -198,15 +207,15 @@ void main() {
       contains(_placeholderFamily),
     );
     final row = await rowOf(_placeholderFamily, LearningMode.family);
-    expect(row, isNotNull);
-    expect(row!.nextReviewDate, isNull);
+    expect(row!.nextReviewDate, DateTime(2026, 9, 3));
+    expect(row.stability, 4.2);
   });
 
-  test('a scheduled row without an answer is not counted while it waits for '
-      'its reset', () async {
-    await addRows(_sharks, LearningMode.family);
+  test('a scheduled row without an answer is neither counted nor handed out, '
+      'and keeps its learning state', () async {
     await stats.insertOrUpdateFlashcardStats({
       reviewed(_noFamily, LearningMode.family),
+      reviewed('discere:species:694', LearningMode.family),
     });
 
     final stat = await answerableCards.deckStat(
@@ -214,37 +223,60 @@ void main() {
       learningMode: LearningMode.family,
       nameType: NameType.commonName,
     );
+    await review.getFlashCardsForReview(_deckId, _family);
 
     expect(
       (stat.totalCount, stat.uninitializedCount, stat.dueCount),
-      (3, 3, 0),
+      (3, 2, 1),
     );
+    verify(media.resolveAllFromCache({'discere:species:694'})).called(1);
+    final kept = await rowOf(_noFamily, LearningMode.family);
+    expect(kept!.nextReviewDate, DateTime(2026, 9, 3));
+    expect(kept.lastReviewDate, DateTime(2026, 9, 1));
+    expect((kept.stability, kept.difficulty), (4.2, 5.1));
+    expect(kept.cardState, CardState.review);
   });
 
-  test('a session resets a scheduled row without an answer and leaves a row '
-      'with an answer as it is', () async {
+  test('a species that gains its answer again carries on from its stored '
+      'learning state', () async {
     await stats.insertOrUpdateFlashcardStats({
       reviewed(_noFamily, LearningMode.family),
-      reviewed(_noFamily, LearningMode.species),
-      reviewed('discere:species:694', LearningMode.family),
     });
+    await referenceDb.update(
+      'genera',
+      {'family': amphiprionFamily},
+      where: 'id = ?',
+      whereArgs: ['discere:genus:5106'],
+    );
 
+    final stat = await answerableCards.deckStat(
+      _deckId,
+      learningMode: LearningMode.family,
+      nameType: NameType.commonName,
+    );
     await review.getFlashCardsForReview(_deckId, _family);
 
-    final reset = await rowOf(_noFamily, LearningMode.family);
-    expect(reset!.nextReviewDate, isNull);
-    expect(reset.lastReviewDate, isNull);
-    expect((reset.stability, reset.difficulty), (0.0, 0.0));
-    expect(reset.cardState, CardState.newCard);
-    for (final (speciesId, mode) in [
-      (_noFamily, LearningMode.species),
-      ('discere:species:694', LearningMode.family),
-    ]) {
-      final kept = await rowOf(speciesId, mode);
-      expect(kept!.nextReviewDate, DateTime(2026, 9, 3), reason: '$mode');
-      expect(kept.stability, 4.2, reason: '$mode');
-      expect(kept.cardState, CardState.review, reason: '$mode');
-    }
+    expect(
+      (stat.totalCount, stat.uninitializedCount, stat.dueCount),
+      (4, 3, 1),
+    );
+    verify(media.resolveAllFromCache({_noFamily})).called(1);
+    expect((await rowOf(_noFamily, LearningMode.family))!.stability, 4.2);
+  });
+
+  test('reminders count only the cards of each deck\'s active mode, without '
+      'the species that have no answer in it', () async {
+    await userDb.insert('deck_config', {
+      'deck_id': _deckId,
+      'learning_mode': LearningMode.family.storageValue,
+    });
+    await stats.insertOrUpdateFlashcardStats({
+      reviewed(_noFamily, LearningMode.family),
+      reviewed('discere:species:694', LearningMode.family),
+      reviewed('discere:species:834', LearningMode.species),
+    });
+
+    expect(await answerableCards.reviewDatesOfCards(), [DateTime(2026, 9, 3)]);
   });
 
   test('batches of one initialize every species with an answer, however '

@@ -4,16 +4,12 @@ import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// A deck's `flashcard_stats` rows of one learning mode, taken as a whole:
-/// which to initialize next, when each is due, and resetting some of them —
-/// what leaving out the species without an answer in the mode takes (see
-/// `AnswerableCardsService`). The per-card reads and writes are
-/// `FlashcardStatRepository`'s.
+/// `flashcard_stats` rows of a learning mode, taken as a whole: which of a
+/// deck's to initialize next, when each is due, and which across all decks
+/// a reminder counts — what leaving out the species without an answer in
+/// the mode takes (see `AnswerableCardsService`). The per-card reads and
+/// writes are `FlashcardStatRepository`'s.
 class FlashcardStatModeRepository {
-  /// Below SQLite's oldest limit on bound parameters, with room for the
-  /// deck and mode next to the species.
-  static const _chunkSize = 900;
-
   final Database? _injectedDb;
 
   FlashcardStatModeRepository({Database? database}) : _injectedDb = database;
@@ -74,34 +70,34 @@ class FlashcardStatModeRepository {
         .toSet();
   }
 
-  /// Returns the rows of [speciesIds] in [deckId] for [learningMode] — of
-  /// every name type, none of another mode — to uninitialized: no review
-  /// date, no FSRS state. A row that already is stays untouched. One
-  /// transaction, so a reset is never half done.
-  Future<void> resetStats(
-    String deckId,
-    LearningMode learningMode,
-    Set<String> speciesIds,
-  ) async {
-    if (speciesIds.isEmpty) return;
+  /// The review date of every initialized row, across all decks, that
+  /// belongs to its deck's active learning mode and name type — the rows a
+  /// reminder can be about. A deck without a configuration row counts in the
+  /// defaults `deck_config` would give it.
+  Future<List<({String speciesId, LearningMode learningMode, DateTime due})>>
+  getActiveModeReviewDates() async {
     final db = await _database;
-    final ids = speciesIds.toList(growable: false);
-    await db.transaction((txn) async {
-      for (var start = 0; start < ids.length; start += _chunkSize) {
-        final chunk = ids.skip(start).take(_chunkSize).toList();
-        await txn.rawUpdate(
-          '''
-          UPDATE flashcard_stats
-          SET next_review_date = NULL, last_review_date = NULL,
-            stability = 0.0, difficulty = 0.0,
-            card_state = ${CardState.newCard.index}, step_index = 0
-          WHERE deck_id = ? AND learning_mode = ?
-            AND (next_review_date IS NOT NULL OR last_review_date IS NOT NULL)
-            AND species_id IN (${List.filled(chunk.length, '?').join(', ')})
-          ''',
-          [deckId, learningMode.storageValue, ...chunk],
-        );
-      }
-    });
+    final rows = await db.rawQuery('''
+      SELECT s.species_id, s.learning_mode, s.next_review_date
+      FROM flashcard_stats s
+      LEFT JOIN deck_config c ON c.deck_id = s.deck_id
+      WHERE s.next_review_date IS NOT NULL
+        AND s.learning_mode =
+          COALESCE(c.learning_mode, '${LearningMode.species.storageValue}')
+        AND s.name_type =
+          COALESCE(c.name_type, '${NameType.commonName.storageValue}')
+    ''');
+    return [
+      for (final row in rows)
+        (
+          speciesId: row['species_id'] as String,
+          learningMode: LearningMode.fromStorage(
+            row['learning_mode'] as String?,
+          ),
+          due: DateTime.fromMillisecondsSinceEpoch(
+            row['next_review_date'] as int,
+          ),
+        ),
+    ];
   }
 }
