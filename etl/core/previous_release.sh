@@ -8,10 +8,12 @@
 #
 # Ausgabe (stdout): Pfad zur Referenz-DB des Vorgängers. Die Identitäts-Stage
 # (core/identity.sh) übernimmt daraus Register und Aliase. Neben einer
-# heruntergeladenen DB liegt manifest.json, das Manifest, aus dem sie stammt.
+# heruntergeladenen DB liegt manifest.json: ihr Eintrag aus dem Manifest,
+# flach in der Form der obersten Ebene (version, schemaVersion, url, sha256).
 #
-# Ohne --path liest das Skript das Manifest (Version, URL, sha256), lädt die
-# .gz, prüft die Prüfsumme und entpackt sie nach
+# Ohne --path nimmt das Skript das neueste Release des Manifests, über alle
+# Schemaversionen (core/manifest_newest.sh), lädt dessen .gz, prüft die
+# Prüfsumme und entpackt sie nach
 # <cache-dir>/v<version>/discere_reference.db. Ein Eintrag im Cache wird
 # wiederverwendet, solange das Manifest dieselbe Prüfsumme nennt und die
 # entpackte DB die beim Entpacken gemerkte Prüfsumme hat.
@@ -24,8 +26,9 @@
 # Umgebungsvariablen:
 #   DISCERE_RELEASE_MANIFEST_URL  Entspricht --manifest-url
 #
-# Bricht ab, wenn kein gültiges Release bereitsteht: ohne lesbares Manifest,
-# bei falscher Prüfsumme oder wenn die DB keine Referenz-DB ist.
+# Bricht ab, wenn kein gültiges Release bereitsteht: ohne lesbares Manifest
+# oder ohne Release darin, bei falscher Prüfsumme oder wenn die DB keine
+# Referenz-DB ist.
 # =============================================================================
 
 set -Eeuo pipefail
@@ -47,7 +50,7 @@ while [[ $# -gt 0 ]]; do
         --cache-dir)    CACHE_DIR="$2"; shift ;;
         --manifest-url) MANIFEST_URL="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 28
+            plugin_print_help_from_header "$0" 2 30
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -88,13 +91,14 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 
 curl --silent --show-error --location --fail --output "$WORK_DIR/manifest.json" "$MANIFEST_URL" \
     || plugin_fail "Manifest nicht lesbar: $MANIFEST_URL"
-version="$(jq -er '.version' "$WORK_DIR/manifest.json")" \
-    || plugin_fail "Manifest ohne version: $MANIFEST_URL"
-url="$(jq -er '.url' "$WORK_DIR/manifest.json")" \
-    || plugin_fail "Manifest ohne url: $MANIFEST_URL"
-sha256="$(jq -er '.sha256' "$WORK_DIR/manifest.json")" \
-    || plugin_fail "Manifest ohne sha256: $MANIFEST_URL"
-[[ "$version" =~ ^[0-9]+$ ]] || plugin_fail "Manifest-Version ist keine Zahl: $version"
+# Der Vorgänger ist das neueste Release überhaupt, nicht die oberste Ebene:
+# Die nennt nach einem Release mit Schemaversion 2 weiter das ältere mit 1,
+# und ein Build dagegen ließe die Aliase des neueren aus.
+"$CORE_DIR/manifest_newest.sh" --manifest "$WORK_DIR/manifest.json" > "$WORK_DIR/release.json" \
+    || plugin_fail "Kein Release im Manifest: $MANIFEST_URL"
+version="$(jq -r '.version' "$WORK_DIR/release.json")"
+url="$(jq -r '.url' "$WORK_DIR/release.json")"
+sha256="$(jq -r '.sha256' "$WORK_DIR/release.json")"
 
 release_dir="$CACHE_DIR/v$version"
 release_db="$release_dir/discere_reference.db"
@@ -133,10 +137,10 @@ else
     plugin_log "Vorgänger v$version zwischengespeichert: $release_db"
 fi
 
-# Das Manifest neben der DB nennt Version und Prüfsumme des Vorgängers;
-# build.sh vermerkt beides in der neuen DB, publish_release.sh vergleicht es
-# mit dem dann veröffentlichten Release.
-cp "$WORK_DIR/manifest.json" "$release_dir/manifest.json"
+# Der Eintrag neben der DB nennt Version und Prüfsumme des Vorgängers;
+# build.sh vermerkt beides in der neuen DB, core/check_publishable.sh
+# vergleicht es mit dem dann neuesten veröffentlichten Release.
+cp "$WORK_DIR/release.json" "$release_dir/manifest.json"
 
 require_reference_db "$release_db"
 echo "$release_db"

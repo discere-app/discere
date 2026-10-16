@@ -9,12 +9,21 @@
 # lib/shared/persistence/reference_database_provisioner.dart and
 # https://github.com/discere-app/discere/issues/54).
 #
+# The manifest names, under "schemas", the newest release of every schema
+# version, keyed by that version; its top level is always the newest
+# schema-1 release, for app builds that predate "schemas". Every app takes
+# the newest release it can read, so a schema change needs no particular
+# order of app and release rollout. This script sets the entry of the
+# release's schema and, for schema 1 only, the top level as well
+# (core/manifest_update.sh).
+#
 # Run manually after ./etl/build.sh has produced a fresh
 # assets/database/discere_reference.db. Only a complete, validated build
 # against the release that is published right now, under a higher version
 # than that release, is accepted (core/check_publishable.sh): a partial
 # build, a --no-enrich or --initial build, one against an older predecessor,
-# or a --version not above the published one is refused. Not part of CI — reference-DB
+# or a --version not above the published one is refused. "Published" means
+# the newest release of any schema (core/manifest_newest.sh). Not part of CI — reference-DB
 # updates are infrequent and this mirrors discere-data's existing manual
 # publish pattern (scripts/generate-index.sh).
 #
@@ -24,10 +33,11 @@
 #     --source /path/to/discere_reference.db --data-repo ../discere-data
 #
 # Flags:
-#   --version <int>         New manifest "version" (data content version).
-#                            Bump whenever the DB content changes; must
-#                            be greater than the published version.
-#                            The manifest's "schemaVersion" is not a flag:
+#   --version <int>         New release "version" (data content version),
+#                            one counter across all schemas. Bump whenever
+#                            the DB content changes; must be greater than
+#                            the newest published version.
+#                            The release's schema version is not a flag:
 #                            core/schema_version.sh derives it from the DB
 #                            (2 for IDs without source plus register and
 #                            aliases, 1 for IDs with source). A wrong value
@@ -67,7 +77,7 @@ while [[ $# -gt 0 ]]; do
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,53p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
@@ -147,18 +157,12 @@ log "Hochgeladen: $ASSET_URL"
 
 MANIFEST_DIR="$DATA_REPO/data/reference-db"
 MANIFEST_FILE="$MANIFEST_DIR/manifest.json"
-mkdir -p "$MANIFEST_DIR"
 
 PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-jq -n \
-    --argjson version "$VERSION" \
-    --argjson schemaVersion "$SCHEMA_VERSION" \
-    --arg url "$ASSET_URL" \
-    --arg sha256 "$CHECKSUM" \
-    --argjson compressedSizeBytes "$SIZE_BYTES" \
-    --arg publishedAt "$PUBLISHED_AT" \
-    '{version: $version, schemaVersion: $schemaVersion, url: $url, sha256: $sha256, compressedSizeBytes: $compressedSizeBytes, publishedAt: $publishedAt}' \
-    > "$MANIFEST_FILE"
+"$SCRIPT_DIR/core/manifest_update.sh" --manifest "$MANIFEST_FILE" \
+    --schema "$SCHEMA_VERSION" --version "$VERSION" --url "$ASSET_URL" \
+    --sha256 "$CHECKSUM" --size "$SIZE_BYTES" --published-at "$PUBLISHED_AT" \
+    || fail "Manifest nicht fortschreibbar: $MANIFEST_FILE"
 
 log "Geschrieben: $MANIFEST_FILE"
 
@@ -168,7 +172,7 @@ if [[ -z "$(git -C "$DATA_REPO" status --porcelain -- "$MANIFEST_DIR")" ]]; then
 fi
 
 git -C "$DATA_REPO" add "$MANIFEST_DIR"
-git -C "$DATA_REPO" commit -m "chore: publish reference-db v$VERSION"
+git -C "$DATA_REPO" commit -m "chore: publish reference-db v$VERSION (schema $SCHEMA_VERSION)"
 
 log "Pushe discere-data github/main..."
 git -C "$DATA_REPO" push github main

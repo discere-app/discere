@@ -19,6 +19,20 @@ publish_mini_release() {
         > "$TEST_TMP/published/manifest.json"
 }
 
+# Wie publish_mini_release, aber als Release v8 mit Schemaversion 2, das nur
+# unter schemas["2"] steht. Die oberste Ebene und schemas["1"] nennen ein
+# älteres Release v7 mit Schemaversion 1, dessen Datei es nicht gibt.
+# Ersetzt ein schon veröffentlichtes Mini-Release.
+publish_schema_2_release() {
+    rm -rf "$TEST_TMP/ref.db" "$TEST_TMP/published"
+    publish_mini_release 8
+    jq '{version: 7, schemaVersion: 1, url: "file:///nicht/vorhanden/v7.gz", sha256: "sha-v7"}
+        + {schemas: {"1": {version: 7, url: "file:///nicht/vorhanden/v7.gz", sha256: "sha-v7"},
+                     "2": {version: 8, url: .url, sha256: .sha256}}}' \
+        "$TEST_TMP/published/manifest.json" > "$TEST_TMP/manifest.json"
+    mv "$TEST_TMP/manifest.json" "$TEST_TMP/published/manifest.json"
+}
+
 previous_release() {
     run_capture "$ETL_DIR/core/previous_release.sh" --cache-dir "$TEST_TMP/cache" \
         --manifest-url "file://$TEST_TMP/published/manifest.json" "$@"
@@ -51,6 +65,20 @@ test_previous_release_reloads_modified_cache() {
     assert_eq "Amphiprion" "$(sqlite3 "$OUT" "SELECT name FROM genera;")" "Inhalt"
     previous_release
     assert_contains "$ERR" "Vorgänger v7 aus dem Cache"
+}
+
+# Der Vorgänger ist das neueste Release über alle Schemaversionen, nicht die
+# oberste Ebene. Neben der DB liegt sein Eintrag flach, so wie build.sh ihn
+# liest.
+test_previous_release_takes_newest_release_across_schemas() {
+    publish_schema_2_release
+    previous_release
+    assert_status 0
+    assert_eq "$TEST_TMP/cache/v8/discere_reference.db" "$OUT" "Pfad"
+    assert_eq "Amphiprion" "$(sqlite3 "$OUT" "SELECT name FROM genera;")" "Inhalt"
+    assert_eq "8 2 $(jq -r '.schemas["2"].sha256' "$TEST_TMP/published/manifest.json")" \
+        "$(jq -r '"\(.version) \(.schemaVersion) \(.sha256)"' "$TEST_TMP/cache/v8/manifest.json")" \
+        "Eintrag neben der DB"
 }
 
 test_previous_release_rejects_wrong_checksum() {

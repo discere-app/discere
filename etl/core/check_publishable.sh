@@ -5,15 +5,18 @@
 # Usage:
 #   ./core/check_publishable.sh --db <db> --manifest <manifest.json> --version <int>
 #
-# --manifest ist das Manifest des zurzeit veröffentlichten Releases
-# (publish_release.sh: data/reference-db/manifest.json im discere-data-
-# Checkout, frisch gepullt). --version ist die Version, unter der die DB
-# erscheinen soll; sie muss größer sein als die veröffentlichte, denn die
-# App lädt nur eine höhere Version als die installierte.
+# --manifest ist das veröffentlichte Manifest (publish_release.sh:
+# data/reference-db/manifest.json im discere-data-Checkout, frisch gepullt).
+# Maßgeblich ist sein neuestes Release über alle Schemaversionen
+# (core/manifest_newest.sh), nicht die oberste Ebene: Die nennt nach einem
+# Release mit Schemaversion 2 weiter das ältere mit 1. --version ist die
+# Version, unter der die DB erscheinen soll; sie muss größer sein als die des
+# neuesten Releases, denn version zählt über alle Schemas, und die App lädt
+# nur eine höhere Version als die installierte.
 #
 # Ein Release entsteht nur aus einem vollständigen Build gegen genau dieses
-# Release (docs/datenquellen.md, Lebenszyklus). build.sh vermerkt dazu in
-# metadata:
+# neueste Release (docs/datenquellen.md, Lebenszyklus). build.sh vermerkt
+# dazu in metadata:
 #   build_scope              — complete, oder incomplete: <Gründe> (Teilbuild,
 #                              --no-enrich, --initial, lokaler Vorgänger)
 #   build_previous_version,
@@ -48,7 +51,7 @@ while [[ $# -gt 0 ]]; do
         --manifest) MANIFEST="$2"; shift ;;
         --version)  VERSION="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 30
+            plugin_print_help_from_header "$0" 2 33
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -71,13 +74,15 @@ scope="$(metadata build_scope)"
 [[ "$scope" == complete ]] || plugin_fail "Kein vollständiger Build: $scope"
 [[ "$(metadata build_validated)" == true ]] || plugin_fail "Der Build hat die Validierung nicht bestanden."
 
-published_version="$(jq -er '.version' "$MANIFEST")" || plugin_fail "Manifest ohne version: $MANIFEST"
-published_sha256="$(jq -er '.sha256' "$MANIFEST")" || plugin_fail "Manifest ohne sha256: $MANIFEST"
+newest="$("$CORE_DIR/manifest_newest.sh" --manifest "$MANIFEST")" \
+    || plugin_fail "Kein Release im Manifest: $MANIFEST"
+published_version="$(jq -r '.version' <<< "$newest")"
+published_sha256="$(jq -r '.sha256' <<< "$newest")"
 previous_version="$(metadata build_previous_version)"
 previous_sha256="$(metadata build_previous_sha256)"
 [[ "$previous_version" == "$published_version" && "$previous_sha256" == "$published_sha256" ]] \
-    || plugin_fail "Gebaut gegen Vorgänger v$previous_version ($previous_sha256), veröffentlicht ist v$published_version ($published_sha256). Neu bauen."
+    || plugin_fail "Gebaut gegen Vorgänger v$previous_version ($previous_sha256), das neueste veröffentlichte ist v$published_version ($published_sha256). Neu bauen."
 (( 10#$VERSION > published_version )) \
-    || plugin_fail "Version v$VERSION ist nicht größer als die veröffentlichte v$published_version. Die App lädt nur eine höhere Version; --version erhöhen."
+    || plugin_fail "Version v$VERSION ist nicht größer als die des neuesten veröffentlichten Releases v$published_version. Die App lädt nur eine höhere Version; --version erhöhen."
 
-plugin_log "Vollständiger Build gegen das veröffentlichte Release v$published_version — darf als v$VERSION veröffentlicht werden."
+plugin_log "Vollständiger Build gegen das neueste veröffentlichte Release v$published_version — darf als v$VERSION veröffentlicht werden."
