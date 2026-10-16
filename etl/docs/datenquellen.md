@@ -88,7 +88,8 @@ Einen Besitzer, der eine Entität exklusiv hält, gibt es nicht.
   Entitäten liefert (`placement_priority`), ist deshalb nie optional;
   `core/validate_plugin.sh` lehnt beides zusammen ab. Ein Build mit
   `--no-enrich` ist für Tests da: Ihm fehlen iNaturalist-IDs und
-  Ortszuordnungen, er besteht die Validierung nicht und wird kein Release.
+  Ortszuordnungen. Die Validierung prüft deren Mindestzahlen dann nicht
+  (`etl/README.md`, Validierung), der Build wird aber kein Release.
 
 ### Rangfolge
 

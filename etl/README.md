@@ -30,13 +30,14 @@ build.sh                       ← Orchestrator
 │   ├── identity.sh            ← Identitäts-Stage: endgültige IDs, Register, Aliase
 │   ├── reference_columns.sh   ← Spalten, die auf Entitäten verweisen
 │   ├── check_references.sh    ← Verweise am Ende des Builds prüfen
+│   ├── validate.sh            ← Mindestzahlen und Invarianten am Ende des Builds
 │   ├── report_summary.sh      ← Zusammenfassung des Build-Berichts
 │   └── sql/
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
 │       ├── match.sql          ← Regeln des Abgleichs
 │       ├── identity_*.sql     ← Schritte der Identitäts-Stage
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
-│       └── validate.sql       ← Mindest-Zeilenzahlen
+│       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten
 ├── cache/releases/           ← Vorgänger-Releases je Version (gitignored)
 ├── plugins/
 │   ├── fishbase/
@@ -79,12 +80,38 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | 03 | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
 | 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
 | — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
-| 05 | `core/check_references.sh`, `core/sql/validate.sql` | Verweise auf Entitäten und Mindestzahlen prüfen |
+| 05 | `core/check_references.sh`, `core/validate.sh` | Verweise auf Entitäten, Mindestzahlen und Invarianten prüfen |
 
 Der Build-Bericht liegt neben der Ausgabe-DB in `<db ohne Endung>.build-report/`,
 je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
 Identitäts-Stage schreibt unter `identity` (mehrdeutige Abgleiche,
 abweichende Einordnung zusammengeführter Arten).
+
+### Validierung
+
+`core/validate.sh` führt `core/sql/validate.sql` aus. Jede Zeile ist
+`tbl | n | min | requires` und schlägt fehl, wenn `n < min`. `requires` ist
+Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
+
+- `always` — Invariante (ID-Format, ID-Register, `species_name_lookup`), gilt
+  für jeden Build;
+- `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
+- `<plugin>[,<plugin>]` — alle genannten Plugins. Eine Mindestzahl nennt die
+  Plugins, deren Zeilen sie allein erreichen (gemessen an refdb-v2): die
+  meisten `fishbase`; deutsche Namen, Merkmale und Verbreitung brauchen
+  `fishbase,sealifebase`.
+
+`build.sh` übergibt jedes ausgeführte Plugin und, ohne `--no-enrich`, die
+Stage 01b. Eine Mindestzahl, deren Voraussetzung fehlt, steht im Log als
+übersprungen samt Grund („übersprungen: Stage 01b nicht gelaufen“); ein
+vollständiger Build prüft jede. Eine Zeile ohne `requires` oder mit einer
+Angabe, die weder `always`, `enrich` noch ein Plugin ist, bricht den Build
+ab, ebenso ein Fehler im SQL. Eine neue Prüfung braucht deshalb immer eine
+Voraussetzung.
+
+Auch ein Teilbuild oder ein Build mit `--no-enrich` kann so die Validierung
+bestehen (`build_validated`); veröffentlichbar ist er trotzdem nicht, weil
+`core/check_publishable.sh` zusätzlich `build_scope = complete` verlangt.
 
 ### Vorgänger-Release
 
@@ -183,7 +210,7 @@ Plugin nachziehen.
 | `--keep` | Heruntergeladene Dateien behalten |
 | `--version <v26.06>` | An alle Plugins weitergegeben |
 | `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
-| `--no-enrich` | Stage 01b und optionale Plugins (`optional: true`, heute `inaturalist`) samt ihren Abhängigen überspringen |
+| `--no-enrich` | Stage 01b und optionale Plugins (`optional: true`, heute `inaturalist`) samt ihren Abhängigen überspringen; die Validierung überspringt deren Mindestzahlen (siehe [Validierung](#validierung)) |
 | `--previous-release <db>` | Lokale Referenz-DB als Vorgänger statt des veröffentlichten Releases |
 | `--initial` | Ohne Vorgänger bauen, alle IDs neu — nur für Tests und einen allerersten Build |
 
@@ -287,8 +314,9 @@ Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
 Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
-Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger sowie das
-Laden des Vorgängers über `file://`-URLs. Eine Zeile je Fall, Exit-Code
+Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
+Validierung mit ihren Voraussetzungen sowie das Laden des Vorgängers über
+`file://`-URLs. Eine Zeile je Fall, Exit-Code
 ungleich 0 bei einem Fehlschlag.
 
 ---

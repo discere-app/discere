@@ -53,7 +53,7 @@
 #   02c — Ergänzende Quellen ausführen (plugins/<n>/import.sh)
 #   03 — Species Name Lookup (core/sql/rebuild_lookup.sql)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
-#   05 — Validierung         (core/check_references.sh, core/sql/validate.sql)
+#   05 — Validierung         (core/check_references.sh, core/validate.sh)
 #
 # Build-Bericht: <output ohne Endung>.build-report/ — je Quelle eine TSV mit
 # dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh).
@@ -64,7 +64,9 @@
 # build_validated. Vollständig ist ein Build mit allen Plugins, ohne
 # --no-enrich, --initial und --accept-species-loss, gegen das veröffentlichte
 # Release (nicht --previous-release). Nur ein solcher, validierter Build lässt sich mit
-# publish_release.sh veröffentlichen (core/check_publishable.sh).
+# publish_release.sh veröffentlichen (core/check_publishable.sh). Die Validierung
+# prüft Mindestzahlen nur für die Plugins und Stages, die der Build ausgeführt
+# hat, Invarianten immer — validiert ist deshalb auch ein Teilbuild.
 # =============================================================================
 
 set -Eeuo pipefail
@@ -105,7 +107,7 @@ while [[ $# -gt 0 ]]; do
         --initial)       INITIAL=true ;;
         --accept-species-loss) ACCEPTED_LOSS+=("$2"); shift ;;
         --help|-h)
-            sed -n '2,67p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,69p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
@@ -121,30 +123,6 @@ fail() { echo "[ERROR] [build] $*" >&2; exit 1; }
 
 # shellcheck source=./core/plugin_api.sh
 source "$CORE_DIR/plugin_api.sh"
-
-# ---------------------------------------------------------------------------
-# Validierung via SQL
-# Liest Zeilenzahlen aus validate.sql und prüft Mindestwerte.
-# ---------------------------------------------------------------------------
-run_validation() {
-    local db="$1"
-    log "Prüfe Zeilenzahlen und UUID-Format..."
-
-    local failed=false
-    while IFS='|' read -r tbl n min; do
-        tbl=$(echo "$tbl" | tr -d ' ')
-        n=$(echo "$n"   | tr -d ' ')
-        min=$(echo "$min" | tr -d ' ')
-        if [[ "$n" -lt "$min" ]]; then
-            log "  FEHLER: $tbl — $n (erwartet >= $min)"
-            failed=true
-        else
-            log "  $(printf '%-22s' "$tbl") $n"
-        fi
-    done < <(sqlite3 "$db" < "$CORE_DIR/sql/validate.sql")
-
-    [[ "$failed" == false ]] || fail "Validierung fehlgeschlagen — DB wird nicht verwendet."
-}
 
 # ---------------------------------------------------------------------------
 # Main
@@ -345,7 +323,15 @@ log "Details: $REPORT_DIR"
 log "--- Stage 05: Validierung ---"
 "$CORE_DIR/check_references.sh" --db "$DB_PATH" \
     || fail "Verweise auf Entitäten ungültig — DB wird nicht verwendet."
-run_validation "$DB_PATH"
+# Mindestzahlen gelten nur für das, was dieser Build ausgeführt hat;
+# Invarianten immer (core/validate.sh).
+VALIDATE_FLAGS=()
+for plugin in "${PLUGINS[@]}"; do
+    VALIDATE_FLAGS+=("--ran" "$plugin")
+done
+[[ "$SKIP_ENRICHMENT" == false ]] && VALIDATE_FLAGS+=("--ran" "enrich")
+"$CORE_DIR/validate.sh" --db "$DB_PATH" --plugins-dir "$PLUGINS_DIR" "${VALIDATE_FLAGS[@]}" \
+    || fail "Validierung fehlgeschlagen — DB wird nicht verwendet."
 record_build build_validated true
 
 log "=== Build abgeschlossen: $DB_PATH ==="
