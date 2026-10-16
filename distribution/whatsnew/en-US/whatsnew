@@ -5,5 +5,5 @@ Fix: Review sessions and watchlist load much faster.
 Fix: Multiple choice no longer silently falls back to flipping.
 Fix: Edit deck shows all images.
 Fix: Online search shows progress and errors.
-Fix: Less memory; better taxon names, no “Not assigned”.
+Fix: Less memory; “unassigned” instead of “Not assigned”.
 New: Data updates download in the background with progress, then “Apply”; also from Settings.

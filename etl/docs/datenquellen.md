@@ -663,9 +663,10 @@ installiert.
   ihrem Namen (`is_placeholder`, Regel in `core/sql/placeholders.sql`) und
   listet jeden im Build-Bericht; die App zeigt sie als „nicht zugeordnet“,
   bietet sie nicht als Distraktor an und findet sie nicht in der Suche. Jede
-  Platzhalterstufe bleibt eine eigene Entität unter ihrer Elternstufe. Offen
-  ist der Lernmodus: Im Familienmodus fragt eine Karte, deren Familie ein
-  Platzhalter ist, noch nach „Not assigned“.
+  Platzhalterstufe bleibt eine eigene Entität unter ihrer Elternstufe. Im
+  Familienmodus wird eine Art mit Platzhalter-Familie noch abgefragt, mit
+  „Not assigned“ als Antwort; eine Art ohne Antwort im Modus bekommt dort
+  künftig keine Karte (#319).
   Markiert ist nur, was die Namensregel trifft: Die FishBase-Ordnungen
   „…/misc“ (etwa „Eupercaria/misc“) sammeln ebenfalls Familien ohne eigene
   Ordnung, tragen das Flag aber nicht.
