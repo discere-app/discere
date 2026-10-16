@@ -11,6 +11,7 @@ import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:sqflite/sqflite.dart';
@@ -86,6 +87,7 @@ void main() {
       MockImageService(),
       deckConfigRepository: DeckConfigRepository(database: database),
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      userDataWrites: UserDataWrites(),
     );
 
     photoEnrichmentService = MockINatPhotoEnrichmentService();

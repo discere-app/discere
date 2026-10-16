@@ -12,6 +12,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:flutter/material.dart';
@@ -97,6 +98,7 @@ void main() {
           ChangeNotifierProvider<DecksService>.value(value: decksService),
           Provider<ImageService>.value(value: MockImageService()),
           Provider<FlashcardService>.value(value: flashcardService),
+          Provider<UserDataWrites>.value(value: UserDataWrites()),
           Provider<SpeciesMediaService>.value(value: speciesMediaService),
           ChangeNotifierProvider<INatEnrichmentQueueService>.value(
             value: TestINatEnrichmentQueueService(),

@@ -375,6 +375,7 @@ void main() {
       await insertName('family-1', 'family', 'de', 'Makrelenhaie');
       await insertName('family-1', 'family', 'fr', 'Requins-taupes');
       await insertName('order-1', 'order', 'de', 'Makrelenhaiartige');
+      await insertName('class-1', 'class', 'de', 'Knorpelfische');
 
       final genusDetail = await repository.getDetail(
         SearchResult(
@@ -412,9 +413,11 @@ void main() {
         Language.fr: <String>[],
         Language.es: <String>[],
       });
-      // The reference DB has class names in English only.
       expect(namesOf(genusDetail, TaxonomyRankLabel.classType), {
         Language.en: ['Cartilaginous fishes'],
+        Language.de: ['Knorpelfische'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
       });
 
       expect(namesOf(familyDetail, TaxonomyRankLabel.order), {
@@ -425,6 +428,9 @@ void main() {
       });
       expect(namesOf(familyDetail, TaxonomyRankLabel.classType), {
         Language.en: ['Cartilaginous fishes'],
+        Language.de: ['Knorpelfische'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
       });
     },
   );
@@ -1420,6 +1426,9 @@ void main() {
       expect(detail.commonNames[Language.en], ['White sharks']);
       expect(namesOf(detail, TaxonomyRankLabel.classType), {
         Language.en: ['Cartilaginous fishes'],
+        Language.de: <String>[],
+        Language.fr: <String>[],
+        Language.es: <String>[],
       });
       expect(children.single.commonNames, {
         Language.de: <String>[],
@@ -1447,6 +1456,100 @@ void main() {
       expect(species.single.commonNames[Language.de], isEmpty);
       expect(genera.single.commonNames[Language.de], isEmpty);
       expect(countingUserDb.rawQueries, 0);
+    });
+  });
+
+  group('class names from the reference-DB fixture', () {
+    late Directory fixtureDir;
+    late Database fixtureDb;
+    late TaxonomyRepository fixtureRepository;
+
+    setUp(() async {
+      fixtureDir = await Directory.systemTemp.createTemp('taxonomy_fixture_');
+      final path = join(fixtureDir.path, 'reference.db');
+      await File('test/fixtures/discere_reference_test.db').copy(path);
+      fixtureDb = await openDatabase(path, readOnly: true);
+      fixtureRepository = TaxonomyRepository(database: fixtureDb);
+    });
+
+    tearDown(() async {
+      await fixtureDb.close();
+      await fixtureDir.delete(recursive: true);
+    });
+
+    const teleosteiNames = {
+      Language.en: ['teleosts'],
+      Language.de: ['Echte Knochenfische'],
+      Language.fr: ['Téléostéens'],
+      Language.es: ['Teleósteos'],
+    };
+
+    Future<TaxonomyDetail> detailOf(
+      String id,
+      String name,
+      SearchEntityType type,
+    ) => fixtureRepository.getDetail(
+      SearchResult(id: id, name: name, commonNames: const {}, type: type),
+    );
+
+    test('a genus, family and order carry their class\'s names in every '
+        'language the reference DB has them in', () async {
+      final details = [
+        await detailOf(
+          'discere:genus:5106',
+          'Amphiprion',
+          SearchEntityType.genus,
+        ),
+        await detailOf(
+          'discere:family:289',
+          'Pomacentridae',
+          SearchEntityType.family,
+        ),
+        await detailOf(
+          'discere:order:101',
+          'Ovalentaria/misc',
+          SearchEntityType.order,
+        ),
+      ];
+
+      for (final detail in details) {
+        final classEntry = detail.classification.singleWhere(
+          (entry) => entry.label == TaxonomyRankLabel.classType,
+        );
+        expect(classEntry.scientificName, 'Teleostei');
+        expect(
+          classEntry.commonNames,
+          teleosteiNames,
+          reason: detail.result.name,
+        );
+      }
+    });
+
+    test('a class page shows its own names in every language the reference '
+        'DB has them in', () async {
+      final detail = await detailOf(
+        'discere:class:8',
+        'Teleostei',
+        SearchEntityType.classType,
+      );
+
+      expect(detail.commonNames, teleosteiNames);
+    });
+
+    test('a class with an English name only gets no other language from the '
+        'reference DB', () async {
+      final detail = await detailOf(
+        'discere:class:3',
+        'Elasmobranchii',
+        SearchEntityType.classType,
+      );
+
+      expect(detail.commonNames, {
+        Language.en: ['sharks and rays'],
+        Language.de: <String>[],
+        Language.fr: <String>[],
+        Language.es: <String>[],
+      });
     });
   });
 }

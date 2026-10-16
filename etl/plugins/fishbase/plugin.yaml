@@ -1,6 +1,7 @@
 name: fishbase
 version: 1
 source: fishbase
+placement_priority: 10  # Rang der Einordnung, kleiner = gewichtiger (docs/datenquellen.md)
 
 provides:
   - classes

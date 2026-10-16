@@ -3,13 +3,13 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// Offers to refresh already-downloaded base images once, right after a
-/// reference-DB update finishes installing — called from
-/// `MainScreenPage`'s update-confirmation dialog, after that dialog has
-/// already been popped, so this never stacks on top of another dialog.
-/// Skipped entirely when nothing is actually stale, so a user with no decks
-/// yet (or one whose species already happen to be current) never sees an
-/// empty prompt.
+/// Offers to refresh already-downloaded base images once, on the first
+/// home screen after a start that installed a reference database — a cold
+/// start or the restart that applies a staged update — so the images are
+/// fetched again against the database now open. Called from
+/// `MainScreenPage` before its onboarding and tutorial. Skipped entirely
+/// when nothing is actually stale, so a user with no decks yet (or one whose
+/// species already happen to be current) never sees an empty prompt.
 Future<void> maybeShowBaseRefreshPrompt(BuildContext context) async {
   final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
     context,

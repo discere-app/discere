@@ -52,6 +52,25 @@
   },
   "referenceDbUpdateConfirmTitle": "Species database update available",
   "referenceDbUpdateConfirmUpdateNow": "Update now",
+  "referenceDbUpdateReadyMessage": "The species database update is ready. Applying it restarts the app and ends a review session in progress.",
+  "referenceDbUpdateReadyLater": "Later",
+  "referenceDbUpdateReadyApply": "Apply",
+  "referenceDbUpdateDownloadStarting": "Downloading the species database…",
+  "referenceDbUpdateDownloadProgress": "Downloading the species database – {received} of {total} MB",
+  "@referenceDbUpdateDownloadProgress": {
+    "placeholders": {
+      "received": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "referenceDbUpdatePreparing": "Preparing the species database…",
+  "referenceDbUpdateDownloadFailed": "The species database update could not be downloaded. {reason}",
+  "@referenceDbUpdateDownloadFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "referenceDbUpdateRetry": "Try again",
   "referenceDbBaseRefreshPromptTitle": "Refresh base images?",
   "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {A more current reference image may now be available for 1 species you already downloaded.} other {More current reference images may now be available for {count} species you already downloaded.}}",
   "@referenceDbBaseRefreshPromptMessage": {
@@ -885,6 +904,55 @@
   "settingsDeveloperTools": "Developer tools",
   "settingsDeveloperUnlocked": "Developer tools unlocked.",
   "settingsDiagnostics": "Diagnostics",
+  "settingsReferenceDbTitle": "Species database",
+  "settingsReferenceDbVersion": "Version {version}",
+  "@settingsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbDataSources": "Data: {sources}",
+  "@settingsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbNotChecked": "Not checked for updates yet.",
+  "settingsReferenceDbChecking": "Checking for updates…",
+  "settingsReferenceDbCheckFailed": "Checking for updates failed. {reason}",
+  "@settingsReferenceDbCheckFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbUpToDate": "Up to date.",
+  "settingsReferenceDbCheckNow": "Check for updates",
+  "settingsReferenceDbAvailable": "Version {version} available (about {size})",
+  "@settingsReferenceDbAvailable": {
+    "placeholders": {
+      "version": { "type": "int" },
+      "size": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbDownload": "Download",
+  "settingsReferenceDbDownloading": "Downloading version {version}…",
+  "@settingsReferenceDbDownloading": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbStagedInNotice": "Version {version} is downloaded.",
+  "@settingsReferenceDbStagedInNotice": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbStaged": "Version {version} is downloaded. Applying restarts the app.",
+  "@settingsReferenceDbStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
   "settingsNotificationTimeLabel": "Time",
   "settingsNotificationTimeDescription": "Time of day you'll be reminded about due cards.",
   "settingsLanguageDescription": "Sets the language of the app interface. Scientific species names and taxonomy data are not affected.",
@@ -935,6 +1003,92 @@
   "diagnosticsForegroundServiceNotRunning": "Not running",
   "diagnosticsReferenceDbTitle": "Reference database",
   "diagnosticsReferenceDbNotInstalled": "Not installed.",
+  "diagnosticsReferenceDbVersion": "Version {version}",
+  "@diagnosticsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbDownloadedOn": "downloaded on {date}",
+  "@diagnosticsReferenceDbDownloadedOn": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbDataSources": "Data releases: {sources}",
+  "@diagnosticsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbSchema": "Format: schema {schema}",
+  "@diagnosticsReferenceDbSchema": {
+    "placeholders": {
+      "schema": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateTitle": "Reference database update",
+  "diagnosticsReferenceDbUpdateAvailable": "Version {version} available",
+  "@diagnosticsReferenceDbUpdateAvailable": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateCheckRunning": "Still checking for updates.",
+  "diagnosticsReferenceDbUpdateCheckFailed": "Checking for updates failed – details in the log.",
+  "diagnosticsReferenceDbUpToDate": "Up to date.",
+  "diagnosticsReferenceDbUpdateDeclined": "Version {version} available – declined for this session",
+  "@diagnosticsReferenceDbUpdateDeclined": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateStaged": "Version {version} downloaded – installed on restart",
+  "@diagnosticsReferenceDbUpdateStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateNotChecked": "Not checked for updates yet.",
+  "diagnosticsReferenceDbUpdateDownloading": "Version {version} downloading – {percent}%",
+  "@diagnosticsReferenceDbUpdateDownloading": {
+    "placeholders": {
+      "version": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateDownloadFailed": "Download of version {version} failed – details in the log.",
+  "@diagnosticsReferenceDbUpdateDownloadFailed": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsTitle": "Adjustment of learning progress",
+  "diagnosticsReferenceIdsAppliedVersion": "Learning progress is adjusted to version {version}.",
+  "@diagnosticsReferenceIdsAppliedVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsLastRunNone": "Has not run yet.",
+  "diagnosticsReferenceIdsLastRunSucceeded": "Last run on {time} for version {version}:\n{rewritten} entries adjusted, {dropped} discarded ({referenced} IDs checked, {aliased} with a new ID)",
+  "@diagnosticsReferenceIdsLastRunSucceeded": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" },
+      "rewritten": { "type": "int" },
+      "dropped": { "type": "int" },
+      "referenced": { "type": "int" },
+      "aliased": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsLastRunFailed": "Last run on {time} for version {version} failed – details in the log.",
+  "@diagnosticsReferenceIdsLastRunFailed": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" }
+    }
+  },
   "diagnosticsSummaryTitle": "Summary",
   "diagnosticsFailuresTitle": "Failures",
   "diagnosticsFailuresByHostTitle": "Failures by host",

@@ -1,8 +1,9 @@
-Neu: Sprache der Namen auch auf Arten- und Taxonomie-Seiten umstellbar.
-Änderung: Die App benötigt jetzt Android 11 oder neuer.
-Änderung: Der JSON-Export fragt nach dem Speicherort.
-Fix: Lernsessions und Merkliste laden deutlich schneller.
-Fix: Multiple Choice fällt nicht mehr still auf Umdrehen zurück.
-Fix: Deck bearbeiten zeigt alle Bilder, kein Datenverlust bei Ladefehlern.
-Fix: Online-Suche zeigt Fortschritt und Fehler an.
+Neu: Namenssprache auf Arten-/Taxonseiten wählbar.
+Änderung: Benötigt Android 11 oder neuer.
+Änderung: JSON-Export fragt nach Speicherort.
+Fix: Lernsessions und Merkliste laden schneller.
+Fix: Multiple Choice fällt nicht mehr auf Umdrehen zurück.
+Fix: Deck bearbeiten zeigt alle Bilder.
+Fix: Online-Suche zeigt Fortschritt und Fehler.
 Fix: Weniger Speicherbedarf, mehr und korrektere Klassennamen.
+Neu: Datenupdates laden mit Fortschritt im Hintergrund, dann „Anwenden“; auch in den Einstellungen.

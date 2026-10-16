@@ -6,7 +6,6 @@ import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_common_name_enricher.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -74,19 +73,13 @@ class TaxonomyRepository {
         g.body_shape AS genus_body_shape,
         f.id AS family_id,
         f.name AS family_name,
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'family_common_name_de')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'family_common_name_en')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'family_common_name_fr')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'family_common_name_es')},
+        ${localizedCommonNameSubqueries(entityAlias: 'f', entityIdColumn: 'id', prefix: 'family')},
         o.id AS order_id,
         o.name AS order_name,
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'order_common_name_de')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'order_common_name_en')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'order_common_name_fr')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'order_common_name_es')},
+        ${localizedCommonNameSubqueries(entityAlias: 'o', entityIdColumn: 'id', prefix: 'order')},
         c.id AS class_id,
         c.name AS class_name,
-        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'class_common_name')},
+        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id', prefix: 'class')},
         c.super_class AS super_class,
         COUNT(DISTINCT s.id) AS species_count
       FROM genera g
@@ -139,7 +132,7 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.classType,
                 id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
-                commonNames: englishNames(row['class_common_name'] as String?),
+                commonNames: localizedListMap(row, prefix: 'class'),
               ),
               if ((row['super_class'] as String?)?.isNotEmpty ?? false)
                 TaxonomyClassificationEntry(
@@ -172,21 +165,15 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
+        ${localizedCommonNameSubqueries(entityAlias: 'f', entityIdColumn: 'id')},
         f.body_shape,
         f.division,
         o.id AS order_id,
         o.name AS order_name,
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'order_common_name_de')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'order_common_name_en')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'order_common_name_fr')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'order_common_name_es')},
+        ${localizedCommonNameSubqueries(entityAlias: 'o', entityIdColumn: 'id', prefix: 'order')},
         c.id AS class_id,
         c.name AS class_name,
-        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'class_common_name')},
+        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id', prefix: 'class')},
         c.super_class AS super_class,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
@@ -227,7 +214,7 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.classType,
                 id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
-                commonNames: englishNames(row['class_common_name'] as String?),
+                commonNames: localizedListMap(row, prefix: 'class'),
               ),
               if ((row['super_class'] as String?)?.isNotEmpty ?? false)
                 TaxonomyClassificationEntry(
@@ -264,14 +251,11 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
+        ${localizedCommonNameSubqueries(entityAlias: 'o', entityIdColumn: 'id')},
         o.sister_order,
         c.id AS class_id,
         c.name AS class_name,
-        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'class_common_name')},
+        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id', prefix: 'class')},
         c.super_class AS super_class,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
@@ -304,7 +288,7 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.classType,
                 id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
-                commonNames: englishNames(row['class_common_name'] as String?),
+                commonNames: localizedListMap(row, prefix: 'class'),
               ),
               if ((row['super_class'] as String?)?.isNotEmpty ?? false)
                 TaxonomyClassificationEntry(
@@ -342,7 +326,7 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name')},
+        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id')},
         c.body_shape,
         c.super_class,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN o.id END) AS orders_count,
@@ -364,10 +348,7 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: preferOwnNames(
-        result.commonNames,
-        row == null ? const {} : englishNames(row['common_name'] as String?),
-      ),
+      commonNames: preferOwnNames(result.commonNames, localizedListMap(row)),
       classification: row == null
           ? const []
           : [
@@ -571,12 +552,7 @@ class TaxonomyRepository {
     return SearchResult(
       id: row['id'] as String,
       name: row['name'] as String,
-      commonNames: {
-        Language.de: wrapName(row['cn_de'] as String?),
-        Language.en: wrapName(row['cn_en'] as String?),
-        Language.fr: wrapName(row['cn_fr'] as String?),
-        Language.es: wrapName(row['cn_es'] as String?),
-      },
+      commonNames: localizedListMap(row),
       type: type,
     );
   }

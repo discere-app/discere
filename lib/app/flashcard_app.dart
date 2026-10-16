@@ -1,3 +1,4 @@
+import 'package:discere/app/bootstrap/reference_db_apply_notice.dart';
 import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -23,6 +24,8 @@ class FlashcardApp extends StatelessWidget {
           ],
           supportedLocales: AppLocalizations.supportedLocales,
           theme: oceanTheme,
+          builder: (context, navigator) =>
+              ReferenceDbApplyNotice(child: navigator!),
           home: const MainScreenPage(),
         );
       },

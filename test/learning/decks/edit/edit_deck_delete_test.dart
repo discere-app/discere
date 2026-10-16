@@ -10,6 +10,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -50,7 +51,11 @@ void main() {
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
-      when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(decksService.deleteDeck('deck-1')).thenAnswer((_) async {});
       when(
         decksService.getSpeciesByDeckId('deck-1'),
@@ -156,7 +161,11 @@ void main() {
         expect(find.text('Discard changes?'), findsNothing);
         verify(decksService.deleteDeck('deck-1')).called(1);
         expect(find.byType(EditDeckPage), findsNothing);
-        verifyNever(decksService.updateDeck(any, any));
+        verifyNever(decksService.updateDeck(
+          any,
+          addedSpeciesIds: anyNamed('addedSpeciesIds'),
+          removedSpeciesIds: anyNamed('removedSpeciesIds'),
+        ));
       },
     );
   });
@@ -184,6 +193,7 @@ Widget _buildApp({
       Provider<ImageService>.value(value: imageService),
       Provider<NotificationService>.value(value: notificationService),
       Provider<FlashcardService>.value(value: flashcardService),
+      Provider<UserDataWrites>.value(value: UserDataWrites()),
       Provider<SpeciesMediaService>.value(value: MockSpeciesMediaService()),
       ChangeNotifierProvider<UserPreferencesService>.value(
         value: userPreferencesService,
@@ -270,6 +280,9 @@ class _TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<void> refreshStaleBaseImages(String deckId) async {}
+
+  @override
+  Future<void> shutdown() async {}
 
   @override
   Future<void> refreshAllStaleBaseImages() async {}

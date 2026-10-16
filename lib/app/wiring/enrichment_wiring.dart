@@ -35,6 +35,7 @@ import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -69,6 +70,7 @@ buildEnrichmentServices({
   required ForegroundServiceKeeper foregroundServiceKeeper,
   required NetworkAvailability networkAvailability,
   required HostCooldownTracker hostCooldownTracker,
+  required UserDataWrites userDataWrites,
   required bool processEnrichmentJobs,
 }) {
   final iNatCacheRepository = INatPhotoCacheRepository();
@@ -170,6 +172,7 @@ buildEnrichmentServices({
     deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
     backgroundScheduler: backgroundScheduler,
     deckMembershipLock: deckMembershipLock,
+    userDataWrites: userDataWrites,
   );
 
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(

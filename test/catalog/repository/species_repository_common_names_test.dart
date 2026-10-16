@@ -280,20 +280,20 @@ void main() {
       );
 
       await expectLater(
-        failingRepository.getSpeciesById('discere:fishbase_species:6509'),
+        failingRepository.getSpeciesById('discere:species:6002'),
         throwsA(isA<_ClassificationReadFailure>()),
       );
     },
   );
 
   test(
-    'files the reference DB\'s genus and class names under English, the only '
-    'language the reference DB has them in',
+    'files the reference DB\'s genus names under English, the only language '
+    'the reference DB has them in',
     () async {
       // The fixture carries no genus common name, so give Amphiprion one the
       // way FishBase would: English only.
       await referenceDb.insert('common_names', {
-        'entity_id': 'discere:fishbase_genus:5120',
+        'entity_id': 'discere:genus:5106',
         'entity_type': 'genus',
         'language': 'en',
         'name': 'Anemonefishes',
@@ -302,16 +302,75 @@ void main() {
       });
 
       final species = await repository.getSpeciesById(
-        'discere:fishbase_species:6509',
+        'discere:species:6002',
       );
       final classification = species!.classification;
 
       expect(classification.genusScientificName, 'Amphiprion');
       expect(classification.genusCommonNames[Language.en], ['Anemonefishes']);
       expect(classification.genusCommonNames[Language.de], isEmpty);
+    },
+  );
+
+  test(
+    'reads the class names in every language the reference DB has them in',
+    () async {
+      final species = await repository.getSpeciesById(
+        'discere:species:6002',
+      );
+      final classification = species!.classification;
+
       expect(classification.classScientificName, 'Teleostei');
       expect(classification.classCommonNames[Language.en], ['teleosts']);
+      expect(classification.classCommonNames[Language.de], [
+        'Echte Knochenfische',
+      ]);
+      expect(classification.classCommonNames[Language.fr], ['Téléostéens']);
+      expect(classification.classCommonNames[Language.es], ['Teleósteos']);
+    },
+  );
+
+  test(
+    'a class with an English name only gets no other language from the '
+    'reference DB',
+    () async {
+      final species = await repository.getSpeciesById(
+        'discere:species:834',
+      );
+      final classification = species!.classification;
+
+      expect(classification.classScientificName, 'Elasmobranchii');
+      expect(classification.classCommonNames[Language.en], [
+        'sharks and rays',
+      ]);
       expect(classification.classCommonNames[Language.de], isEmpty);
+      expect(classification.classCommonNames[Language.fr], isEmpty);
+      expect(classification.classCommonNames[Language.es], isEmpty);
+    },
+  );
+
+  test(
+    'a fetched class name leads the reference name of its language',
+    () async {
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'class:teleostei',
+        'entity_type': 'class',
+        'language_code': 'de',
+        'name': 'Knochenfische',
+        'position': 0,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final species = await repository.getSpeciesById(
+        'discere:species:6002',
+      );
+
+      expect(species!.classification.classCommonNames[Language.de], [
+        'Knochenfische',
+        'Echte Knochenfische',
+      ]);
     },
   );
 

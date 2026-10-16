@@ -151,8 +151,9 @@ class _CapturingReferenceDatabase implements Database {
 Future<void> _createReferenceSearchSchema(Database db) async {
   await db.execute('''
     CREATE TABLE genera (
-      id   TEXT NOT NULL PRIMARY KEY,
-      name TEXT NOT NULL
+      id     TEXT NOT NULL PRIMARY KEY,
+      name   TEXT NOT NULL,
+      family TEXT
     )
   ''');
   await db.execute('''
@@ -171,6 +172,7 @@ Future<void> _createReferenceSearchSchema(Database db) async {
     CREATE TABLE families (
       id             TEXT NOT NULL PRIMARY KEY,
       name           TEXT NOT NULL,
+      "order"        TEXT,
       common_name_en TEXT,
       common_name_de TEXT,
       common_name_fr TEXT,
@@ -181,6 +183,7 @@ Future<void> _createReferenceSearchSchema(Database db) async {
     CREATE TABLE orders (
       id             TEXT NOT NULL PRIMARY KEY,
       name           TEXT NOT NULL,
+      class          TEXT,
       common_name_en TEXT,
       common_name_de TEXT,
       common_name_fr TEXT,
@@ -248,7 +251,13 @@ Future<void> _createReferenceSearchSchema(Database db) async {
 }
 
 Future<void> _seedReferenceSearchData(Database db) async {
-  await db.insert('genera', {'id': 'genus-1', 'name': 'Carcharodon'});
+  // One chain down to an active species: search finds a higher taxon only
+  // while some active species sits below it.
+  await db.insert('genera', {
+    'id': 'genus-1',
+    'name': 'Carcharodon',
+    'family': 'family-1',
+  });
   await db.insert('species', {
     'id': 'species-1',
     'genus': 'genus-1',
@@ -262,6 +271,7 @@ Future<void> _seedReferenceSearchData(Database db) async {
   await db.insert('families', {
     'id': 'family-1',
     'name': 'Lamnidae',
+    'order': 'order-1',
     'common_name_en': 'Mackerel sharks',
     'common_name_de': 'Makrelenhaie',
     'common_name_fr': 'Requins maquereaux',
@@ -270,6 +280,7 @@ Future<void> _seedReferenceSearchData(Database db) async {
   await db.insert('orders', {
     'id': 'order-1',
     'name': 'Lamniformes',
+    'class': 'class-1',
     'common_name_en': 'Mackerel shark allies',
     'common_name_de': 'Makrelenhaiartige',
     'common_name_fr': 'Lamniformes',
@@ -937,6 +948,107 @@ void main() {
     expect(referenceDb.maxConcurrentQueries, 1);
   });
 
+  group('a higher taxon is found only while an active species sits below '
+      'it', () {
+    // Each case seeds a taxon whose whole chain leads to one deprecated
+    // species — what the reference database keeps for the chain of a
+    // species no source delivers — and searches it through one branch. The
+    // same search must find it once that species is active, so a case can
+    // only pass because of the filter, not because the branch found
+    // nothing to begin with.
+    final ranks = <(SearchEntityType, String, String?)>[
+      (SearchEntityType.genus, 'genera', 'genus'),
+      (SearchEntityType.family, 'families', 'family'),
+      (SearchEntityType.order, 'orders', 'order'),
+      (SearchEntityType.classType, 'classes', null),
+    ];
+
+    /// Seeds the chain from [table] down to a deprecated species and
+    /// returns the taxon's ID and the species' ID.
+    Future<(String, String)> seedChain(String table, String name) async {
+      final ids = {
+        for (final t in const ['classes', 'orders', 'families', 'genera'])
+          t: '$t-${name.toLowerCase()}',
+      };
+      const order = ['classes', 'orders', 'families', 'genera'];
+      for (final t in order.sublist(order.indexOf(table))) {
+        final level = order.indexOf(t);
+        final parent = level == 0 ? null : order[level - 1];
+        await referenceDb.insert(t, {
+          'id': ids[t],
+          // Only the searched taxon carries the searched name.
+          'name': t == table ? name : 'Chainx$t',
+          if (t == 'orders' && parent != null) 'class': ids[parent],
+          if (t == 'families' && parent != null) 'order': ids[parent],
+          if (t == 'genera' && parent != null) 'family': ids[parent],
+        });
+      }
+      final speciesId = 'species-${name.toLowerCase()}';
+      await referenceDb.insert('species', {
+        'id': speciesId,
+        'genus': ids['genera'],
+        'name': 'relictus',
+        'status': 'deprecated',
+      });
+      return (ids[table]!, speciesId);
+    }
+
+    Future<bool> finds(SearchEntityType type, String id, String term) async =>
+        (await searchRepository.searchAll(term, run: SearchRun.single)).any(
+          (r) => r.type == type && r.id == id,
+        );
+
+    Future<void> expectFilteredThenFound(
+      SearchEntityType type,
+      String id,
+      String speciesId,
+      String term,
+    ) async {
+      expect(await finds(type, id, term), isFalse, reason: 'deprecated only');
+      await referenceDb.update(
+        'species',
+        {'status': 'active'},
+        where: 'id = ?',
+        whereArgs: [speciesId],
+      );
+      expect(await finds(type, id, term), isTrue, reason: 'active below');
+    }
+
+    for (final (type, table, _) in ranks) {
+      test('${type.name}, by scientific name (FTS)', () async {
+        final name = 'Orphan${type.name}sci';
+        final (id, speciesId) = await seedChain(table, name);
+        await referenceDb.insert('${table}_fts', {'id': id, 'name': name});
+        await expectFilteredThenFound(type, id, speciesId, name);
+      });
+
+      test('${type.name}, by scientific name (LIKE fallback)', () async {
+        // No index rows: the FTS branches find nothing, so the fallback runs.
+        final name = 'Orphan${type.name}like';
+        final (id, speciesId) = await seedChain(table, name);
+        await expectFilteredThenFound(type, id, speciesId, name);
+      });
+    }
+
+    for (final (type, table, commonNameType) in ranks) {
+      if (commonNameType == null) continue;
+      test('${type.name}, by common name (FTS)', () async {
+        final (id, speciesId) = await seedChain(
+          table,
+          'Orphan${type.name}vern',
+        );
+        final commonName = 'Hidden${type.name}folk';
+        await _insertCommonNames(
+          referenceDb,
+          entityId: id,
+          entityType: commonNameType,
+          namesByLanguage: {'en': commonName},
+        );
+        await expectFilteredThenFound(type, id, speciesId, commonName);
+      });
+    }
+  });
+
   test('reference fallback finds local common names when FTS misses', () async {
     await referenceDb.insert('genera', {'id': 'genus-2', 'name': 'Salmo'});
     await referenceDb.insert('species', {
@@ -1215,6 +1327,13 @@ void main() {
         'id': 'genus-2',
         'name': 'Carcharodon',
       });
+      // A homonym only counts while it has an active species of its own.
+      await referenceDb.insert('species', {
+        'id': 'species-homonym',
+        'genus': 'genus-2',
+        'name': 'homonymus',
+        'status': 'active',
+      });
 
       await runtimeCommonNameSearchRepository.upsertDocument(
         const RuntimeCommonNameSearchDocument(
@@ -1242,7 +1361,7 @@ void main() {
       await runtimeCommonNameSearchRepository.upsertDocument(
         const RuntimeCommonNameSearchDocument(
           entityKey: 'genus:carcharodon',
-          entityId: 'discere:fishbase_genera:42',
+          entityId: 'discere:genus:42',
           entityType: 'genera',
           scientificName: 'Carcharodon',
           commonNameEn: 'Confirmed white shark',
@@ -1254,7 +1373,7 @@ void main() {
         (result) => result.type == SearchEntityType.genus,
       );
 
-      expect(genusResult.id, 'discere:fishbase_genera:42');
+      expect(genusResult.id, 'discere:genus:42');
     },
   );
 }

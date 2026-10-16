@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
-import 'package:discere/shared/service/network_availability.dart';
+import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -16,49 +16,65 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// externally so the actual hosting platform can change without touching this
 /// class — see https://github.com/discere-app/discere/issues/54.
 ///
-/// A [ChangeNotifier] so UI (the update-confirmation dialog on the main
-/// screen) can react to [pendingUpdate] without polling.
-class ReferenceDatabaseProvisioner extends ChangeNotifier {
+/// Works on files and the stamped versions only. What a session knows and
+/// does about an update — found, declined, downloading, staged — is
+/// `ReferenceDbUpdateService`'s, which uses [findNewerVersion] and [stage].
+class ReferenceDatabaseProvisioner {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
   static const String _fileName = 'discere_reference.db';
   static const String prefKeyVersion = 'reference_db_version';
   static const String prefKeySchemaVersion = 'reference_db_schema_version';
 
-  /// Reference-DB schema version this app build's SQL (see
-  /// `lib/catalog/repository/`) is written against. A manifest advertising a
-  /// different `schemaVersion` is rejected rather than installed — an older
-  /// app version silently accepting a newer, incompatible schema would fail
-  /// later with missing/renamed tables or columns instead of a clear error.
-  /// Bump only in lockstep with a schema change in `etl/core/sql/schema.sql`
-  /// and the matching query changes in `lib/catalog/repository/`.
+  /// Reference-DB schema versions this app build's SQL (see
+  /// `lib/catalog/repository/`) works with. A manifest advertising another
+  /// `schemaVersion` is rejected rather than installed — an app silently
+  /// accepting a newer, incompatible schema would fail later with
+  /// missing/renamed tables or columns instead of a clear error. Extend only
+  /// in lockstep with a schema change in `etl/core/sql/schema.sql` and the
+  /// matching query changes in `lib/catalog/repository/`.
+  ///
+  /// - 1: the IDs carry their source; no `entity_aliases`.
+  /// - 2: `entity_aliases`, which `ReferenceIdMigration` applies to the user
+  ///   database after every change of reference database. An app that
+  ///   cannot apply them must not install such a release: its learning
+  ///   progress would point at IDs the new database no longer has.
+  ///
+  /// Both stay supported, so an installed schema-1 copy keeps working and a
+  /// schema-2 release arrives through the ordinary staged update rather
+  /// than a blocking download.
+  static const supportedSchemaVersions = {1, 2};
+
+  /// The schema of a file installed before schema versions were stamped —
+  /// the bundled asset of the first releases, which used this same path.
   @visibleForTesting
-  static const int supportedSchemaVersion = 1;
+  static const int unstampedSchemaVersion = 1;
 
   final ReferenceDbDownloader _downloader;
-  final NetworkAvailability _networkAvailability;
 
-  ReferenceDbUpdateInfo? _pendingUpdate;
-  bool _pendingUpdateOnWifi = false;
+  /// Closes the app's database connections (`DatabaseHelper.close`), run
+  /// right after a new file was renamed over the active one. sqflite keeps a
+  /// connection per path, and one opened before the rename — by work of a
+  /// session that just ended — keeps reading the replaced file under the
+  /// same path; the next open would be handed that connection.
+  final Future<void> Function() _closeOpenDatabases;
 
-  /// A newer reference-DB version is available. Set by
-  /// [ensureUpToDateInBackground] whenever the manifest reports a newer
-  /// version than what's installed — regardless of network type, since even
-  /// a ~90MB Wi-Fi download deserves the user's explicit consent rather than
-  /// installing unannounced. Cleared by [dismissPendingUpdate] or once
-  /// [downloadAndInstall] succeeds; dismissal isn't persisted, so a still-
-  /// newer version is re-surfaced the next time the app starts.
-  ReferenceDbUpdateInfo? get pendingUpdate => _pendingUpdate;
+  bool _installedThisStart = false;
 
-  /// Whether [pendingUpdate] was detected while on Wi-Fi — drives whether
-  /// the confirmation dialog shows the cellular-data warning line.
-  bool get pendingUpdateOnWifi => _pendingUpdateOnWifi;
+  /// Whether this start installed a reference database, and the caller is
+  /// the first to ask. For the offer to refresh images resolved against the
+  /// previous one, made once after an installation.
+  bool takeInstalledThisStart() {
+    final installed = _installedThisStart;
+    _installedThisStart = false;
+    return installed;
+  }
 
   ReferenceDatabaseProvisioner({
     required ReferenceDbDownloader downloader,
-    required NetworkAvailability networkAvailability,
+    required Future<void> Function() closeOpenDatabases,
   }) : _downloader = downloader,
-       _networkAvailability = networkAvailability;
+       _closeOpenDatabases = closeOpenDatabases;
 
   static Future<String> resolveLocalPath() async {
     final dir = await getApplicationSupportDirectory();
@@ -88,7 +104,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return ReferenceDbStatus(
       installedVersion: prefs.getInt(prefKeyVersion),
       installedSchemaVersion: prefs.getInt(prefKeySchemaVersion),
-      supportedSchemaVersion: supportedSchemaVersion,
+      supportedSchemaVersions: supportedSchemaVersions,
       fileExists: exists,
       fileSizeBytes: exists ? await file.length() : null,
       fileModifiedAt: exists ? (await file.stat()).modified : null,
@@ -96,52 +112,33 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   }
 
   /// Whether a local copy exists **and** is schema-compatible with this app
-  /// build. A file that exists but was installed under an older,
-  /// since-bumped schema is not usable — opening it would let repositories
-  /// query missing/renamed tables or columns instead of failing clearly up
-  /// front, so the caller should run the blocking download path instead of
-  /// the instant-start fast path even though a file is present.
+  /// build. A file installed under a schema this build no longer supports is
+  /// not usable — opening it would let repositories query missing/renamed
+  /// tables or columns instead of failing clearly up front, so the caller
+  /// should run the blocking download path instead of the instant-start fast
+  /// path even though a file is present.
   Future<bool> hasUsableLocalCopy() async {
     final path = await resolveLocalPath();
     if (!await File(path).exists()) return false;
 
     final prefs = await SharedPreferences.getInstance();
-    final storedSchemaVersion = prefs.getInt(prefKeySchemaVersion);
+    var storedSchemaVersion = prefs.getInt(prefKeySchemaVersion);
     if (storedSchemaVersion == null) {
-      // Pre-existing file from before schema-version tracking existed (the
-      // old bundled-asset mechanism used this same path). Its actual schema
-      // matches this baseline release, so stamp it now rather than forcing
-      // an unnecessary re-download — future schema bumps are then correctly
-      // detected from this point on.
-      await prefs.setInt(prefKeySchemaVersion, supportedSchemaVersion);
-      return true;
+      // A file without a stamp predates schema-version tracking, so it has
+      // the schema of that time. Stamped now, it is judged like any other
+      // file from here on — usable while this app build supports that
+      // schema.
+      storedSchemaVersion = unstampedSchemaVersion;
+      await prefs.setInt(prefKeySchemaVersion, storedSchemaVersion);
     }
-    return storedSchemaVersion == supportedSchemaVersion;
+    return supportedSchemaVersions.contains(storedSchemaVersion);
   }
 
-  /// Best-effort background refresh for the common case where a local copy
-  /// already exists. Never throws: a failed manifest check must never take
-  /// away an already-usable cached copy (e.g. the user is offline, or the
-  /// manifest host is temporarily unreachable).
-  ///
-  /// Never downloads on its own — a newer version is only surfaced via
-  /// [pendingUpdate] for the UI to confirm explicitly (see
-  /// [downloadPendingUpdate]), on Wi-Fi or cellular alike.
-  Future<void> ensureUpToDateInBackground() async {
-    try {
-      final info = await _resolveUpdate(force: false);
-      if (info == null) {
-        _setPendingUpdate(null, onWifi: false);
-        return;
-      }
-      final onWifi = await _networkAvailability.isOnWifi();
-      _setPendingUpdate(info, onWifi: onWifi);
-    } catch (e) {
-      _log.warn(
-        'Background reference database update check failed, keeping cached copy: $e',
-      );
-    }
-  }
+  /// The manifest's version when it is newer than the installed one, or
+  /// null when it is not. Throws when the manifest cannot be fetched or its
+  /// schema is not supported by this build.
+  Future<ReferenceDbUpdateInfo?> findNewerVersion() =>
+      _resolveUpdate(force: false);
 
   /// Fetches the manifest and reports whether a download is needed — used by
   /// the blocking first-launch flow, which needs the size before deciding
@@ -152,55 +149,98 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return (await _resolveUpdate(force: true))!;
   }
 
-  /// Downloads and installs an update previously returned by
-  /// [checkForUpdate] or found via [pendingUpdate]. Rethrows on failure so
-  /// the caller can show a retry UI.
+  /// Downloads and installs an update returned by [checkForUpdate] — the
+  /// blocking path, taken while nothing has the reference database open.
+  /// Rethrows on failure so the caller can show a retry UI.
   Future<void> downloadAndInstall(
     ReferenceDbUpdateInfo info, {
     required void Function(double progress)? onProgress,
   }) async {
+    final path = await resolveLocalPath();
     await _downloader.downloadAndInstall(
       info._manifest,
-      await resolveLocalPath(),
+      path,
       onProgress: onProgress,
     );
+    await _closeOpenDatabases();
+    await deleteJournalFiles(path);
     await _stampInstalled(info._manifest);
-    _setPendingUpdate(null, onWifi: false);
   }
 
-  /// Confirms and installs [pendingUpdate]. No-op if nothing is pending.
-  /// Rethrows on failure so the caller can show an error — the pending
-  /// update is left in place so a retry is possible.
-  Future<void> downloadPendingUpdate() async {
-    final info = _pendingUpdate;
-    if (info == null) return;
-    await downloadAndInstall(info, onProgress: null);
+  /// Downloads [info] and stages it next to the active file — the running
+  /// session keeps reading the database it has open, and nothing is
+  /// stamped yet. [installStagedUpdate] puts it in place on the next
+  /// bootstrap. Rethrows on failure; a half-written staging is discarded by
+  /// the next attempt or the next start.
+  Future<void> stage(
+    ReferenceDbUpdateInfo info, {
+    required void Function(double progress)? onProgress,
+  }) async {
+    final staged = StagedReferenceDb(await resolveLocalPath());
+    await staged.clear();
+    await _downloader.downloadAndInstall(
+      info._manifest,
+      staged.filePath,
+      onProgress: onProgress,
+    );
+    await staged.writeMetadata(
+      version: info.version,
+      schemaVersion: info._manifest.schemaVersion,
+    );
   }
 
-  /// Declines [pendingUpdate] for the rest of this app session without
-  /// downloading it. Re-evaluated (and re-shown if still newer) on the next
-  /// [ensureUpToDateInBackground] call, i.e. the next app start.
-  void dismissPendingUpdate() {
-    _setPendingUpdate(null, onWifi: false);
-  }
-
-  void _setPendingUpdate(ReferenceDbUpdateInfo? info, {required bool onWifi}) {
-    if (_pendingUpdate?.version == info?.version &&
-        _pendingUpdateOnWifi == onWifi) {
+  /// Puts a staged update in place of the active reference database and
+  /// stamps it. For the bootstrap, before anything opens that database.
+  ///
+  /// Never throws for what it finds: a staging that never finished, one
+  /// whose schema this build does not support, or one no newer than what is
+  /// installed is removed and logged, and the start goes on with the active
+  /// file. Resumes an installation an earlier start began: metadata without
+  /// a staged file means the file was already moved into place.
+  Future<void> installStagedUpdate() async {
+    final staged = StagedReferenceDb(await resolveLocalPath());
+    final metadata = await staged.readMetadata();
+    final hasFile = await staged.hasFile;
+    if (metadata == null) {
+      if (hasFile) _log.warn('Discarding an unfinished reference DB staging');
+      await staged.clear();
       return;
     }
-    _pendingUpdate = info;
-    _pendingUpdateOnWifi = onWifi;
-    notifyListeners();
+    final installed = (await SharedPreferences.getInstance()).getInt(
+      prefKeyVersion,
+    );
+    final reason = !supportedSchemaVersions.contains(metadata.schemaVersion)
+        ? 'schema ${metadata.schemaVersion} is not supported'
+        : installed != null &&
+              (hasFile
+                  ? metadata.version <= installed
+                  : metadata.version < installed)
+        ? 'version ${metadata.version} is not newer than $installed'
+        : null;
+    if (reason != null) {
+      _log.warn('Discarding staged reference DB: $reason');
+      await staged.clear();
+      return;
+    }
+    if (hasFile) {
+      await staged.moveIntoPlace();
+      await _closeOpenDatabases();
+    }
+    // Also when resuming: a start that stopped after the rename may not have
+    // got this far.
+    await deleteJournalFiles(staged.activePath);
+    await _stamp(metadata.version, metadata.schemaVersion);
+    await staged.clear();
   }
 
   Future<ReferenceDbUpdateInfo?> _resolveUpdate({required bool force}) async {
     final manifest = await _downloader.fetchManifest();
 
-    if (manifest.schemaVersion != supportedSchemaVersion) {
+    if (!supportedSchemaVersions.contains(manifest.schemaVersion)) {
       throw DataFormatException(
         'Reference database schema version ${manifest.schemaVersion} is not '
-        'supported by this app build (expects $supportedSchemaVersion). '
+        'supported by this app build (supports '
+        '${supportedSchemaVersions.join(', ')}). '
         'Update the app to receive this reference database.',
       );
     }
@@ -216,13 +256,15 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return ReferenceDbUpdateInfo._(manifest);
   }
 
-  Future<void> _stampInstalled(ReferenceDbManifest manifest) async {
+  Future<void> _stampInstalled(ReferenceDbManifest manifest) =>
+      _stamp(manifest.version, manifest.schemaVersion);
+
+  Future<void> _stamp(int version, int schemaVersion) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(prefKeyVersion, manifest.version);
-    await prefs.setInt(prefKeySchemaVersion, manifest.schemaVersion);
-    _log.debug(
-      'Reference database installed (version ${manifest.version}).',
-    );
+    await prefs.setInt(prefKeyVersion, version);
+    await prefs.setInt(prefKeySchemaVersion, schemaVersion);
+    _installedThisStart = true;
+    _log.debug('Reference database installed (version $version).');
   }
 
 }
@@ -230,7 +272,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
 class ReferenceDbStatus {
   final int? installedVersion;
   final int? installedSchemaVersion;
-  final int supportedSchemaVersion;
+  final Set<int> supportedSchemaVersions;
   final bool fileExists;
   final int? fileSizeBytes;
   final DateTime? fileModifiedAt;
@@ -238,7 +280,7 @@ class ReferenceDbStatus {
   const ReferenceDbStatus({
     required this.installedVersion,
     required this.installedSchemaVersion,
-    required this.supportedSchemaVersion,
+    required this.supportedSchemaVersions,
     required this.fileExists,
     required this.fileSizeBytes,
     required this.fileModifiedAt,
@@ -252,6 +294,9 @@ class ReferenceDbUpdateInfo {
   final ReferenceDbManifest _manifest;
 
   const ReferenceDbUpdateInfo._(this._manifest);
+
+  @visibleForTesting
+  const ReferenceDbUpdateInfo.ofManifest(this._manifest);
 
   int get version => _manifest.version;
   int get compressedSizeBytes => _manifest.compressedSizeBytes;

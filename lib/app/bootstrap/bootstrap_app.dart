@@ -1,32 +1,28 @@
 import 'dart:async';
 
+import 'package:discere/app/bootstrap/app_restart.dart';
+import 'package:discere/app/bootstrap/app_session.dart';
 import 'package:discere/app/bootstrap/bootstrap_error_shell.dart';
 import 'package:discere/app/bootstrap/bootstrap_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_declined_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
+import 'package:discere/app/bootstrap/reference_id_alias_step.dart';
 import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/diagnostics_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
+import 'package:discere/app/wiring/external_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
 import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/external/inaturalist/inat_api_client.dart';
-import 'package:discere/external/inaturalist/inat_common_name_api.dart';
-import 'package:discere/external/inaturalist/inat_metadata_api.dart';
-import 'package:discere/external/inaturalist/inat_photo_api.dart';
-import 'package:discere/external/inaturalist/inat_search_api.dart';
-import 'package:discere/external/inaturalist/inat_taxon_details.dart';
-import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
-import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -40,6 +36,9 @@ import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BootstrapApp extends StatefulWidget {
+  /// Stands in for the notification service a run builds itself, in tests.
+  /// An in-app restart disposes it with the session it served (see
+  /// `AppSession.stop`), so it suits a mock, not a real service.
   final NotificationService? notificationService;
   final bool processEnrichmentJobs;
 
@@ -79,11 +78,6 @@ class _BootstrapAppState extends State<BootstrapApp> {
   static const _log = ScopedLogger('bootstrap');
   static const _bootstrapTimeout = Duration(seconds: 12);
 
-  // Own instance, separate from the one the shared wiring builds — this one
-  // only needs the one-shot isOnWifi() check, runs before that service
-  // wiring exists, and is never initialize()d (no stream consumer).
-  final _networkAvailability = ConnectivityNetworkAvailability();
-
   // Constructed here (rather than in _setupCriticalServices(), which runs
   // after _ensureReferenceDb()) so the same keepalive instance covers both
   // the reference-DB download and, later, background enrichment — either can
@@ -101,7 +95,15 @@ class _BootstrapAppState extends State<BootstrapApp> {
           client: http.Client(),
           foregroundServiceKeeper: _foregroundServiceKeeper,
         ),
-    networkAvailability: _networkAvailability,
+    closeOpenDatabases: DatabaseHelper.close,
+  );
+
+  late final _referenceDbUpdates = ReferenceDbUpdateService(
+    provisioner: _referenceDbProvisioner,
+    // Own instance, separate from the one the shared wiring builds — this
+    // one only answers one-shot isOnWifi() checks, from before that wiring
+    // exists, and is never initialize()d (no stream consumer).
+    networkAvailability: ConnectivityNetworkAvailability(),
   );
 
   late Future<_BootstrapResult> _bootstrapFuture;
@@ -129,6 +131,9 @@ class _BootstrapAppState extends State<BootstrapApp> {
       'Diagnostics setup',
     );
     try {
+      // Before anything opens the reference database: an update staged
+      // during the last session replaces the file here.
+      await _referenceDbProvisioner.installStagedUpdate();
       await _ensureReferenceDb();
     } on _ReferenceDbDownloadDeferred {
       rethrow;
@@ -138,12 +143,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
       // instead of the generic bootstrap error shell.
       throw _ReferenceDbUnavailable(e);
     }
+    // Outside the timeout below: its length scales with the user's data.
+    await applyReferenceIdAliases();
     return _setupCriticalServices(
       diagnostics: diagnostics,
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
       httpClient: widget.httpClient,
-      referenceDbProvisioner: _referenceDbProvisioner,
       foregroundServiceKeeper: _foregroundServiceKeeper,
       onStatusChanged: _updateSplashStatus,
     ).timeout(
@@ -170,12 +176,12 @@ class _BootstrapAppState extends State<BootstrapApp> {
   /// [_ReferenceDbDownloadDeferred] rather than proceeding.
   Future<void> _ensureReferenceDb() async {
     if (await _referenceDbProvisioner.hasUsableLocalCopy()) {
-      unawaited(_referenceDbProvisioner.ensureUpToDateInBackground());
+      unawaited(_referenceDbUpdates.checkAtStart());
       return;
     }
 
     final updateInfo = await _referenceDbProvisioner.checkForUpdate();
-    final onWifi = await _networkAvailability.isOnWifi();
+    final onWifi = await _referenceDbUpdates.isOnWifi();
     setState(() {
       _pendingDownloadConfirmation = updateInfo;
       _pendingDownloadConfirmationOnWifi = onWifi;
@@ -183,9 +189,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     _downloadConfirmationCompleter = Completer<bool>();
     final proceed = await _downloadConfirmationCompleter!.future;
     if (mounted) setState(() => _pendingDownloadConfirmation = null);
-    if (!proceed) {
-      throw const _ReferenceDbDownloadDeferred();
-    }
+    if (!proceed) throw const _ReferenceDbDownloadDeferred();
 
     setState(() {
       _downloadProgress = 0;
@@ -198,6 +202,17 @@ class _BootstrapAppState extends State<BootstrapApp> {
         setState(() => _downloadProgress = progress);
       },
     );
+  }
+
+  /// Shows the loading screen in place of the app — which tears down its
+  /// provider tree and every open route — and bootstraps again once
+  /// [running] has stopped. See [AppRestart].
+  void _restart(_BootstrapResult running) {
+    setState(() {
+      _status = 'Applying update…';
+      _startedDeferred = false;
+      _bootstrapFuture = restartApp(running.session, _bootstrap);
+    });
   }
 
   void _confirmDownload(bool proceed) =>
@@ -265,10 +280,21 @@ class _BootstrapAppState extends State<BootstrapApp> {
         final result = snapshot.data!;
         if (!_startedDeferred) {
           _startedDeferred = true;
-          unawaited(result.startDeferred());
+          unawaited(result.session.startDeferred());
         }
+        // Keyed by the run, so a restart never reuses a widget of the last.
+        // The session is provided for whatever has to end it from below —
+        // the restart does so here, tests through the provider. The
+        // reference-DB objects outlive the run, so they come from here too.
         return MultiProvider(
-          providers: result.providers,
+          key: ObjectKey(result),
+          providers: [
+            ...result.providers,
+            Provider.value(value: _referenceDbProvisioner),
+            ChangeNotifierProvider.value(value: _referenceDbUpdates),
+            Provider.value(value: result.session),
+            Provider.value(value: AppRestart(() => _restart(result))),
+          ],
           child: const FlashcardApp(),
         );
       },
@@ -293,15 +319,12 @@ class _ReferenceDbDownloadDeferred implements Exception {
 
 Future<_BootstrapResult> _setupCriticalServices({
   required DiagnosticsServices diagnostics,
-  required ReferenceDatabaseProvisioner referenceDbProvisioner,
   required ForegroundServiceKeeper foregroundServiceKeeper,
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
   http.Client? httpClient,
   void Function(String status)? onStatusChanged,
 }) async {
-  Logger.debug('bootstrap', 'critical setup: starting');
-
   onStatusChanged?.call('Loading preferences…');
   final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -320,29 +343,16 @@ Future<_BootstrapResult> _setupCriticalServices({
     diagnostics: diagnostics.localDiagnostics,
     httpClient: httpClient,
   );
-  final activeNotificationService =
-      notificationService ??
-      NotificationService(preferences: sharedPreferences);
-  final sharedHttpClient = shared.sharedHttpClient;
-  final iNatApi = INatApiClient(client: sharedHttpClient);
-  final iNatTaxonDetails = INatTaxonDetails(api: iNatApi);
-  final iNatSearch = INatSearchApi(api: iNatApi);
-  final iNatMetadata = INatMetadataApi(taxonDetails: iNatTaxonDetails);
-  final iNatTaxonIds = INatTaxonIdResolver(api: iNatApi);
-  final iNatPhotos = INatPhotoApi(
-    api: iNatApi,
-    taxonIds: iNatTaxonIds,
-    taxonDetails: iNatTaxonDetails,
-  );
-  final iNatNames = INatCommonNameApi(api: iNatApi, taxonIds: iNatTaxonIds);
-  final wikipediaApi = WikipediaApi(client: sharedHttpClient);
+  final notifications =
+      notificationService ?? NotificationService(preferences: sharedPreferences);
+  final external = buildExternalClients(shared.sharedHttpClient);
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
     localePlaceMappingRepository: localePlaceMappingRepository,
-    iNatSearch: iNatSearch,
-    iNatMetadata: iNatMetadata,
-    wikipediaApi: wikipediaApi,
+    iNatSearch: external.iNatSearch,
+    iNatMetadata: external.iNatMetadata,
+    wikipediaApi: external.wikipediaApi,
     sharedPreferences: sharedPreferences,
   );
 
@@ -350,21 +360,22 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
     imageService: shared.imageService,
-    iNatSearch: iNatSearch,
-    sharedHttpClient: sharedHttpClient,
+    iNatSearch: external.iNatSearch,
+    sharedHttpClient: shared.sharedHttpClient,
     serializationWorker: const DeckSerializationWorker(),
     sharedPreferences: sharedPreferences,
     userPreferencesService: shared.userPreferencesService,
+    userDataWrites: shared.userDataWrites,
   );
 
   final enrichment = buildEnrichmentServices(
     speciesRepository: catalog.speciesRepository,
     imageService: shared.imageService,
-    iNatPhotos: iNatPhotos,
-    iNatNames: iNatNames,
-    iNatSearch: iNatSearch,
-    iNatTaxonDetails: iNatTaxonDetails,
-    iNatTaxonIds: iNatTaxonIds,
+    iNatPhotos: external.iNatPhotos,
+    iNatNames: external.iNatNames,
+    iNatSearch: external.iNatSearch,
+    iNatTaxonDetails: external.iNatTaxonDetails,
+    iNatTaxonIds: external.iNatTaxonIds,
     externalIdRepository: catalog.externalIdRepository,
     externalIdCacheRepository: catalog.externalIdCacheRepository,
     deckService: learning.deckService,
@@ -372,6 +383,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: shared.networkAvailability,
     hostCooldownTracker: shared.hostCooldownTracker,
+    userDataWrites: shared.userDataWrites,
     processEnrichmentJobs: processEnrichmentJobs,
   );
 
@@ -384,15 +396,16 @@ Future<_BootstrapResult> _setupCriticalServices({
     deckServices: learning,
     speciesMediaService: enrichment.speciesMediaService,
     enrichmentQueueService: enrichment.iNatEnrichmentQueueService,
-    notificationService: activeNotificationService,
+    notificationService: notifications,
     userPreferencesService: shared.userPreferencesService,
   );
 
   // Every entry is a `.value()` provider, so nothing here is built while the
   // provider tree is assembled and the order between the slices carries no
-  // meaning. What stays in this list is what no slice owns: the provisioner
-  // the bootstrap holds itself, the notification service the caller may
-  // substitute, and the `external` clients — which have no wiring file yet.
+  // meaning. What stays in this list is what no slice owns: the notification
+  // service the caller may substitute. What the bootstrap holds itself
+  // across restarts — the provisioner and the update service — is provided
+  // where the run is.
   final providers = <SingleChildWidget>[
     ...diagnostics.providers,
     ...shared.providers,
@@ -400,38 +413,26 @@ Future<_BootstrapResult> _setupCriticalServices({
     ...learning.providers,
     ...enrichment.providers,
     ...review.providers,
-    ChangeNotifierProvider<ReferenceDatabaseProvisioner>.value(
-      value: referenceDbProvisioner,
-    ),
-    Provider<NotificationService>.value(value: activeNotificationService),
-    Provider<INatPhotoApi>.value(value: iNatPhotos),
-    Provider<WikipediaApi>.value(value: wikipediaApi),
+    ...external.providers,
+    Provider<NotificationService>.value(value: notifications),
   ];
 
-  return _BootstrapResult(
+  return (
     providers: providers,
-    startDeferred: () async {
-      Logger.debug('bootstrap', 'deferred setup: starting');
-      await activeNotificationService.initNotification();
-      await enrichment.iNatEnrichmentQueueService.initialize();
-      // DeckSourceIdBackfillService is @Deprecated as a marker for when to
-      // delete it (and this call) — see its class doc for the removal plan.
-      await DeckSourceIdBackfillService(
-        learning.deckRepository,
-        learning.remoteDeckService,
-      ).runIfNeeded();
-      unawaited(learning.deckUpdateService.checkForUpdates());
-      Logger.debug('bootstrap', 'deferred setup: done');
-    },
+    session: AppSession(
+      notificationService: notifications,
+      enrichmentQueue: enrichment.iNatEnrichmentQueueService,
+      deckRepository: learning.deckRepository,
+      remoteDeckService: learning.remoteDeckService,
+      deckUpdateService: learning.deckUpdateService,
+      shared: shared,
+      searchWorker: catalog.searchWorker,
+      localDiagnostics: diagnostics.localDiagnostics,
+    ),
   );
 }
 
-class _BootstrapResult {
-  final List<SingleChildWidget> providers;
-  final Future<void> Function() startDeferred;
-
-  const _BootstrapResult({
-    required this.providers,
-    required this.startDeferred,
-  });
-}
+typedef _BootstrapResult = ({
+  List<SingleChildWidget> providers,
+  AppSession session,
+});

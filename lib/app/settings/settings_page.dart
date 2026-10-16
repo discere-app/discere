@@ -3,6 +3,7 @@ import 'package:discere/app/info/about_page.dart';
 import 'package:discere/app/info/sources_page.dart';
 import 'package:discere/app/settings/widgets/settings_learning_section.dart';
 import 'package:discere/app/settings/widgets/settings_navigation_tile.dart';
+import 'package:discere/app/settings/widgets/settings_reference_db_section.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -95,6 +96,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       onTap: () => _open((_) => const DiagnosticsPage()),
                     ),
                   ],
+                  // Last: maintenance, rarely needed.
+                  AppSpacing.heightS24,
+                  const SettingsReferenceDbSection(),
                 ],
               ),
             );

@@ -80,6 +80,10 @@ class LocalDiagnostics implements DiagnosticsSink {
   /// writes it.
   Future<LocalDiagnosticsReport> loadReport() => _repository.loadReport();
 
+  /// Completes once every write queued so far has run — before the user
+  /// database closes underneath them.
+  Future<void> flush() => _writeQueue;
+
   Future<void> _enqueue(Future<void> Function() operation) {
     _writeQueue = _writeQueue
         .catchError((Object error, StackTrace stackTrace) {

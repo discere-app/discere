@@ -9,6 +9,7 @@ import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
 import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +54,8 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        deprecatedNames: MockDeprecatedSpeciesNameRepository(),
+        userDataWrites: UserDataWrites(),
       );
 
       when(
@@ -124,6 +127,8 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        deprecatedNames: MockDeprecatedSpeciesNameRepository(),
+        userDataWrites: UserDataWrites(),
       );
 
       when(mockDecksService.getSpeciesByDeckId('deck-1')).thenAnswer(
@@ -200,6 +205,8 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        deprecatedNames: MockDeprecatedSpeciesNameRepository(),
+        userDataWrites: UserDataWrites(),
       );
 
       when(
@@ -221,7 +228,11 @@ void main() {
           updatedAt: DateTime.utc(2026, 1, 1),
         ),
       );
-      when(mockDecksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(mockDecksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(
         mockNotificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
@@ -359,6 +370,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<void> refreshStaleBaseImages(String deckId) async {}
+
+  @override
+  Future<void> shutdown() async {}
 
   @override
   Future<void> refreshAllStaleBaseImages() async {}

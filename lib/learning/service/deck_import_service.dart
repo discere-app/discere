@@ -4,6 +4,7 @@ import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/util/logger.dart';
 
 class DeckImportResult {
@@ -46,11 +47,15 @@ class DeckImportService {
   final SpeciesRepository _speciesRepository;
   final INatNameResolutionService? _iNatNameResolutionService;
 
+  final UserDataWrites _writes;
+
   DeckImportService(
     this._decksService,
     this._speciesRepository, {
+    required UserDataWrites userDataWrites,
     INatSearchApi? iNatSearch,
-  }) : _iNatNameResolutionService = iNatSearch == null
+  }) : _writes = userDataWrites,
+       _iNatNameResolutionService = iNatSearch == null
            ? null
            : INatNameResolutionService(_speciesRepository, iNatSearch);
 
@@ -81,7 +86,12 @@ class DeckImportService {
     return (deckId: deckId, unresolvedNames: resolution.unresolved);
   }
 
-  Future<DeckImportResult> importDecks(List<CreateDeck> decks) async {
+  /// Counted as one write sequence for the in-app restart: an import of
+  /// several decks finishes all of them, not the first few.
+  Future<DeckImportResult> importDecks(List<CreateDeck> decks) =>
+      _writes.run(() => _importDecks(decks));
+
+  Future<DeckImportResult> _importDecks(List<CreateDeck> decks) async {
     if (decks.isEmpty) {
       return const DeckImportResult(
         importedDeckIds: [],

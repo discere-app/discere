@@ -1,9 +1,11 @@
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 
 /// Carries out one deck's update against a newer catalog version: works out
 /// what would change, and applies the part of it the user accepted.
@@ -21,19 +23,45 @@ import 'package:discere/learning/service/decks_service.dart';
 class DeckUpdateApplier {
   final DecksService _decksService;
   final SpeciesRepository _speciesRepository;
+  final DeprecatedSpeciesNameRepository _deprecatedNames;
 
-  const DeckUpdateApplier(this._decksService, this._speciesRepository);
+  const DeckUpdateApplier(
+    this._decksService,
+    this._speciesRepository, {
+    required DeprecatedSpeciesNameRepository deprecatedNames,
+    required UserDataWrites userDataWrites,
+  }) : _deprecatedNames = deprecatedNames,
+       _writes = userDataWrites;
+
+  /// Counts [apply] — read the deck, write it back — as one write sequence
+  /// for the in-app restart.
+  final UserDataWrites _writes;
 
   /// Compares [deckId]'s current species against [remote]'s catalog entry,
   /// so the deck-update dialog can show the user what a refresh would add or
   /// remove before applying anything.
+  ///
+  /// A remote name resolves to an active species first. Only a name no
+  /// active species answers to may resolve to a deprecated one, and only to
+  /// one the deck already holds: such a species stays, and the update never
+  /// adds a deprecated species.
   Future<DeckUpdateDiff> diff(String deckId, CreateDeck remote) async {
     final currentSpecies = await _decksService.getSpeciesByDeckId(deckId);
     final currentIds = currentSpecies.map((s) => s.id).toSet();
     final currentById = {for (final s in currentSpecies) s.id: s};
 
-    final remoteNames = remote.speciesNames?.toList() ?? const [];
-    final resolved = await _speciesRepository.resolveFullNames(remoteNames);
+    final remoteNames = remote.speciesNames?.toList() ?? const <String>[];
+    final active = await _speciesRepository.resolveFullNames(remoteNames);
+    // A name no active species answers to may still name a deprecated one
+    // the deck already holds: the remote deck keeps it, so it stays. Only a
+    // species already in the deck, so an update never adds one.
+    final resolved = {
+      ...await _deprecatedNames.resolveAmong(
+        remoteNames.where((name) => !active.containsKey(name)).toList(),
+        currentIds,
+      ),
+      ...active,
+    };
     final remoteIds = resolved.values.toSet();
 
     final addedIds = remoteIds.difference(currentIds);
@@ -70,15 +98,8 @@ class DeckUpdateApplier {
     required DeckUpdateDiff diff,
     required bool includeAdditions,
     required bool includeRemovals,
-  }) async {
+  }) => _writes.run(() async {
     final current = await _decksService.getCreateDeck(deckId);
-    final newSpeciesIds = {...?current.speciesIds};
-    if (includeAdditions) {
-      newSpeciesIds.addAll(diff.addedSpecies.map((s) => s.id));
-    }
-    if (includeRemovals) {
-      newSpeciesIds.removeAll(diff.removedSpecies.map((s) => s.id));
-    }
 
     final updatedDeck = BaseDeck(
   id: deckId,
@@ -89,8 +110,18 @@ class DeckUpdateApplier {
       sourceId: remote.sourceId,
       updatedAt: remote.updatedAt,
     );
-    await _decksService.updateDeck(updatedDeck, newSpeciesIds);
+    // Only what the diff names: a species of the deck that the reference
+    // database does not resolve is in neither list and keeps its progress.
+    await _decksService.updateDeck(
+      updatedDeck,
+      addedSpeciesIds: {
+        if (includeAdditions) ...diff.addedSpecies.map((s) => s.id),
+      },
+      removedSpeciesIds: {
+        if (includeRemovals) ...diff.removedSpecies.map((s) => s.id),
+      },
+    );
 
-    return includeAdditions ? diff.unresolvedAddedNames : const [];
-  }
+    return includeAdditions ? diff.unresolvedAddedNames : const <String>[];
+  });
 }

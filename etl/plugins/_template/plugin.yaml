@@ -1,6 +1,6 @@
 name: example
 version: 1
-source: example  # Muss eindeutig sein — wird als external_source in der DB gespeichert
+source: example  # Muss eindeutig sein und dem Verzeichnisnamen entsprechen — wird als external_source in der DB gespeichert
 
 provides:
   - species       # Welche Tabellen dieses Plugin befüllt
@@ -10,10 +10,15 @@ provides:
   # - classes
   # - pictures
 
-requires:
+requires:          # Werkzeuge, die das Plugin braucht
   - duckdb
   - sqlite3
   - curl  # nur bei --download
+
+# depends_on_sources:   # Quellen, gegen deren Daten abgeglichen wird (Blockliste)
+#   - fishbase
+# optional: true        # nur ergänzend — --no-enrich überspringt das Plugin (Default: false)
+# placement_priority: 30  # nur wenn das Plugin Einordnungen liefert; kleiner = gewichtiger, eindeutig
 
 flags:
   - --db <path>    # Pflichtfeld — wird von build.sh übergeben

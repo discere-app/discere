@@ -8,6 +8,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/util/logger.dart';
 
 /// The live flashcard review engine for a [DeckPage] session: sourcing due
@@ -30,8 +31,13 @@ class FlashcardReviewService {
   const FlashcardReviewService(
     this._flashcardStatRepository,
     this._speciesMediaService,
-    this._photoGapAckRepository,
-  );
+    this._photoGapAckRepository, {
+    required UserDataWrites userDataWrites,
+  }) : _writes = userDataWrites;
+
+  /// Counts a review — read the card's state, write the next one — as one
+  /// write sequence for the in-app restart.
+  final UserDataWrites _writes;
 
   /// The algorithm [config] describes. Built per call rather than injected:
   /// it is a handful of numbers off the config, and deriving it here is what
@@ -168,7 +174,7 @@ class FlashcardReviewService {
     String deckId,
     DeckConfig config,
     ReviewGrade grade,
-  ) async {
+  ) => _writes.run(() async {
     FlashcardStat flashcardStat = await _getFlashcardStat(
       speciesId,
       deckId,
@@ -182,7 +188,7 @@ class FlashcardReviewService {
     await _saveFlashcardStat(flashcardStat);
 
     return flashcardStat;
-  }
+  });
 
   /// Returns user-friendly interval strings for each grade.
   Future<Map<ReviewGrade, String>> getPreviewIntervals(

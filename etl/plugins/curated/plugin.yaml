@@ -1,0 +1,17 @@
+name: curated
+version: 1
+source: curated
+
+# Von Hand gepflegte Ergänzungen zu Entitäten anderer Quellen. Die Quelle legt
+# keine Entitäten an und liefert keine Einordnung (keine placement_priority).
+provides:
+  - common_names
+
+requires:
+  - sqlite3
+
+depends_on_sources:
+  - fishbase
+
+flags:
+  - --db <path>  # Pflichtfeld — wird von build.sh übergeben

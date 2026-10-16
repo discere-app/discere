@@ -46,12 +46,14 @@ Die reale Implementierung (nicht nur eine Skizze wie früher in diesem
 Dokument) lebt in zwei Klassen im Flutter-Repo:
 
 - **`lib/shared/persistence/reference_database_provisioner.dart`** —
-  `ReferenceDatabaseProvisioner`: prüft, ob lokal schon eine Kopie existiert
-  (`hasLocalCopy()`), aktualisiert bei Bedarf im Hintergrund
-  (`ensureUpToDateInBackground()`, fail-open — ein fehlgeschlagener Check
-  darf eine bereits nutzbare lokale Kopie nie blockieren), oder lädt beim
+  `ReferenceDatabaseProvisioner`: prüft, ob lokal schon eine nutzbare Kopie
+  existiert (`hasUsableLocalCopy()`), sucht nach einer neueren Version
+  (`findNewerVersion()`) und legt sie bereit (`stage()`), oder lädt beim
   allerersten Start blockierend mit Fortschrittsanzeige herunter
-  (`downloadInitialCopy(onProgress: ...)`). Lädt ein kleines `manifest.json`
+  (`checkForUpdate()` + `downloadAndInstall(onProgress: ...)`). Was eine
+  Sitzung über ein Update weiß und tut, hält
+  `ReferenceDbUpdateService` (fail-open — ein fehlgeschlagener Check darf
+  eine bereits nutzbare lokale Kopie nie blockieren). Lädt ein kleines `manifest.json`
   (Version, Schema-Version, Download-URL, SHA-256-Checksum), streamt den
   gzip-komprimierten Download direkt in eine `.gz.part`-Datei, verifiziert
   die Checksumme, dekomprimiert in einem Isolate und installiert die Datei
@@ -119,28 +121,48 @@ Ablauf, um eine neue `discere_reference.db` an Nutzer:innen auszuliefern
 ```
 Maintainer:
   ./build.sh                              # neue discere_reference.db bauen
-  ./publish_release.sh --version <n+1> --schema-version <n>   # braucht `gh auth login`
+  ./publish_release.sh --version <n+1>   # braucht `gh auth login`; Schemaversion aus der DB
     → gzip + SHA-256
     → Upload als GitHub-Release-Asset auf discere-data
     → data/reference-db/manifest.json in discere-data aktualisieren + pushen
 
 App (bei jedem Start, falls schon eine lokale Kopie existiert):
-  ReferenceDatabaseProvisioner.ensureUpToDateInBackground()
+  ReferenceDbUpdateService.checkAtStart()
     → manifest.json laden
     → manifest.version > lokal gespeicherte Version?
-      → ja: im Hintergrund neu herunterladen, verifizieren, installieren
+      → ja: als verfügbar melden; der Hauptbildschirm fragt einmal (abgelehnt
+        bleibt es in den Einstellungen herunterladbar), lädt nach
+        Bestätigung im Hintergrund mit Fortschritt herunter, verifiziert und
+        legt die Datei neben die aktive (<ref>.pending); „Anwenden“ startet
+        die App neu, sonst setzt der nächste Start sie ein
       → nein: nichts tun
-    → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv,
-      kein Fehler für die Nutzer:in sichtbar (fail-open)
+    → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv
+      (fail-open); nur die Einstellungen nennen den Fehlschlag und bieten
+      eine neue Suche an
+
+App (bei jedem Start, vor allem anderen):
+  installStagedUpdate()  → bereitgelegte Datei einsetzen und stempeln
+
+App (bei jedem Start, sobald eine Referenz-DB bereitliegt):
+  applyReferenceIdAliases()  → ReferenceIdMigration
+    → Aliase dieser Version schon angewendet? → nichts tun
+    → sonst: Verweise der Nutzer-DB und der Watchlist über entity_aliases
+      umschreiben, dann erst die Dienste bauen
 ```
 
 `schemaVersion` im Manifest ist von `version` (reine Datenupdates) getrennt —
 nur hochzählen, wenn sich `core/sql/schema.sql` so ändert, dass die
-Flutter-seitigen Queries in `lib/catalog/repository/` eine passende
-App-Version brauchen.
+Flutter-seitigen Queries in `lib/catalog/repository/` oder das Umschreiben
+der Nutzerdaten eine passende App-Version brauchen. Schemaversion 2 ist die
+erste mit `entity_aliases`. Die App akzeptiert die Schemaversionen 1 und 2
+(`ReferenceDatabaseProvisioner.supportedSchemaVersions`): Eine installierte
+Schema-1-Kopie bleibt nutzbar, das erste Schema-2-Release kommt über das
+normale Bereitstellen und den Neustart; bei Schema 1 hat die
+Alias-Migration nichts umzuschreiben.
 
-User-Decks und Lernfortschritt sind von alldem nicht betroffen, weil sie in
-`discere_user.db` liegen.
+User-Decks und Lernfortschritt liegen in `discere_user.db` und überstehen
+jedes Update. Verweisen sie auf eine ID, die das neue Release abgelöst hat,
+schreibt die App sie beim nächsten Start auf die gültige um.
 
 ---
 
@@ -153,7 +175,7 @@ FTS4 matcht auf vollständige Tokens. `MATCH 'salmo'` findet `Salmo trutta`, `MA
 Korrekt so — alle Schreiboperationen gehören in die User-DB. Wenn ein Repository versehentlich in die Referenz-DB schreibt, ist das ein Architektur-Fehler.
 
 **`species_id` in User-DB referenziert**
-`flashcard_stats.species_id` zeigt auf `species.id` aus der Referenz-DB. Diese IDs sind im aktuellen ETL deterministisch (`discere:<source>_species:<external_id>`) und dürfen als interne Schlüssel in der App verwendet werden. `external_source` + `external_id` bleiben trotzdem wichtig, aber nur als Herkunftsinfo der Entity selbst.
+`flashcard_stats.species_id` zeigt auf `species.id` aus der Referenz-DB. Diese IDs (`discere:species:<nr>`) vergibt das ETL über ein ID-Register stabil über Releases und dürfen als interne Schlüssel in der App verwendet werden. Wird eine ID abgelöst, führt `entity_aliases` sie mit ihrer gültigen; die App schreibt ihre Verweise beim Wechsel der Referenz-DB darüber um (siehe `docs/datenquellen.md`, Aliase). `external_source` + `external_id` bleiben Herkunftsinfo der Entity selbst.
 
 ---
 
@@ -324,7 +346,7 @@ App:
 -- Bereits in der DB vorhanden
 SELECT * FROM entity_external_ids WHERE provider = 'inaturalist' LIMIT 5;
 -- entity_id                       | entity_type | provider    | external_id
--- discere:fishbase_species:10042 | species     | inaturalist | 12345
+-- discere:species:10042         | species     | inaturalist | 12345
 -- genus:barbus                   | genera      | inaturalist | 86989
 -- family:cyprinidae              | families    | inaturalist | 51783
 ```
@@ -350,12 +372,12 @@ class ExternalIdRepository {
 ### Häufige Fehler
 
 **iNaturalist-Mapping fehlt für viele Arten**
-Prüfen ob der ETL-Build den iNaturalist-Enrichment-Schritt ausgeführt hat:
+Prüfen ob der ETL-Build das Plugin `inaturalist` ausgeführt hat (`--no-enrich` überspringt es):
 ```bash
 sqlite3 assets/database/discere_reference.db \
   "SELECT COUNT(*) FROM entity_external_ids WHERE provider = 'inaturalist';"
 ```
-Sollte > 0 sein. Falls 0: ETL nochmals mit `./etl/enrichment/inaturalist/enrich.sh` laufen lassen.
+Sollte > 0 sein. Falls 0: `./etl/plugins/inaturalist/import.sh --db <db>` laufen lassen. Was sich nicht eindeutig zuordnen ließ, steht im Build-Bericht (`<db ohne Endung>.build-report/inaturalist.tsv`).
 
 **Fallback liefert immer noch keine Treffer**
 Der ETL arbeitet mit aktiven Taxa aus `taxa.csv`. Für echte Lücken greift die

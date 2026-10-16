@@ -6,6 +6,7 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_confirm_dialogs.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_list.dart';
+import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
@@ -15,6 +16,7 @@ import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -44,9 +46,12 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   late final EnrichmentHealthSnapshotService _healthSnapshotService;
   late final DiagnosticsLogFile _logFile;
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
+  late final ReferenceDbUpdateService _referenceDbUpdates;
+  Type? _referenceDbStateType;
   late final INatEnrichmentQueueService _queueService;
   late final DeckUpdateService _deckUpdateService;
   late final DecksService _decksService;
+  late final SourceService _sourceService;
   Future<DiagnosticsPageData>? _future;
   bool _isRefreshing = false;
   bool _isCheckingDeckUpdates = false;
@@ -70,15 +75,35 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       listen: false,
     );
     _queueService.addListener(_handleQueueServiceChanged);
+    _referenceDbUpdates = Provider.of<ReferenceDbUpdateService>(
+      context,
+      listen: false,
+    )..addListener(_handleReferenceDbChanged);
     _deckUpdateService = Provider.of<DeckUpdateService>(context, listen: false);
     _decksService = Provider.of<DecksService>(context, listen: false);
+    _sourceService = Provider.of<SourceService>(context, listen: false);
     _future = _load();
   }
 
   @override
   void dispose() {
     _queueService.removeListener(_handleQueueServiceChanged);
+    _referenceDbUpdates.removeListener(_handleReferenceDbChanged);
     super.dispose();
+  }
+
+  /// A reference-DB update moving on — the check finishing, an update
+  /// declined, a download starting or ending: rare, and not to be lost to
+  /// [_handleQueueServiceChanged]'s throttle, or a page opened right after
+  /// the start would keep saying the check is still running. A running
+  /// download reports every percentage point; those do not reload the page,
+  /// which shows how far it was when it loaded. A refresh in flight reads
+  /// the new state itself.
+  void _handleReferenceDbChanged() {
+    final stateType = _referenceDbUpdates.state.runtimeType;
+    if (stateType == _referenceDbStateType) return;
+    _referenceDbStateType = stateType;
+    unawaited(_refresh());
   }
 
   /// Fires whenever the enrichment pipeline notifies (job claimed, work
@@ -157,8 +182,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       diagnostics: _diagnostics,
       healthSnapshotService: _healthSnapshotService,
       referenceDbProvisioner: _referenceDbProvisioner,
+      referenceDbUpdates: _referenceDbUpdates,
       queueService: _queueService,
       decksService: _decksService,
+      sourceService: _sourceService,
       logPersistence: LogDiagnosticsPersistence(prefs, logFile: _logFile),
     );
     _lastRefreshedAt = DateTime.now();

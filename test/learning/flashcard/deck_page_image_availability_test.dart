@@ -22,6 +22,7 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -204,6 +205,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   Future<void> refreshStaleBaseImages(String deckId) async {}
 
   @override
+  Future<void> shutdown() async {}
+
+  @override
   Future<void> refreshAllStaleBaseImages() async {}
 
   @override
@@ -288,6 +292,7 @@ Widget _buildApp(
           distractorPoolService: MultipleChoiceDistractorPoolService(
             taxonomyRepository: MockTaxonomyRepository(),
           ),
+          userDataWrites: UserDataWrites(),
         ),
       ),
     ],

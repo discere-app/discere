@@ -5,7 +5,8 @@
 # Filtert eine lokal gebaute Voll-DB (etl/build.sh) auf eine kuratierte
 # Artenliste (test_fixture_species.txt) herunter — inkl. vollständiger
 # Taxonomie-Ahnenkette, Common Names, wissenschaftlicher Namen/Synonyme,
-# Bilder und Traits/Verbreitungsdaten für genau diese Arten. FTS-Indexe und
+# Bilder, Traits/Verbreitungsdaten sowie ID-Register (entity_source_keys) und
+# Aliase (entity_aliases) für genau diese Arten und ihre Ahnen. FTS-Indexe und
 # species_name_lookup werden danach über die bestehenden ETL-SQL-Skripte neu
 # aufgebaut (core/sql/rebuild_fts.sql, core/sql/rebuild_lookup.sql).
 #
@@ -149,6 +150,12 @@ DELETE FROM entity_external_ids
   WHERE entity_id NOT IN (SELECT id FROM _fixture_entity_ids);
 DELETE FROM pictures
   WHERE species NOT IN (SELECT id FROM _fixture_species_ids);
+-- ID register and aliases follow the entities they point to, so the fixture
+-- carries every key and every former ID of its species and their ancestors.
+DELETE FROM entity_source_keys
+  WHERE entity_id NOT IN (SELECT id FROM _fixture_entity_ids);
+DELETE FROM entity_aliases
+  WHERE entity_id NOT IN (SELECT id FROM _fixture_entity_ids);
 
 DROP TABLE _fixture_target_names;
 DROP TABLE _fixture_species_ids;

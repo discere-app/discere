@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -253,7 +254,8 @@ class INatReferenceResolver {
     List<String> normalizedNames, {
     required String entityType,
   }) async {
-    final tableName = _referenceTableForEntityType(entityType);
+    final taxon = _referenceTableForEntityType(entityType);
+    final t = taxon.alias;
     const chunkSize = 100;
 
     final mergedById = <String, Map<String, dynamic>>{};
@@ -264,11 +266,12 @@ class INatReferenceResolver {
       final rows = await db
           .rawQuery(
             '''
-      SELECT t.id,
-             t.name AS scientific_name,
+      SELECT $t.id,
+             $t.name AS scientific_name,
              '$entityType' AS entity_type
-      FROM $tableName t
-      WHERE lower(trim(t.name)) IN ($placeholders)
+      FROM ${taxon.table} $t
+      WHERE lower(trim($t.name)) IN ($placeholders)
+        AND ${activeSpeciesCondition(taxon)}
       LIMIT $_referenceResultLimit
     ''',
             chunk,
@@ -283,12 +286,17 @@ class INatReferenceResolver {
     return mergedById.values.toList();
   }
 
-  String _referenceTableForEntityType(String entityType) {
+  /// The reference table for [entityType]. A taxon found there is one some
+  /// active species sits below ([activeSpeciesCondition]): the reference
+  /// database also keeps taxa only for the chain of deprecated species.
+  TaxonomyTable _referenceTableForEntityType(String entityType) {
     final rank = TaxonRank.fromEntityType(entityType);
     if (rank == null) {
       throw ArgumentError('Unsupported entity type: $entityType');
     }
-    return rank.referenceTableName;
+    return TaxonomyTable.values.singleWhere(
+      (table) => table.table == rank.referenceTableName,
+    );
   }
 
   Future<List<Map<String, dynamic>>> resolveRuntimeTaxonomyReferenceRows(
@@ -354,14 +362,19 @@ class INatReferenceResolver {
     if (normalizedNames.isEmpty) return const {};
 
     final db = await _referenceDatabase();
-    final tableName = _referenceTableForEntityType(entityType);
+    final taxon = _referenceTableForEntityType(entityType);
+    final t = taxon.alias;
     final placeholders = List.filled(normalizedNames.length, '?').join(', ');
+    // A taxon kept only for deprecated species is neither a match nor a
+    // homonym: counted as one, it would cost the active taxon of the same
+    // name its match.
     final rows = await db
         .rawQuery('''
-      SELECT id, lower(trim(name)) AS normalized_name
-      FROM $tableName
-      WHERE lower(trim(name)) IN ($placeholders)
-      ORDER BY id
+      SELECT $t.id, lower(trim($t.name)) AS normalized_name
+      FROM ${taxon.table} $t
+      WHERE lower(trim($t.name)) IN ($placeholders)
+        AND ${activeSpeciesCondition(taxon)}
+      ORDER BY $t.id
       ''', normalizedNames)
         .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 

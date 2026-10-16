@@ -74,7 +74,7 @@ enum TaxonRank {
 }
 
 /// The `runtime_common_names` entity key for the species with reference id
-/// [speciesId], e.g. `species:discere:fishbase_species:6509`.
+/// [speciesId], e.g. `species:discere:species:6002`.
 ///
 /// Unlike [TaxonRank.entityKey] this takes an id, not a scientific name:
 /// enrichment stores a species' names under its reference id.

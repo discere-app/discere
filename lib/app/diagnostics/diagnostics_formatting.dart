@@ -43,6 +43,10 @@ String formatDiagnosticsDuration(Duration duration) {
   return '${duration.inSeconds}s';
 }
 
+/// The local date alone, for facts where the time of day says nothing.
+String formatDiagnosticsDate(BuildContext context, DateTime value) =>
+    MaterialLocalizations.of(context).formatShortDate(value.toLocal());
+
 /// Date over time on two lines — the failure lists put this in a trailing
 /// column, where a single line would push the subtitle out of the row.
 String formatDiagnosticsDateTime(BuildContext context, DateTime value) {

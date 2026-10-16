@@ -1,5 +1,6 @@
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -20,6 +21,7 @@ void main() {
       mockDecksService,
       mockSpeciesRepo,
       iNatSearch: mockINatService,
+      userDataWrites: UserDataWrites(),
     );
   });
 
@@ -48,6 +50,22 @@ void main() {
               as CreateDeck;
       expect(captured.name, 'Test JSON Deck');
       expect(captured.speciesIds, contains('1'));
+    });
+
+    test('a deck read from JSON ignores its speciesIds: an imported ID is '
+        'unchecked, so cards come only from names resolved locally', () async {
+      when(mockDecksService.createDeck(any)).thenAnswer((_) async => 'deck-1');
+
+      final fromJson = CreateDeck.fromJsonString('''
+        {"name": "Shared", "description": "", "speciesIds": ["unchecked-id"]}
+      ''');
+      await service.importDecks([fromJson]);
+
+      final captured =
+          verify(mockDecksService.createDeck(captureAny)).captured.single
+              as CreateDeck;
+      expect(fromJson.speciesIds, isNull);
+      expect(captured.speciesIds ?? const <String>{}, isEmpty);
     });
 
     test('importDecks returns imported deck image URL metadata', () async {

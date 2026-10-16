@@ -25,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   SpeciesRepository speciesRepository,
   TaxonomyRepository taxonomyRepository,
   SearchRepository searchRepository,
+  SearchWorker searchWorker,
   SourceService sourceService,
   ExternalIdRepository externalIdRepository,
   ExternalIdCacheRepository externalIdCacheRepository,
@@ -46,10 +47,11 @@ buildCatalogServices({
   final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
   final taxonomyRepository = TaxonomyRepository(localeMapping: localeMapping);
   final sourceRepository = SourceRepository();
+  final searchWorker = SearchWorker();
   final searchRepository = SearchRepository(
     iNatSearch: iNatSearch,
     localeMapping: localeMapping,
-    searchWorker: SearchWorker(),
+    searchWorker: searchWorker,
   );
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
@@ -68,6 +70,7 @@ buildCatalogServices({
     speciesRepository: speciesRepository,
     taxonomyRepository: taxonomyRepository,
     searchRepository: searchRepository,
+    searchWorker: searchWorker,
     sourceService: sourceService,
     externalIdRepository: externalIdRepository,
     externalIdCacheRepository: externalIdCacheRepository,

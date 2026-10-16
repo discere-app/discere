@@ -57,10 +57,17 @@ class NotificationService {
       settings: initializationSettings,
       onDidReceiveNotificationResponse:
           (NotificationResponse notificationResponse) async {
+            // A tap can still reach this service after a restart closed it,
+            // until the next one initializes the plugin with its own.
+            if (selectNotificationStream.isClosed) return;
             selectNotificationStream.add(notificationResponse.payload);
           },
     );
   }
+
+  /// Closes [selectNotificationStream]. Notifications already scheduled with
+  /// the platform stay as they are; only this service stops passing taps on.
+  Future<void> dispose() => selectNotificationStream.close();
 
   Future<void> requestPermissions() async {
     final status = await _permissionHandler.status();

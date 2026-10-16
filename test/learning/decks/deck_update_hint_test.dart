@@ -5,6 +5,7 @@ import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +37,12 @@ void main() {
       mockRemoteDeckService,
       prefs,
     );
-    deckUpdateApplier = DeckUpdateApplier(mockDecksService, mockSpeciesRepository);
+    deckUpdateApplier = DeckUpdateApplier(
+      mockDecksService,
+      mockSpeciesRepository,
+      deprecatedNames: MockDeprecatedSpeciesNameRepository(),
+      userDataWrites: UserDataWrites(),
+    );
   });
 
   testWidgets('shows nothing when there is no known update for this deck', (

@@ -1,6 +1,7 @@
 name: sealifebase
 version: 1
 source: sealifebase
+placement_priority: 20  # Rang der Einordnung, kleiner = gewichtiger (docs/datenquellen.md)
 
 provides:
   - classes

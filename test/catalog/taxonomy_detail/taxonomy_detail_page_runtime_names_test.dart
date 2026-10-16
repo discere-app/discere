@@ -20,10 +20,10 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../repository/runtime_common_names_test_schema.dart';
 
 /// Pomacentridae in the reference-DB fixture: class Teleostei, which the
-/// reference DB names in English only, and the genus Amphiprion among its
-/// children, which it has no name for at all.
+/// reference DB names in German as "Echte Knochenfische", and the genus
+/// Amphiprion among its children, which it has no name for at all.
 final _pomacentridae = SearchResult(
-  id: 'discere:fishbase_family:350',
+  id: 'discere:family:289',
   name: 'Pomacentridae',
   commonNames: const {},
   type: SearchEntityType.family,
@@ -124,14 +124,14 @@ void main() {
   testWidgets('with German names, the class row and a child show the names '
       'fetched for them', (tester) async {
     await tester.runAsync(() async {
-      await insertRuntimeName('class:teleostei', 'Echte Knochenfische');
+      await insertRuntimeName('class:teleostei', 'Knochenfische');
       await insertRuntimeName('genus:amphiprion', 'Anemonenfische');
     });
 
     await pumpPage(tester);
     await pumpUntilFound(tester, _inChildren('Anemonenfische'));
 
-    expect(_inClassification('Echte Knochenfische'), findsWidgets);
+    expect(_inClassification('Knochenfische'), findsWidgets);
     expect(_inClassification('teleosts'), findsNothing);
     expect(_inChildren('Anemonenfische'), findsWidgets);
   });

@@ -264,6 +264,7 @@ Future<void> startApp(
     'has_seen_edit_deck_tutorial': true,
     'language': 1,
     ReferenceDatabaseProvisioner.prefKeyVersion: _fixtureReferenceDbVersion,
+    ReferenceDatabaseProvisioner.prefKeySchemaVersion: 2,
   },
   bool withTestDeck = false,
   String deckName = 'Test Deck',
@@ -619,6 +620,7 @@ Future<void> resetTestState() async {
     'has_seen_edit_deck_tutorial': true,
     'language': 1,
     ReferenceDatabaseProvisioner.prefKeyVersion: _fixtureReferenceDbVersion,
+    ReferenceDatabaseProvisioner.prefKeySchemaVersion: 2,
   });
 }
 

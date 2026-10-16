@@ -1,9 +1,12 @@
 /// Raw SQL text for [SearchRepository]'s reference/runtime-common-name
-/// queries. Kept as plain string-building functions (not query execution) so
+/// queries. Higher taxa are found only while some active species sits below
+/// them (see [activeSpeciesCondition]). Kept as plain string-building functions (not query execution) so
 /// the repository stays focused on orchestration — which queries to run, in
 /// what order, against which database — while the query text itself lives in
 /// one place.
 library;
+
+import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 
 /// Species-only FTS lookup used by the "quick search while typing" path.
 /// Faster than [referenceFtsUnionAllSql] because it skips genus/family/
@@ -60,8 +63,9 @@ String referenceFtsUnionAllSql(int resultLimit) =>
   UNION ALL
   SELECT id, scientific_name, entity_type FROM (
     SELECT id AS id, name AS scientific_name, 'genera' AS entity_type
-    FROM genera
-    WHERE id IN (SELECT id FROM genera_fts WHERE genera_fts MATCH ?)
+    FROM genera g
+    WHERE g.id IN (SELECT id FROM genera_fts WHERE genera_fts MATCH ?)
+      AND ${activeSpeciesCondition(TaxonomyTable.genus)}
     LIMIT $resultLimit
   )
   UNION ALL
@@ -73,13 +77,15 @@ String referenceFtsUnionAllSql(int resultLimit) =>
       WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
         AND cn.entity_type = 'genus'
     )
+      AND ${activeSpeciesCondition(TaxonomyTable.genus)}
     LIMIT $resultLimit
   )
   UNION ALL
   SELECT id, scientific_name, entity_type FROM (
     SELECT id AS id, name AS scientific_name, 'families' AS entity_type
-    FROM families
-    WHERE id IN (SELECT id FROM families_fts WHERE families_fts MATCH ?)
+    FROM families f
+    WHERE f.id IN (SELECT id FROM families_fts WHERE families_fts MATCH ?)
+      AND ${activeSpeciesCondition(TaxonomyTable.family)}
     LIMIT $resultLimit
   )
   UNION ALL
@@ -91,13 +97,15 @@ String referenceFtsUnionAllSql(int resultLimit) =>
       WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
         AND cn.entity_type = 'family'
     )
+      AND ${activeSpeciesCondition(TaxonomyTable.family)}
     LIMIT $resultLimit
   )
   UNION ALL
   SELECT id, scientific_name, entity_type FROM (
     SELECT id AS id, name AS scientific_name, 'orders' AS entity_type
-    FROM orders
-    WHERE id IN (SELECT id FROM orders_fts WHERE orders_fts MATCH ?)
+    FROM orders o
+    WHERE o.id IN (SELECT id FROM orders_fts WHERE orders_fts MATCH ?)
+      AND ${activeSpeciesCondition(TaxonomyTable.order)}
     LIMIT $resultLimit
   )
   UNION ALL
@@ -109,13 +117,15 @@ String referenceFtsUnionAllSql(int resultLimit) =>
       WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
         AND cn.entity_type = 'order'
     )
+      AND ${activeSpeciesCondition(TaxonomyTable.order)}
     LIMIT $resultLimit
   )
   UNION ALL
   SELECT id, scientific_name, entity_type FROM (
     SELECT id AS id, name AS scientific_name, 'classes' AS entity_type
-    FROM classes
-    WHERE id IN (SELECT id FROM classes_fts WHERE classes_fts MATCH ?)
+    FROM classes c
+    WHERE c.id IN (SELECT id FROM classes_fts WHERE classes_fts MATCH ?)
+      AND ${activeSpeciesCondition(TaxonomyTable.taxonomicClass)}
     LIMIT $resultLimit
   )
 ''';
@@ -138,30 +148,34 @@ List<String> referenceLikeFallbackSqlStatements(int resultLimit) => [
   ''',
   '''
     SELECT id, name AS scientific_name, 'genera' AS entity_type
-    FROM genera t
-    WHERE lower(t.name) LIKE lower(?)
-       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
+    FROM genera g
+    WHERE (lower(g.name) LIKE lower(?)
+       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = g.id AND lower(cn.name) LIKE lower(?)))
+      AND ${activeSpeciesCondition(TaxonomyTable.genus)}
     LIMIT $resultLimit
   ''',
   '''
     SELECT id, name AS scientific_name, 'families' AS entity_type
-    FROM families t
-    WHERE lower(t.name) LIKE lower(?)
-       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
+    FROM families f
+    WHERE (lower(f.name) LIKE lower(?)
+       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = f.id AND lower(cn.name) LIKE lower(?)))
+      AND ${activeSpeciesCondition(TaxonomyTable.family)}
     LIMIT $resultLimit
   ''',
   '''
     SELECT id, name AS scientific_name, 'orders' AS entity_type
-    FROM orders t
-    WHERE lower(t.name) LIKE lower(?)
-       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
+    FROM orders o
+    WHERE (lower(o.name) LIKE lower(?)
+       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = o.id AND lower(cn.name) LIKE lower(?)))
+      AND ${activeSpeciesCondition(TaxonomyTable.order)}
     LIMIT $resultLimit
   ''',
   '''
     SELECT id, name AS scientific_name, 'classes' AS entity_type
-    FROM classes t
-    WHERE lower(t.name) LIKE lower(?)
-       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
+    FROM classes c
+    WHERE (lower(c.name) LIKE lower(?)
+       OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = c.id AND lower(cn.name) LIKE lower(?)))
+      AND ${activeSpeciesCondition(TaxonomyTable.taxonomicClass)}
     LIMIT $resultLimit
   ''',
 ];

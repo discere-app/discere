@@ -6,6 +6,7 @@ import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -45,6 +46,7 @@ void main() {
       MockImageService(),
       deckConfigRepository: deckConfigRepository,
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      userDataWrites: UserDataWrites(),
     );
   });
 
@@ -158,8 +160,12 @@ void main() {
         final decks = await decksService.getAllDecks();
         final renamed = decks.single.stored.copyWith(name: 'Critter (renamed)');
 
-        // Same species set — a pure metadata edit, nothing added/removed.
-        await decksService.updateDeck(renamed, {'sp1', 'sp2'});
+        // A pure metadata edit, nothing added/removed.
+        await decksService.updateDeck(
+          renamed,
+          addedSpeciesIds: const {},
+          removedSpeciesIds: const {},
+        );
 
         final sp1Stat = await flashcardStatRepository.getFlashcardStat(
           'sp1',

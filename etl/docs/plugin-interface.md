@@ -42,7 +42,30 @@ source: my-plugin
 - `source`
   - eindeutiger technischer Schlüssel
   - wird als `external_source` und `sources.id` verwendet
-  - muss dem Muster `[a-z0-9][a-z0-9_-]*` entsprechen
+  - muss dem Muster `[a-z0-9][a-z0-9_-]*` entsprechen und gleich dem
+    Verzeichnisnamen sein
+
+Optional:
+
+```yaml
+depends_on_sources:
+  - fishbase
+optional: true
+placement_priority: 10
+```
+
+- `depends_on_sources`
+  - Blockliste der Quellenschlüssel, gegen deren Daten das Plugin abgleicht;
+    bestimmt die Reihenfolge im Build
+- `optional`
+  - `true`: Die Quelle ergänzt nur, `--no-enrich` überspringt sie samt den
+    Quellen, die von ihr abhängen. Fehlt das Feld, gilt `false`.
+- `placement_priority`
+  - ganze Zahl, kleiner = gewichtiger; nur für Quellen, die Einordnungen
+    liefern, und je Build eindeutig
+
+Was `build.sh` daraus macht, steht in
+[`plugin-system.md`](plugin-system.md#abhängigkeiten-reihenfolge-und-rang).
 
 ---
 
@@ -71,6 +94,18 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
 
 ## Helper-Funktionen
 
+### Manifest
+
+- `plugin_manifest_get "$PLUGIN_MANIFEST_PATH" "version"`
+  - liest einen skalaren Wert (`key: value`) eines Schlüssels ohne Einrückung;
+    gleichnamige verschachtelte Schlüssel (etwa unter `env:`) zählen nicht
+- `plugin_manifest_list "$PLUGIN_MANIFEST_PATH" "depends_on_sources"`
+  - gibt die Einträge einer Blockliste aus, einen pro Zeile, ohne Kommentare
+    und Anführungszeichen
+  - eine leere oder fehlende Liste ergibt keine Ausgabe
+  - Inline-Listen (`[a, b]`) und leere Einträge werden nicht unterstützt und
+    brechen mit `plugin_fail` ab
+
 ### Logging
 
 - `plugin_log "Nachricht"`
@@ -98,6 +133,26 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
 - `plugin_validate_source_entry_exists "$DB_PATH"`
   - prüft ob `source.sql` erfolgreich einen `sources`-Eintrag geschrieben hat
 
+### Build-Bericht
+
+- `plugin_report < eintraege.tsv`
+  - liest je Zeile tabgetrennt Kategorie, Schlüssel, Name, Detail und hängt
+    sie mit der Quelle an `$DISCERE_REPORT_DIR/<source>.tsv` an
+  - `build.sh` setzt `DISCERE_REPORT_DIR`; ohne die Variable werden die
+    Einträge nur gezählt und im Log gemeldet
+
+### Abgleich
+
+Nach `source "$PLUGIN_CORE_DIR/match.sh"`:
+
+- `match_records "$DB_PATH" eingabe.tsv ergebnis.tsv`
+  - Eingabe: TSV mit Kopfzeile `record_key`, `rank`, `name`; Rang
+    `species`, `genus`, `family`, `order` oder `class`
+  - Ergebnis: TSV mit `record_key`, `rank`, `name`, `entity_id`, `status`
+    (`matched`/`none`/`ambiguous`), `matched_by` (`name`/`synonym`), `detail`
+  - schreibt `none` und `ambiguous` in den Build-Bericht
+  - die TSVs tragen kein Quoting: Ein `"` gehört zum Namen
+
 ### Source-Metadaten
 
 - `plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`
@@ -115,7 +170,7 @@ Plugin-Autoren bleiben verantwortlich für:
 
 - Argumente und Defaults für ihre Quelle
 - Download-Logik
-- `sql/export.sql`
+- `sql/export.sql`, sofern die Quelle Parquets per DuckDB exportiert
 - SQLite-Import
 - plugin-spezifische Schnellvalidierung
 
@@ -128,8 +183,8 @@ plugins/<name>/
   plugin.yaml
   import.sh
   sql/
-    export.sql
     source.sql
+    export.sql   # nur parquet-basierte Quellen
 ```
 
 Als Ausgangspunkt dient [`plugins/_template`](../plugins/_template).

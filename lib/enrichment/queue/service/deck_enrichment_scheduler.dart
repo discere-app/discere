@@ -4,6 +4,7 @@ import 'package:discere/enrichment/queue/repository/enrichment_job_repository.da
 import 'package:discere/enrichment/queue/service/deck_enrichment_priority.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/service/deck_membership_lock.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/util/logger.dart';
 
 /// Brings decks into the enrichment queue and takes them out again: which
@@ -20,13 +21,19 @@ class DeckEnrichmentScheduler {
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final DeckMembershipLock _deckMembershipLock;
 
+  /// Scheduling and cancelling each write the queue tables in several steps;
+  /// counted as one sequence each for the in-app restart.
+  final UserDataWrites _writes;
+
   const DeckEnrichmentScheduler({
     required EnrichmentJobRepository jobRepository,
     required EnrichmentOwnershipRepository ownershipRepository,
     required DeckSpeciesSnapshotPort deckSpeciesSnapshotPort,
     required EnrichmentBackgroundScheduler backgroundScheduler,
     required DeckMembershipLock deckMembershipLock,
-  }) : _jobRepository = jobRepository,
+    required UserDataWrites userDataWrites,
+  }) : _writes = userDataWrites,
+       _jobRepository = jobRepository,
        _ownershipRepository = ownershipRepository,
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
        _backgroundScheduler = backgroundScheduler,
@@ -46,7 +53,7 @@ class DeckEnrichmentScheduler {
     required Map<String, String?> coverImageUrlsByDeckId,
     required Map<String, List<String>> unresolvedNamesByDeckId,
   }) {
-    return _deckMembershipLock.run(() async {
+    return _writes.run(() => _deckMembershipLock.run(() async {
       final snapshots = await _deckSpeciesSnapshotPort.loadSpeciesIdsByDeckId(
         deckIds.toSet(),
       );
@@ -124,14 +131,14 @@ class DeckEnrichmentScheduler {
           wantsCommonNames: includeCommonNames,
         );
       }
-    });
+    }));
   }
 
   /// Removes everything the queue holds for [deckId] — its cover job, its
   /// species ownership and any background processing scheduled for it.
-  Future<void> cancel(String deckId) async {
+  Future<void> cancel(String deckId) => _writes.run(() async {
     await _jobRepository.deleteDeckJob(deckId);
     await _ownershipRepository.releaseDeck(deckId);
     await _backgroundScheduler.cancelProcessingForDeck(deckId);
-  }
+  });
 }

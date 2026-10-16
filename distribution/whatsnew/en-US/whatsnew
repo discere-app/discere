@@ -1,8 +1,9 @@
-New: Switch the language of names on species and taxonomy pages.
-Change: The app now requires Android 11 or newer.
+New: Choose the name language on species and taxonomy pages.
+Change: Now requires Android 11 or newer.
 Change: JSON export asks where to save the file.
-Fix: Review sessions and the watchlist load much faster.
+Fix: Review sessions and watchlist load much faster.
 Fix: Multiple choice no longer silently falls back to flipping.
-Fix: Edit deck shows all images and guards against data loss on load errors.
-Fix: Online search reliably shows progress and errors.
-Fix: Lower memory use; more and more accurate class names.
+Fix: Edit deck shows all images.
+Fix: Online search shows progress and errors.
+Fix: Less memory use; more and more accurate class names.
+New: Data updates download in the background with progress, then “Apply”; also from Settings.

@@ -7,6 +7,10 @@
 # wiederverwendbare Helfer für Logging, Validierung und Source-Metadaten bereit.
 # =============================================================================
 
+# Gibt den Wert eines skalaren Feldes aus (key: value), ohne Kommentar und
+# Anführungszeichen. Gesucht wird nur ein Schlüssel ohne Einrückung: Ein
+# gleichnamiger verschachtelter Schlüssel (etwa unter env:) ist ein anderes
+# Feld und darf kein Verhalten steuern.
 plugin_manifest_get() {
     local manifest_path="$1"
     local key="$2"
@@ -14,8 +18,8 @@ plugin_manifest_get() {
     [[ -f "$manifest_path" ]] || return 1
 
     awk -F ':' -v key="$key" '
-        $0 ~ "^[[:space:]]*" key "[[:space:]]*:" {
-            sub("^[[:space:]]*" key "[[:space:]]*:[[:space:]]*", "", $0)
+        $0 ~ "^" key "[[:space:]]*:" {
+            sub("^" key "[[:space:]]*:[[:space:]]*", "", $0)
             sub("[[:space:]]*#.*$", "", $0)
             gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
             gsub(/^["'\''"]|["'\''"]$/, "", $0)
@@ -23,6 +27,51 @@ plugin_manifest_get() {
             exit
         }
     ' "$manifest_path"
+}
+
+# Gibt die Einträge einer YAML-Blockliste aus, einen pro Zeile, ohne
+# Kommentare und Anführungszeichen:
+#
+#   depends_on_sources:
+#     - fishbase   # Kommentar
+#
+# Gesucht wird nur ein Schlüssel ohne Einrückung. Eine leere oder fehlende
+# Liste ergibt keine Ausgabe. Steht hinter dem Schlüssel ein Wert — etwa eine
+# Inline-Liste wie [a, b] — oder ist ein Eintrag leer, bricht die Funktion ab:
+# Mehr YAML liest sie nicht, und stilles Übergehen würde einen Eintrag
+# verlieren.
+plugin_manifest_list() {
+    local manifest_path="$1"
+    local key="$2"
+
+    [[ -f "$manifest_path" ]] || return 1
+
+    awk -v key="$key" '
+        function strip(value) {
+            sub("[[:space:]]*#.*$", "", value)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            gsub(/^["'\''"]|["'\''"]$/, "", value)
+            return value
+        }
+        !in_list && $0 ~ "^" key "[[:space:]]*:" {
+            rest = $0
+            sub("^" key "[[:space:]]*:", "", rest)
+            if (strip(rest) != "") exit 2
+            in_list = 1
+            next
+        }
+        in_list && /^[[:space:]]*(#.*)?$/ { next }
+        in_list && /^[[:space:]]*-/ {
+            item = $0
+            sub(/^[[:space:]]*-/, "", item)
+            item = strip(item)
+            if (item == "") exit 2
+            print item
+            next
+        }
+        in_list { exit }
+    ' "$manifest_path" \
+    || plugin_fail "$manifest_path: '$key' muss eine Blockliste mit nicht leeren Einträgen sein ('  - <wert>' je Zeile, keine Inline-Liste)."
 }
 
 plugin_log()  { echo "[$(date '+%H:%M:%S')] [${PLUGIN_SOURCE:-plugin}] $*" >&2; }
@@ -70,6 +119,37 @@ plugin_require_command() {
     done
 }
 
+# version_at_least <version> <mindestens>
+# Vergleicht Versionsnummern der Form x.y.z Teil für Teil als Zahlen;
+# fehlende Teile zählen als 0.
+version_at_least() {
+    local have need i
+    IFS=. read -r -a have <<< "$1"
+    IFS=. read -r -a need <<< "$2"
+    for i in 0 1 2; do
+        if (( 10#${have[$i]:-0} > 10#${need[$i]:-0} )); then
+            return 0
+        fi
+        if (( 10#${have[$i]:-0} < 10#${need[$i]:-0} )); then
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Die Identitäts-Stage bricht über RAISE(ABORT, <Ausdruck>) ab; einen
+# Ausdruck statt eines festen Texts nimmt RAISE erst ab sqlite 3.47.
+SQLITE_MIN_VERSION="3.47.0"
+
+plugin_require_sqlite_version() {
+    local version
+    plugin_require_command sqlite3
+    version="$(sqlite3 --version | awk '{ print $1 }')"
+    if ! version_at_least "$version" "$SQLITE_MIN_VERSION"; then
+        plugin_fail "sqlite3 $version ist zu alt, gebraucht wird mindestens $SQLITE_MIN_VERSION ($(command -v sqlite3))."
+    fi
+}
+
 plugin_cleanup_dir() {
     local path="${1:-}"
     [[ -n "$path" ]] && rm -rf "$path"
@@ -108,6 +188,34 @@ plugin_validate_source_entry_exists() {
         "SELECT COUNT(*) FROM sources WHERE id='${PLUGIN_SOURCE}';")
     [[ "$source_count" -eq 1 ]] \
         || plugin_fail "Kein sources-Eintrag für '${PLUGIN_SOURCE}'."
+}
+
+# Build-Bericht: hält fest, was eine Quelle nicht zuordnen konnte, ohne den
+# Build abzubrechen (fehlende oder mehrdeutige Zuordnungen externer Quellen).
+#
+# Liest Einträge von stdin, je Zeile tabgetrennt Kategorie, Schlüssel, Name
+# und Detail, und hängt sie mit der Quelle als erster Spalte an
+# $DISCERE_REPORT_DIR/<quelle>.tsv an. build.sh legt das Verzeichnis je Build
+# neu an. Ohne DISCERE_REPORT_DIR — ein Plugin läuft von Hand — werden die
+# Einträge nur gezählt: Ein Bericht neben einer beliebigen DB wäre von keinem
+# Build und würde beim nächsten Lauf mit fremden Einträgen vermischt.
+plugin_report() {
+    local report_file count
+
+    if [[ -z "${DISCERE_REPORT_DIR:-}" ]]; then
+        count="$(grep -c . || true)"
+        if [[ "$count" -gt 0 ]]; then
+            plugin_warn "Kein Build-Bericht (DISCERE_REPORT_DIR nicht gesetzt): $count Einträge nicht festgehalten."
+        fi
+        return 0
+    fi
+
+    mkdir -p "$DISCERE_REPORT_DIR"
+    report_file="$DISCERE_REPORT_DIR/${PLUGIN_SOURCE}.tsv"
+    if [[ ! -f "$report_file" ]]; then
+        printf 'source\tcategory\tkey\tname\tdetail\n' > "$report_file"
+    fi
+    awk -v source="$PLUGIN_SOURCE" 'NF { print source "\t" $0 }' >> "$report_file"
 }
 
 plugin_validate_min_count() {

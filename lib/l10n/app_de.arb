@@ -48,6 +48,25 @@
   },
   "referenceDbUpdateConfirmTitle": "Update der Artendatenbank verfügbar",
   "referenceDbUpdateConfirmUpdateNow": "Jetzt aktualisieren",
+  "referenceDbUpdateReadyMessage": "Das Update der Artendatenbank ist bereit. Anwenden startet die App neu und beendet eine laufende Lernsitzung.",
+  "referenceDbUpdateReadyLater": "Später",
+  "referenceDbUpdateReadyApply": "Anwenden",
+  "referenceDbUpdateDownloadStarting": "Artendatenbank wird heruntergeladen…",
+  "referenceDbUpdateDownloadProgress": "Artendatenbank wird heruntergeladen – {received} von {total} MB",
+  "@referenceDbUpdateDownloadProgress": {
+    "placeholders": {
+      "received": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "referenceDbUpdatePreparing": "Artendatenbank wird vorbereitet…",
+  "referenceDbUpdateDownloadFailed": "Das Update der Artendatenbank konnte nicht heruntergeladen werden. {reason}",
+  "@referenceDbUpdateDownloadFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "referenceDbUpdateRetry": "Erneut versuchen",
   "referenceDbBaseRefreshPromptTitle": "Basisbilder aktualisieren?",
   "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {Für 1 bereits geladene Art könnte jetzt ein aktuelleres Referenzbild verfügbar sein.} other {Für {count} bereits geladene Arten könnten jetzt aktuellere Referenzbilder verfügbar sein.}}",
   "@referenceDbBaseRefreshPromptMessage": {
@@ -885,6 +904,55 @@
   "settingsDeveloperTools": "Entwicklerwerkzeuge",
   "settingsDeveloperUnlocked": "Entwicklerwerkzeuge freigeschaltet.",
   "settingsDiagnostics": "Diagnose",
+  "settingsReferenceDbTitle": "Artendatenbank",
+  "settingsReferenceDbVersion": "Version {version}",
+  "@settingsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbDataSources": "Datenstand: {sources}",
+  "@settingsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbNotChecked": "Noch nicht nach Updates gesucht.",
+  "settingsReferenceDbChecking": "Suche nach Updates…",
+  "settingsReferenceDbCheckFailed": "Die Suche nach Updates ist fehlgeschlagen. {reason}",
+  "@settingsReferenceDbCheckFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbUpToDate": "Auf dem neuesten Stand.",
+  "settingsReferenceDbCheckNow": "Nach Updates suchen",
+  "settingsReferenceDbAvailable": "Version {version} verfügbar (etwa {size})",
+  "@settingsReferenceDbAvailable": {
+    "placeholders": {
+      "version": { "type": "int" },
+      "size": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbDownload": "Herunterladen",
+  "settingsReferenceDbDownloading": "Version {version} wird heruntergeladen…",
+  "@settingsReferenceDbDownloading": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbStagedInNotice": "Version {version} ist heruntergeladen.",
+  "@settingsReferenceDbStagedInNotice": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbStaged": "Version {version} ist heruntergeladen. Anwenden startet die App neu.",
+  "@settingsReferenceDbStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
   "settingsNotificationTimeLabel": "Uhrzeit",
   "settingsNotificationTimeDescription": "Uhrzeit, zu der du an fällige Karten erinnert wirst.",
   "settingsLanguageDescription": "Legt die Sprache der App-Oberfläche fest. Wissenschaftliche Artnamen und Systematik-Daten bleiben davon unberührt.",
@@ -919,6 +987,92 @@
   "diagnosticsForegroundServiceNotRunning": "Nicht aktiv",
   "diagnosticsReferenceDbTitle": "Referenzdatenbank",
   "diagnosticsReferenceDbNotInstalled": "Nicht installiert.",
+  "diagnosticsReferenceDbVersion": "Version {version}",
+  "@diagnosticsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbDownloadedOn": "heruntergeladen am {date}",
+  "@diagnosticsReferenceDbDownloadedOn": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbDataSources": "Datenstand: {sources}",
+  "@diagnosticsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbSchema": "Format: Schema {schema}",
+  "@diagnosticsReferenceDbSchema": {
+    "placeholders": {
+      "schema": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateTitle": "Update der Referenzdatenbank",
+  "diagnosticsReferenceDbUpdateAvailable": "Version {version} verfügbar",
+  "@diagnosticsReferenceDbUpdateAvailable": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateCheckRunning": "Die Suche nach Updates läuft noch.",
+  "diagnosticsReferenceDbUpdateCheckFailed": "Die Suche nach Updates ist fehlgeschlagen – Details im Protokoll.",
+  "diagnosticsReferenceDbUpToDate": "Auf dem neuesten Stand.",
+  "diagnosticsReferenceDbUpdateDeclined": "Version {version} verfügbar – für diese Sitzung abgelehnt",
+  "@diagnosticsReferenceDbUpdateDeclined": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateStaged": "Version {version} bereitgelegt – wird beim Neustart installiert",
+  "@diagnosticsReferenceDbUpdateStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateNotChecked": "Noch nicht nach Updates gesucht.",
+  "diagnosticsReferenceDbUpdateDownloading": "Version {version} wird heruntergeladen – {percent} %",
+  "@diagnosticsReferenceDbUpdateDownloading": {
+    "placeholders": {
+      "version": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateDownloadFailed": "Download von Version {version} fehlgeschlagen – Details im Protokoll.",
+  "@diagnosticsReferenceDbUpdateDownloadFailed": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsTitle": "Anpassung der Lernstände",
+  "diagnosticsReferenceIdsAppliedVersion": "Lernstände sind auf Version {version} angepasst.",
+  "@diagnosticsReferenceIdsAppliedVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsLastRunNone": "Noch nicht gelaufen.",
+  "diagnosticsReferenceIdsLastRunSucceeded": "Zuletzt am {time} für Version {version}:\n{rewritten} Einträge angepasst, {dropped} verworfen ({referenced} IDs geprüft, {aliased} mit neuer ID)",
+  "@diagnosticsReferenceIdsLastRunSucceeded": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" },
+      "rewritten": { "type": "int" },
+      "dropped": { "type": "int" },
+      "referenced": { "type": "int" },
+      "aliased": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsLastRunFailed": "Zuletzt am {time} für Version {version} fehlgeschlagen – Details im Protokoll.",
+  "@diagnosticsReferenceIdsLastRunFailed": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" }
+    }
+  },
   "diagnosticsSummaryTitle": "Übersicht",
   "diagnosticsFailuresTitle": "Fehler",
   "diagnosticsFailuresByHostTitle": "Fehler nach Host",

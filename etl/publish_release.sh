@@ -10,23 +10,28 @@
 # https://github.com/discere-app/discere/issues/54).
 #
 # Run manually after ./etl/build.sh has produced a fresh
-# assets/database/discere_reference.db. Not part of CI — reference-DB
+# assets/database/discere_reference.db. Only a complete, validated build
+# against the release that is published right now, under a higher version
+# than that release, is accepted (core/check_publishable.sh): a partial
+# build, a --no-enrich or --initial build, one against an older predecessor,
+# or a --version not above the published one is refused. Not part of CI — reference-DB
 # updates are infrequent and this mirrors discere-data's existing manual
 # publish pattern (scripts/generate-index.sh).
 #
 # Usage:
-#   ./etl/publish_release.sh --version 3 --schema-version 1
-#   ./etl/publish_release.sh --version 3 --schema-version 1 \
+#   ./etl/publish_release.sh --version 3
+#   ./etl/publish_release.sh --version 3 \
 #     --source /path/to/discere_reference.db --data-repo ../discere-data
 #
 # Flags:
 #   --version <int>         New manifest "version" (data content version).
-#                            Bump whenever the DB content changes.
-#   --schema-version <int>  Manifest "schemaVersion". Only bump when
-#                            etl/core/sql/schema.sql changes in a way that
-#                            requires a matching app release — the app is
-#                            expected to refuse/ignore a manifest whose
-#                            schemaVersion it doesn't understand.
+#                            Bump whenever the DB content changes; must
+#                            be greater than the published version.
+#                            The manifest's "schemaVersion" is not a flag:
+#                            core/schema_version.sh derives it from the DB
+#                            (2 for IDs without source plus register and
+#                            aliases, 1 for IDs with source). A wrong value
+#                            would let an app install a DB it cannot read.
 #   --source <path>         Built reference DB
 #                            (default: assets/database/discere_reference.db)
 #   --data-repo <path>      Local discere-data checkout
@@ -56,12 +61,13 @@ fail() { echo "[ERROR] [publish_release] $*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version) VERSION="$2"; shift ;;
-        --schema-version) SCHEMA_VERSION="$2"; shift ;;
+        --schema-version)
+            fail "--schema-version gibt es nicht mehr: Die Schemaversion wird aus der DB abgeleitet (core/schema_version.sh)." ;;
         --source) SOURCE_DB="$2"; shift ;;
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
@@ -70,7 +76,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$VERSION" ]] || fail "--version ist erforderlich"
-[[ -n "$SCHEMA_VERSION" ]] || fail "--schema-version ist erforderlich"
 command -v gh >/dev/null 2>&1 || fail "gh CLI nicht gefunden (brew install gh)"
 gh auth status >/dev/null 2>&1 || fail "gh ist nicht eingeloggt (gh auth login)"
 [[ -f "$SOURCE_DB" ]] || fail "Quelle nicht gefunden: $SOURCE_DB"
@@ -97,10 +102,32 @@ git -C "$DATA_REPO" remote get-url github >/dev/null 2>&1 \
 log "Pulle discere-data github/main..."
 git -C "$DATA_REPO" pull --ff-only github main
 
+# Nur ein vollständiger, validierter Build gegen genau das jetzt
+# veröffentlichte Release darf es ablösen (Teilbuild, --initial oder ein
+# veralteter Vorgänger schrieben in der App Lernstände falsch um), und nur
+# unter einer höheren Version (sonst lädt die App es nie).
+"$SCRIPT_DIR/core/check_publishable.sh" --db "$SOURCE_DB" \
+    --manifest "$DATA_REPO/data/reference-db/manifest.json" --version "$VERSION" \
+    || fail "$SOURCE_DB darf nicht veröffentlicht werden."
+SCHEMA_VERSION="$("$SCRIPT_DIR/core/schema_version.sh" --db "$SOURCE_DB")" \
+    || fail "Schemaversion von $SOURCE_DB nicht bestimmbar."
+log "Schemaversion laut DB: $SCHEMA_VERSION"
+
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 ASSET_NAME="discere_reference.db.gz"
 COMPRESSED="$WORK_DIR/$ASSET_NAME"
+
+# Der Build legt die DB im WAL-Modus an. Veröffentlicht wird sie im
+# Rollback-Modus: Das schreibt ein noch nicht übernommenes -wal in die Datei
+# selbst (gzip nimmt nur sie mit), und die App legt beim Öffnen keine
+# -wal/-shm daneben an.
+log "Stelle $SOURCE_DB auf journal_mode = DELETE"
+mode="$(sqlite3 "$SOURCE_DB" "PRAGMA journal_mode = DELETE;")" \
+    || fail "journal_mode ließ sich nicht umstellen: $SOURCE_DB"
+[[ "$mode" == "delete" ]] || fail "journal_mode ist '$mode', erwartet 'delete': $SOURCE_DB"
+[[ ! -e "$SOURCE_DB-wal" ]] \
+    || fail "$SOURCE_DB-wal liegt noch daneben – öffnet ein anderer Prozess die DB?"
 
 log "Komprimiere $SOURCE_DB"
 gzip --keep --stdout "$SOURCE_DB" > "$COMPRESSED"

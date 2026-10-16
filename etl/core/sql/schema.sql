@@ -1,10 +1,16 @@
 PRAGMA foreign_keys = OFF;
 -- ---------------------------------------------------------------------------
 -- Taxonomie
+--
+-- Entitäts-IDs haben die Form discere:<typ>:<nr> (species, genus, family,
+-- order, class) und tragen keine Quelle. Quellen mit Entitäten schreiben
+-- vorläufige IDs (discere:<quelle>_<typ>:<external_id>); die Identitäts-Stage
+-- (core/identity.sh) ersetzt sie durch die endgültigen aus dem ID-Register,
+-- bevor die ergänzenden Quellen laufen. Der CHECK lässt deshalb beide Formen zu.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS classes (
-    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -14,7 +20,7 @@ CREATE TABLE IF NOT EXISTS classes (
 );
 
 CREATE TABLE IF NOT EXISTS orders (
-    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -24,7 +30,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE TABLE IF NOT EXISTS families (
-    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -35,7 +41,7 @@ CREATE TABLE IF NOT EXISTS families (
 );
 
 CREATE TABLE IF NOT EXISTS genera (
-    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -46,7 +52,7 @@ CREATE TABLE IF NOT EXISTS genera (
 );
 
 CREATE TABLE IF NOT EXISTS species (
-    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -60,11 +66,12 @@ CREATE TABLE IF NOT EXISTS species (
     longevity_years REAL,
     body_shape      TEXT,
     trophic_level_food REAL,
-    -- genus ist nullable: deprecated Species können auf ein nicht mehr existierendes Genus zeigen
+    -- genus ist nullable: nicht jede Quelle ordnet jede Art einer Gattung zu
     genus           TEXT REFERENCES genera(id),
     -- Soft Delete: Species werden nie physisch gelöscht.
-    -- Falls eine Art aus der Quelle verschwindet, wird sie auf 'deprecated'
-    -- gesetzt. Damit bleiben Referenzen aus flashcard_stats gültig.
+    -- Liefert keine Quelle eine Art mehr, übernimmt die Identitäts-Stage sie
+    -- aus dem vorigen Release als 'deprecated', samt Namen und Elternkette.
+    -- Damit bleiben Referenzen aus flashcard_stats gültig.
     status          TEXT NOT NULL DEFAULT 'active',
     deprecated_at   INTEGER,
     UNIQUE (external_source, external_id)
@@ -215,6 +222,53 @@ CREATE TABLE IF NOT EXISTS entity_external_ids (
     PRIMARY KEY (entity_id, provider),
     UNIQUE (provider, external_id)
 );
+
+-- ---------------------------------------------------------------------------
+-- ID-Register (docs/datenquellen.md, Identität)
+-- Hält über alle Releases fest, welcher Quellenschlüssel zu welcher
+-- Entitäts-ID gehört. Ein Build übernimmt es aus dem vorigen Release und
+-- schreibt es fortgeschrieben in die neue DB (core/identity.sh).
+--
+-- source       — Quelle, die die Entität geliefert hat ('fishbase', ...)
+-- entity_type  — species | genus | family | order | class
+-- external_id  — Schlüssel der Entität in dieser Quelle (z.B. SpecCode)
+-- entity_id    — Entitäts-ID (discere:<typ>:<nr>); bei einem inaktiven
+--                Schlüssel einer Art, die einen Nachfolger bekommen hat, ihre
+--                bisherige ID, die nun ein Alias auf den Nachfolger ist
+-- active       — 1, wenn die Quelle den Schlüssel in diesem Build geliefert
+--                hat; eine Entität ohne aktiven Schlüssel ist übernommen
+--                (Arten: status = 'deprecated') oder, als Art mit
+--                Nachfolger, ein Alias
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS entity_source_keys (
+    source       TEXT    NOT NULL,
+    entity_type  TEXT    NOT NULL CHECK (entity_type IN ('species', 'genus', 'family', 'order', 'class')),
+    external_id  TEXT    NOT NULL,
+    entity_id    TEXT    NOT NULL,
+    active       INTEGER NOT NULL CHECK (active IN (0, 1)),
+    PRIMARY KEY (source, entity_type, external_id)
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_entity_source_keys_entity
+    ON entity_source_keys (entity_id);
+
+-- ---------------------------------------------------------------------------
+-- Aliase (docs/datenquellen.md, Aliase führen Entitäten zusammen)
+-- Jede ID eines früheren Releases, die keine Entität mehr bezeichnet, zeigt
+-- hier direkt auf die gültige. Die App schreibt Verweise der Nutzer-DB beim
+-- Wechsel der Referenz-DB darüber um. Keine alias_id ist zugleich
+-- Entitäts-ID, jede entity_id existiert, Ketten gibt es nicht.
+--
+-- Beide Tabellen sind WITHOUT ROWID: Der Primärschlüssel ist fast ihr ganzer
+-- Inhalt, und ohne rowid entfällt der zweite B-Baum, der ihn noch einmal
+-- speichert.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS entity_aliases (
+    alias_id   TEXT NOT NULL PRIMARY KEY,
+    entity_id  TEXT NOT NULL
+) WITHOUT ROWID;
 
 -- ---------------------------------------------------------------------------
 -- Locale Place Mappings

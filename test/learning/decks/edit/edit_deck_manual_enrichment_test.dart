@@ -13,6 +13,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -57,7 +58,11 @@ void main() {
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
-      when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(flashcardService.getDeckConfig(any)).thenAnswer(
         (inv) async => DeckConfig(
           deckId: inv.positionalArguments.first as String,
@@ -286,12 +291,16 @@ void main() {
         // now always re-offers the base/full/none choice rather than
         // assuming "full".
         final captured = verify(
-          decksService.updateDeck(captureAny, captureAny),
+          decksService.updateDeck(
+            captureAny,
+            addedSpeciesIds: captureAnyNamed('addedSpeciesIds'),
+            removedSpeciesIds: captureAnyNamed('removedSpeciesIds'),
+          ),
         ).captured;
         final savedDeck = captured[0] as BaseDeck;
-        final savedSpeciesIds = captured[1] as Set<String>;
         expect(savedDeck.name, 'Updated Deck');
-        expect(savedSpeciesIds, {'sp1'});
+        expect(captured[1], isEmpty, reason: 'no species added');
+        expect(captured[2], isEmpty, reason: 'no species removed');
         expect(enrichmentQueueService.calls, isEmpty);
 
         await tester.tap(
@@ -701,6 +710,7 @@ Widget _buildApp({
       Provider<ImageService>.value(value: imageService),
       Provider<NotificationService>.value(value: notificationService),
       Provider<FlashcardService>.value(value: flashcardService),
+      Provider<UserDataWrites>.value(value: UserDataWrites()),
       Provider<SpeciesMediaService>.value(value: MockSpeciesMediaService()),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
@@ -793,6 +803,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   Future<void> refreshStaleBaseImages(String deckId) async {
     staleRefreshCalls.add(deckId);
   }
+
+  @override
+  Future<void> shutdown() async {}
 
   @override
   Future<void> refreshAllStaleBaseImages() async {}

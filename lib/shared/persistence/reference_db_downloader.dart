@@ -182,10 +182,22 @@ class ReferenceDbDownloader {
   // Streamed rather than reading the whole (~200MB compressed / ~400MB
   // decompressed) file into memory at once, which risked OOMing on
   // memory-constrained devices.
+  //
+  // Flushed to disk before it returns: the caller renames the file into
+  // place and, when staging, records it as complete. Without the flush a
+  // power loss after either step could leave a name or a record pointing at
+  // a file whose contents never reached the disk.
   static Future<void> _decompress(String sourcePath, String destPath) async {
-    await File(
-      sourcePath,
-    ).openRead().transform(gzip.decoder).pipe(File(destPath).openWrite());
+    final out = await File(destPath).open(mode: FileMode.write);
+    try {
+      final chunks = File(sourcePath).openRead().transform(gzip.decoder);
+      await for (final chunk in chunks) {
+        await out.writeFrom(chunk);
+      }
+      await out.flush();
+    } finally {
+      await out.close();
+    }
   }
 }
 

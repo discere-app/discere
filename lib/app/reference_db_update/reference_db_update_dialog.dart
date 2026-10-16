@@ -1,16 +1,40 @@
 /// Asks whether to download a reference-DB update that became available
-/// while the app was running.
-///
-/// Not dismissible by tapping outside: the download is several hundred
-/// megabytes, so both answers should be deliberate. Returns true for "update
-/// now"; the caller owns what happens next, including dismissing the pending
-/// update when the answer is no.
+/// while the app was running — at start, or from the settings.
 library;
+
+import 'dart:async';
 
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:flutter/material.dart';
 
+/// Asks about [update] and acts on the answer: "update now" starts the
+/// download in the background, where the notice below every route shows its
+/// progress; "not now" declines it for this session.
+Future<void> confirmReferenceDbUpdate(
+  BuildContext context,
+  ReferenceDbUpdateService updates,
+  ReferenceDbUpdateInfo update,
+) async {
+  final onWifi = await updates.isOnWifi();
+  if (!context.mounted) return;
+  final updateNow = await showReferenceDbUpdateDialog(
+    context,
+    compressedSizeBytes: update.compressedSizeBytes,
+    onWifi: onWifi,
+  );
+  if (updateNow) {
+    unawaited(updates.download());
+  } else {
+    updates.decline();
+  }
+}
+
+/// Not dismissible by tapping outside: the download is several hundred
+/// megabytes, so both answers should be deliberate. Returns true for "update
+/// now".
 Future<bool> showReferenceDbUpdateDialog(
   BuildContext context, {
   required int compressedSizeBytes,

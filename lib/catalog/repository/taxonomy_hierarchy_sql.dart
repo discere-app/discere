@@ -103,11 +103,11 @@ String descendantsOfAncestorSql({
 
   return '''
       SELECT $a.id, $nameExpression,
-        ${_commonNames(a)}
+        ${localizedCommonNameSubqueries(entityAlias: a, entityIdColumn: 'id')}
       FROM ${descendant.table} $a
       ${joins.join('\n      ')}
       WHERE ${_childOf(ancestor).parentLink} = ?
-        AND ${_activeSpeciesCondition(descendant)}
+        AND ${activeSpeciesCondition(descendant)}
       ORDER BY $a.name
       ''';
 }
@@ -121,7 +121,12 @@ TaxonomyTable _childOf(TaxonomyTable rank) => TaxonomyTable.values[rank.index + 
 
 /// A species is active in its own right; anything above it is active when
 /// some species below it is, which is a walk down the same chain.
-String _activeSpeciesCondition(TaxonomyTable descendant) {
+///
+/// The condition refers to the row by [TaxonomyTable.alias], so the query
+/// using it has to alias the table that way. A higher taxon without an
+/// active species is one the reference database keeps only for the chain
+/// of deprecated species; lists and search leave it out.
+String activeSpeciesCondition(TaxonomyTable descendant) {
   if (descendant == TaxonomyTable.species) return "s.status = 'active'";
 
   final below = TaxonomyTable.values.sublist(descendant.index + 1);
@@ -141,13 +146,3 @@ String _activeSpeciesCondition(TaxonomyTable descendant) {
   );
   return buffer.toString();
 }
-
-String _commonNames(String alias) => [
-  for (final language in const ['de', 'en', 'fr', 'es'])
-    commonNameSubquery(
-      entityAlias: alias,
-      entityIdColumn: 'id',
-      language: language,
-      outputAlias: 'cn_$language',
-    ),
-].join(',\n        ');

@@ -2,8 +2,9 @@
 # =============================================================================
 # validate_plugin.sh — Prüft Plugin-Struktur vor der Ausführung
 #
-# Wird von build.sh vor jedem Plugin-Aufruf aufgerufen.
-# Stellt sicher dass alle Pflicht-Dateien eines Plugins vorhanden sind.
+# Wird von core/plugin_order.sh für jedes Plugin aufgerufen, bevor dessen
+# Manifest gelesen wird. Stellt sicher dass alle Pflicht-Dateien eines
+# Plugins vorhanden sind und die Manifest-Felder die erwartete Form haben.
 #
 # Usage:
 #   ./core/validate_plugin.sh <plugin-dir>
@@ -28,13 +29,13 @@ fail() { echo "[ERROR] [validate_plugin] $*" >&2; exit 1; }
 [[ -d "$PLUGIN_DIR" ]] || fail "Plugin-Verzeichnis nicht gefunden: $PLUGIN_DIR"
 
 PLUGIN_NAME="$(basename "$PLUGIN_DIR")"
+SOURCE_KEY_PATTERN='^[a-z0-9][a-z0-9_-]*$'
 ERRORS=()
 
 # Pflicht-Dateien
 [[ -f "$PLUGIN_DIR/plugin.yaml" ]] || ERRORS+=("plugin.yaml fehlt")
 [[ -f "$PLUGIN_DIR/import.sh"   ]] || ERRORS+=("import.sh fehlt")
 [[ -d "$PLUGIN_DIR/sql"         ]] || ERRORS+=("sql/ Verzeichnis fehlt")
-[[ -f "$PLUGIN_DIR/sql/export.sql" ]] || ERRORS+=("sql/export.sql fehlt")
 [[ -f "$PLUGIN_DIR/sql/source.sql" ]] || ERRORS+=("sql/source.sql fehlt")
 
 # import.sh muss ausführbar sein
@@ -51,9 +52,41 @@ if [[ -f "$PLUGIN_DIR/plugin.yaml" ]]; then
     [[ -n "$plugin_source" ]] || ERRORS+=("plugin.yaml: Pflichtfeld 'source' fehlt")
     [[ -n "$plugin_version" ]] || ERRORS+=("plugin.yaml: Pflichtfeld 'version' fehlt")
 
-    if [[ -n "$plugin_source" ]] && [[ ! "$plugin_source" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+    if [[ -n "$plugin_source" ]] && [[ ! "$plugin_source" =~ $SOURCE_KEY_PATTERN ]]; then
         ERRORS+=("plugin.yaml: 'source' muss dem Muster [a-z0-9][a-z0-9_-]* entsprechen")
     fi
+    # depends_on_sources nennt Quellenschlüssel; erst diese Gleichheit macht
+    # daraus eindeutig ein Plugin-Verzeichnis.
+    if [[ -n "$plugin_source" ]] && [[ "$plugin_source" != "$PLUGIN_NAME" ]]; then
+        ERRORS+=("plugin.yaml: 'source' ($plugin_source) muss dem Verzeichnisnamen ($PLUGIN_NAME) entsprechen")
+    fi
+
+    if dependencies="$(plugin_manifest_list "$PLUGIN_DIR/plugin.yaml" "depends_on_sources")"; then
+        while IFS= read -r dependency; do
+            [[ -z "$dependency" || "$dependency" =~ $SOURCE_KEY_PATTERN ]] \
+                || ERRORS+=("plugin.yaml: 'depends_on_sources' enthält '$dependency' — kein Quellenschlüssel")
+        done <<< "$dependencies"
+    else
+        ERRORS+=("plugin.yaml: 'depends_on_sources' ist keine Blockliste")
+    fi
+
+    optional="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "optional")"
+    [[ -z "$optional" || "$optional" == true || "$optional" == false ]] \
+        || ERRORS+=("plugin.yaml: 'optional' muss true oder false sein")
+
+    placement_priority="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "placement_priority")"
+    [[ -z "$placement_priority" || "$placement_priority" =~ ^-?[0-9]+$ ]] \
+        || ERRORS+=("plugin.yaml: 'placement_priority' muss eine ganze Zahl sein")
+
+    species_loss_limit="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "species_loss_limit_percent")"
+    [[ -z "$species_loss_limit" || ( "$species_loss_limit" =~ ^[0-9]+$ && "$species_loss_limit" -le 100 ) ]] \
+        || ERRORS+=("plugin.yaml: 'species_loss_limit_percent' muss eine ganze Zahl von 0 bis 100 sein")
+
+    # Eine Quelle mit placement_priority liefert Entitäten. Überspränge
+    # --no-enrich sie, fehlten ihre Arten, und der Build übernähme sie als
+    # deprecated — wie ein Teilbuild.
+    [[ "$optional" != true || -z "$placement_priority" ]] \
+        || ERRORS+=("plugin.yaml: 'optional: true' und 'placement_priority' schließen sich aus — eine Quelle mit Entitäten ist nie optional")
 fi
 
 if [[ ${#ERRORS[@]} -gt 0 ]]; then

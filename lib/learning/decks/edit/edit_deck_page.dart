@@ -21,6 +21,7 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/retryable_error_state.dart';
@@ -232,15 +233,28 @@ class _EditDeckPageState extends State<EditDeckPage> {
       coverImagePath: _coverImagePath,
       language: _selectedLanguage,
     );
-    await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
-    await _flashcardService.saveDeckConfig(
-      _deckConfig.copyWith(
-        desiredRetention: _desiredRetention,
-        learningMode: _learningMode,
-        nameType: _nameType,
-        reviewMode: _reviewMode,
-      ),
-    );
+    // Against what was loaded or last saved, not the whole list: a species
+    // the reference database does not resolve never shows here, and must
+    // not read as removed (see DecksService.updateDeck).
+    final speciesIds = _speciesIdsFor(_species);
+    final savedIds = _saved.speciesIds;
+    // Deck and configuration are one save; a restart waits for both.
+    await context.read<UserDataWrites>().run(() async {
+      await _decksService.updateDeck(
+        updated,
+        addedSpeciesIds: speciesIds.difference(savedIds),
+        removedSpeciesIds: savedIds.difference(speciesIds),
+      );
+      await _flashcardService.saveDeckConfig(
+        _deckConfig.copyWith(
+          desiredRetention: _desiredRetention,
+          learningMode: _learningMode,
+          nameType: _nameType,
+          reviewMode: _reviewMode,
+        ),
+      );
+    });
+    // Safe once the page is gone as well: nothing here rebuilds it.
     _saved = _currentDraft();
     _updateDirtyState(setStateIfChanged: false);
   }
@@ -286,13 +300,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
     final choice = await showDeckDownloadChoiceDialog(context);
     if (!mounted || choice == DeckDownloadChoice.none) return;
     setState(() => _isSaving = true);
-    if (choice != DeckDownloadChoice.none) {
-      // Force a genuine re-verification against the local image cache, not
-      // just an idempotent no-op for species whose base capability is
-      // already terminal — see retriggerBaseEnrichment's doc comment.
-      await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
-      if (!mounted) return;
-    }
+    // Force a genuine re-verification against the local image cache, not
+    // just an idempotent no-op for species whose base capability is already
+    // terminal — see retriggerBaseEnrichment's doc comment.
+    await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
+    if (!mounted) return;
     await applyDeckDownloadChoice(
       context,
       enrichmentQueue,
@@ -304,17 +316,13 @@ class _EditDeckPageState extends State<EditDeckPage> {
   Future<void> _refreshStaleBaseImages() async {
     setState(() => _isSaving = true);
     try {
-      await Provider.of<INatEnrichmentQueueService>(
-        context,
-        listen: false,
-      ).refreshStaleBaseImages(widget.deck.id!);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.loc.editDeckRefreshStaleImagesStarted),
-          ),
-        );
-      }
+      await context.read<INatEnrichmentQueueService>().refreshStaleBaseImages(
+        widget.deck.id!,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.loc.editDeckRefreshStaleImagesStarted)),
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -363,27 +371,22 @@ class _EditDeckPageState extends State<EditDeckPage> {
       language: _selectedLanguage,
       alreadyAdded: _species.map((s) => s.id).toSet(),
     );
-    if (result != null && mounted) {
-      _applyDraftChange(() {
-        _species.add(result);
-        _newlyAddedSpeciesIds.add(result.id);
-      });
-    }
+    if (result == null || !mounted) return;
+    _applyDraftChange(() {
+      _species.add(result);
+      _newlyAddedSpeciesIds.add(result.id);
+    });
   }
 
   Future<void> _handleImageSelected(String? path) async {
     if (path == null) {
-      if (mounted) {
-        _applyDraftChange(() => _coverImagePath = null);
-      }
+      if (mounted) _applyDraftChange(() => _coverImagePath = null);
       return;
     }
 
     try {
       final savedPath = await _imageService.saveCoverImage(path);
-      if (mounted) {
-        _applyDraftChange(() => _coverImagePath = savedPath);
-      }
+      if (mounted) _applyDraftChange(() => _coverImagePath = savedPath);
     } catch (e, stackTrace) {
       _log.warn('Cover image save failed', error: e, stackTrace: stackTrace);
       if (mounted) {
