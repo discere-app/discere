@@ -5,5 +5,5 @@ Fix: Lernsessions und Merkliste laden schneller.
 Fix: Multiple Choice fällt nicht mehr auf Umdrehen zurück.
 Fix: Deck bearbeiten zeigt alle Bilder.
 Fix: Online-Suche zeigt Fortschritt und Fehler.
-Fix: Weniger Speicherbedarf, mehr und korrektere Klassennamen.
+Fix: Weniger Speicher; bessere Taxonnamen statt „Not assigned“.
 Neu: Datenupdates laden mit Fortschritt im Hintergrund, dann „Anwenden“; auch in den Einstellungen.

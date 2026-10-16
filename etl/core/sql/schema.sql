@@ -11,8 +11,8 @@ PRAGMA foreign_keys = OFF;
 -- is_placeholder (höhere Taxa): 1 für einen Rang-Platzhalter einer Quelle,
 -- etwa die SeaLifeBase-Familie „Not assigned“. Er hält echte Arten in der
 -- Kette und bleibt deshalb Entität; die App zeigt ihn als „nicht zugeordnet“,
--- fragt nie nach ihm und findet ihn nicht in der Suche. Gesetzt nach allen
--- Quellen von core/placeholders.sh.
+-- bietet ihn nie als Distraktor an und findet ihn nicht in der Suche. Gesetzt
+-- nach allen Quellen von core/placeholders.sh.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS classes (
