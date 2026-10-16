@@ -88,7 +88,10 @@ je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
 Identitäts-Stage schreibt unter `identity` (mehrdeutige Abgleiche,
 abweichende Einordnung zusammengeführter Arten), Stage 02d unter
 `placeholders` jeden Rang-Platzhalter mit Quelle und Anzahl aktiver Arten
-darunter.
+darunter, SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
+über den eindeutigen Gattungsnamen (`genus_by_name`) oder offen
+(`genus_unresolved`, mit Grund; siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)).
 
 ### Validierung
 
