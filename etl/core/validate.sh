@@ -51,7 +51,7 @@ done
 [[ -n "$DB_PATH" ]] || plugin_fail "--db fehlt."
 [[ -n "$PLUGINS_DIR" ]] || plugin_fail "--plugins-dir fehlt."
 
-KNOWN_PLUGINS=" $("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" 2> /dev/null | tr '\n' ' ') " \
+KNOWN_PLUGINS=" $("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" | tr '\n' ' ') " \
     || plugin_fail "Plugins unter $PLUGINS_DIR nicht lesbar."
 RAN_LIST=" ${RAN[*]-} "
 

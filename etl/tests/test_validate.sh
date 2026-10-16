@@ -168,3 +168,16 @@ test_validate_aborts_on_sql_error() {
     assert_status 1
     assert_contains "$ERR" "core/sql/validate.sql fehlgeschlagen — Validierung abgebrochen."
 }
+
+# Ein ungültiges Plugin bricht die Validierung ab, und der Grund aus
+# core/plugin_order.sh bleibt im Log.
+test_validate_aborts_on_invalid_plugin_with_reason() {
+    create_validatable_db
+    make_plugin "$TEST_TMP/plugins" broken
+    printf 'name: broken\nversion: 1\n' > "$TEST_TMP/plugins/broken/plugin.yaml"
+    run_capture "$ETL_DIR/core/validate.sh" --db "$DB" --plugins-dir "$TEST_TMP/plugins" --ran broken
+    assert_status 1
+    assert_contains "$ERR" "Plugins unter $TEST_TMP/plugins nicht lesbar."
+    assert_contains "$ERR" "Pflichtfeld 'source' fehlt"
+    assert_not_contains "$ERR" "Validierung OK."
+}
