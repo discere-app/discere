@@ -178,8 +178,10 @@ name`, und manche Synonyme mehrfach. Der Export ihrer Plugins
 Der Import schreibt ohne `OR REPLACE`: Eine doppelte Zeile wäre ein Fehler im
 Export und bricht den Build ab. Jede aktive Art mit Gattung hat so genau einen
 bevorzugten Namen je Quelle, und er ist ihr eigener (Gattung und Epitheton);
-die Validierung prüft beides (`etl/README.md`, Validierung). Eine Art ohne
-Gattung hat in ihrer Quelle keinen kanonischen Namen.
+die Validierung prüft beides (`etl/README.md`, Validierung). Eine
+SeaLifeBase-Art ohne Gattung trägt den Namen, den die Quelle ihr gibt (siehe
+[Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich));
+gegen eine Gattung prüfen lässt er sich nicht.
 
 In `species_scientific_names` kommen nur Synonyme der Ebene `Species`
 (`TaxonLevel`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
@@ -271,10 +273,12 @@ der Kette bei Hunderten Familien.
   beiden Ketten; v26.06: 648 bzw. 146). Meist ist eine der beiden Angaben
   nach einer Umstellung veraltet.
 
-Eine Art ohne Gattung hat keinen kanonischen Namen in ihrer Quelle: Ihr
-bevorzugter Name fehlt, und damit ihr Eintrag in `species_name_lookup` und
-die iNaturalist-Zuordnung über diesen Namen. Ihre Synonyme bleiben. Die App
-lädt sie und zeigt die Ränge über ihr als „nicht zugeordnet“.
+Eine Art ohne Gattung behält ihren wissenschaftlichen Namen: Bevorzugt ist
+der Name, den die Quelle ihr in den Spalten `Genus` und `Species` gibt, auch
+wenn ihr GenCode auf eine anders benannte Gattung zeigt. Er ordnet sie
+keiner Gattung zu, und über ihn findet sie `species_name_lookup` und der
+iNaturalist-Abgleich. Die App lädt sie und zeigt die Ränge über ihr als
+„nicht zugeordnet“.
 
 Eine Invariante in `validate.sql` gibt es dafür nicht: Die DB kennt den
 FamCode der Art nicht, nur die Kette über ihre Gattung. Die Prüfung sitzt im

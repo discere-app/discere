@@ -109,8 +109,8 @@ slb_csv_columns() {
 }
 
 # Fehlt GenCode, gilt die einzige Gattung des Namens; ein Name zweier
-# Gattungen und ein Name ohne Gattung lassen die Gattung leer. Den vollen
-# wissenschaftlichen Namen bekommt nur, wessen Gattung feststeht.
+# Gattungen und ein Name ohne Gattung lassen die Gattung leer. Den
+# wissenschaftlichen Namen gibt die Quelle der Art auch ohne Gattung.
 test_sealifebase_export_resolves_missing_genus_code_by_unique_name() {
     create_sealifebase_parquets
     run_sealifebase_export
@@ -120,7 +120,9 @@ discere:sealifebase_species:11,discere:sealifebase_genus:1
 discere:sealifebase_species:12,
 discere:sealifebase_species:13," "$(slb_csv_columns species 1,15)" "Gattung je Art"
     assert_eq "discere:sealifebase_species:10,Abra alba
-discere:sealifebase_species:11,Abra tenuis" "$(slb_csv_columns species_scientific_names 1,2)" \
+discere:sealifebase_species:11,Abra tenuis
+discere:sealifebase_species:12,Duplo ambiguus
+discere:sealifebase_species:13,Nullus ignotus" "$(slb_csv_columns species_scientific_names 1,2)" \
         "wissenschaftliche Namen"
 }
 
@@ -261,7 +263,7 @@ test_sealifebase_export_keeps_genus_that_matches_species_family() {
 }
 
 # Liegt die Gattung in einem anderen Stamm oder einer anderen Klasse als die
-# Familie der Art, bleibt die Gattung leer — und mit ihr der kanonische Name.
+# Familie der Art, bleibt die Gattung leer.
 test_sealifebase_export_rejects_genus_from_other_phylum_or_class() {
     run_genus_check_export
     assert_eq "" "$(slb_genus_of 22)" "Gattya humilis"
@@ -270,8 +272,6 @@ test_sealifebase_export_rejects_genus_from_other_phylum_or_class() {
         "$(slb_genus_report_of 22)" "Bericht Stamm"
     assert_eq "genus_rejected	Klasse: GenCode 5 Murex (Muricidae / Neogastropoda / Gastropoda / Mollusca), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
         "$(slb_genus_report_of 23)" "Bericht Klasse"
-    assert_not_contains "$(slb_csv_columns species_scientific_names 2)" "Gattya humilis"
-    assert_not_contains "$(slb_csv_columns species_scientific_names 2)" "Murex brandaris"
 }
 
 # Heißt die Gattung des GenCode anders, als die Art ihre Gattung nennt, ist
@@ -281,7 +281,6 @@ test_sealifebase_export_rejects_genus_with_other_name() {
     assert_eq "" "$(slb_genus_of 24)" "Stephanomia amphytridis"
     assert_eq "genus_rejected	Name: GenCode 6 Halistemma (Halopterididae / Leptothecata / Hydrozoa / Cnidaria), Art: Halopterididae / Leptothecata / Hydrozoa / Cnidaria" \
         "$(slb_genus_report_of 24)" "Bericht"
-    assert_not_contains "$(cat "$TEST_TMP/export/species_scientific_names.csv")" "amphytridis"
 }
 
 # Ist die Ordnung auf einer Seite mehrdeutig (zweimal vergebener Ordnum)
@@ -317,6 +316,22 @@ test_sealifebase_export_checks_genus_found_by_name() {
     assert_eq "genus_by_name	GenCode 8" "$(slb_genus_report_of 26)" "Bericht passt"
     assert_eq "genus_rejected	Stamm: GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta" \
         "$(slb_genus_report_of 27)" "Bericht Stamm"
+}
+
+# Eine Art, deren Gattung verworfen wurde, behält den Namen, den die Quelle
+# ihr gibt (Genus und Species), als bevorzugten Namen — nicht den mit dem
+# Namen der verworfenen Gattung.
+test_sealifebase_export_keeps_source_name_of_species_with_rejected_genus() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_species:22,Gattya humilis,gattya humilis,valid,1
+discere:sealifebase_species:23,Murex brandaris,murex brandaris,valid,1
+discere:sealifebase_species:24,Stephanomia amphytridis,stephanomia amphytridis,valid,1
+discere:sealifebase_species:25,Ambix dubius,ambix dubius,valid,1
+discere:sealifebase_species:27,Abra rara,abra rara,valid,1
+discere:sealifebase_species:28,Abra orba,abra orba,valid,1" \
+        "$(slb_csv_columns species_scientific_names 1-4,7 | grep -E 'species:(2[2-578]),')" \
+        "bevorzugte Namen"
+    assert_not_contains "$(cat "$TEST_TMP/export/species_scientific_names.csv")" "halistemma"
 }
 
 # Je Art höchstens eine Zeile, Arten mit passender Gattung über GenCode keine,

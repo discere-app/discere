@@ -96,8 +96,9 @@ UNION ALL
 -- als einen je Quelle (eine Art aus zwei Quellen trägt je Quelle ihren, der
 -- der anderen Quelle darf deshalb abweichen). Ohne ihn, oder mit einem
 -- fremden, verweist ein Name im species_name_lookup womöglich auf die falsche
--- Art. Eine Art ohne Gattung hat keinen kanonischen Namen in ihrer Quelle;
--- übernommene Arten tragen die Namen ihres Vorgängers.
+-- Art. Eine Art ohne Gattung ist ausgenommen: Ihr bevorzugter Name ist der,
+-- den ihre Quelle ihr gibt, und eine Gattung, gegen die er sich prüfen ließe,
+-- gibt es nicht. Übernommene Arten tragen die Namen ihres Vorgängers.
 SELECT 'species (preferred name)',
     (SELECT COUNT(*) FROM species s
      JOIN genera g ON g.id = s.genus

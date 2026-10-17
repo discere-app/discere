@@ -309,6 +309,11 @@ COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 -- Beinhaltet pro Species genau einen kanonischen Namen aus species.parquet
 -- sowie zusätzliche Arten-Synonyme aus synonyms.parquet.
 --
+-- Der kanonische Name ist Gattung und Epitheton. Ohne Gattung — verworfen,
+-- weil sie nicht zur Familie der Art passt, oder nicht auflösbar — steht der
+-- Gattungsname aus der Spalte Genus der Art: Das ist der Name, den die Quelle
+-- der Art gibt, und er ordnet sie keiner Gattung zu.
+--
 -- Je Art und normalisiertem Namen eine Zeile (Schlüssel der Tabelle), fest
 -- gewählt: Führt die Quelle den kanonischen Namen auch als Synonym der Art,
 -- bleibt der kanonische. Unter gleichnamigen Synonymen gewinnt der Status,
@@ -332,8 +337,8 @@ COPY (
         -- Kanonischer Species-Name
         SELECT
             sp.id                                                  AS species_id,
-            CONCAT(g.GenName, ' ', s.species)                      AS name,
-            LOWER(CONCAT(TRIM(g.GenName), ' ', TRIM(s.species)))   AS normalized_name,
+            CONCAT(COALESCE(g.GenName, TRIM(s.Genus)), ' ', s.species) AS name,
+            LOWER(CONCAT(TRIM(COALESCE(g.GenName, s.Genus)), ' ', TRIM(s.species))) AS normalized_name,
             'valid'                                                AS name_status,
             'sealifebase'                                          AS source,
             CAST(s.SpecCode AS VARCHAR)                            AS source_ref,
@@ -344,10 +349,11 @@ COPY (
         FROM read_parquet('${SLB_DIR}/species.parquet') s
         JOIN t_species_genus sg
           ON sg.speccode = s.speccode
-        JOIN read_parquet('${SLB_DIR}/genera.parquet') g
+        LEFT JOIN read_parquet('${SLB_DIR}/genera.parquet') g
           ON g.gencode = sg.gencode
         JOIN t_species sp
           ON sp.external_id = CAST(s.speccode AS VARCHAR)
+        WHERE NULLIF(TRIM(COALESCE(g.GenName, s.Genus)), '') IS NOT NULL
 
         UNION ALL
 
