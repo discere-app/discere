@@ -190,9 +190,16 @@ COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 -- Wissenschaftliche Namen für Imports und Alias-Lookups.
 -- Beinhaltet pro Species genau einen kanonischen Namen aus species.parquet
 -- sowie zusätzliche Arten-Synonyme aus synonyms.parquet.
+--
+-- Je Art und normalisiertem Namen eine Zeile (Schlüssel der Tabelle), fest
+-- gewählt: Führt die Quelle den kanonischen Namen auch als Synonym der Art,
+-- bleibt der kanonische. Unter gleichnamigen Synonymen gewinnt der Status,
+-- der den Namen am deutlichsten der Art zuschreibt (synonym, ambiguous
+-- synonym, misapplied name — ein falsch angewandter Name ist für Abgleich
+-- und Nachfolger kein Kandidat), danach source_ref und die übrigen Spalten.
 -- ---------------------------------------------------------------------------
 COPY (
-    SELECT DISTINCT
+    SELECT
         species_id,
         name,
         normalized_name,
@@ -248,8 +255,51 @@ COPY (
               'provisionally accepted name'
           )
     )
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY species_id, normalized_name, source
+        ORDER BY is_preferred DESC,
+                 CASE name_status
+                     WHEN 'synonym'           THEN 1
+                     WHEN 'ambiguous synonym' THEN 2
+                     WHEN 'misapplied name'   THEN 3
+                     ELSE 4
+                 END,
+                 source_ref, name_status, name, synonymy, combination, misspelling
+    ) = 1
 )
 TO '${EXPORT_DIR}/species_scientific_names.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
+-- Mehrdeutige Namen (ambiguous_scientific_names)
+-- Namen, die die Quelle als Synonym mehr als einer Art führt, über alle
+-- Ebenen (TaxonLevel): Ein Name kann bei einer Art auf der Ebene Species und
+-- bei einer anderen auf einer anderen Ebene stehen, und nur die erste Zeile
+-- kommt in species_scientific_names. Gezählt werden Binome (Gattung und
+-- Epitheton je ein Wort) an Arten dieses Exports, ohne angenommene und falsch
+-- angewandte Namen — wie bei den Namen oben.
+-- ---------------------------------------------------------------------------
+COPY (
+    SELECT
+        LOWER(CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies)))    AS normalized_name,
+        'fishbase'                                                       AS source,
+        COUNT(DISTINCT syn.SpecCode)                                     AS species_count
+    FROM read_parquet('${FISHBASE_DIR}/synonyms.parquet') syn
+    JOIN t_species sp
+      ON sp.external_id = CAST(syn.SpecCode AS VARCHAR)
+    WHERE NULLIF(TRIM(syn.SynGenus), '') IS NOT NULL
+      AND NULLIF(TRIM(syn.SynSpecies), '') IS NOT NULL
+      AND TRIM(syn.SynGenus) NOT LIKE '% %'
+      AND TRIM(syn.SynSpecies) NOT LIKE '% %'
+      AND COALESCE(TRIM(syn.Status), '') NOT IN (
+          'accepted name',
+          'provisionally accepted name',
+          'misapplied name'
+      )
+    GROUP BY 1
+    HAVING COUNT(DISTINCT syn.SpecCode) > 1
+    ORDER BY 1
+)
+TO '${EXPORT_DIR}/ambiguous_scientific_names.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Common Names

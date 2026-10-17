@@ -28,6 +28,7 @@ build.sh                       ← Orchestrator
 │   ├── manifest_newest.sh     ← neuestes Release des Manifests, über alle Schemas
 │   ├── manifest_update.sh     ← neues Release ins Manifest eintragen
 │   ├── identity.sh            ← Identitäts-Stage: endgültige IDs, Register, Aliase
+│   ├── lookup.sh              ← species_name_lookup samt Bericht der Namen ohne eindeutige Art
 │   ├── reference_columns.sh   ← Spalten, die auf Entitäten verweisen
 │   ├── check_references.sh    ← Verweise am Ende des Builds prüfen
 │   ├── validate.sh            ← Mindestzahlen und Invarianten am Ende des Builds
@@ -36,6 +37,7 @@ build.sh                       ← Orchestrator
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
 │       ├── match.sql          ← Regeln des Abgleichs
 │       ├── identity_*.sql     ← Schritte der Identitäts-Stage
+│       ├── rebuild_lookup.sql ← Regel für species_name_lookup (lookup_report.sql: Bericht)
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten
 ├── cache/releases/           ← Vorgänger-Releases je Version (gitignored)
@@ -78,7 +80,7 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | 02b | `core/identity.sh` | Endgültige IDs aus dem ID-Register, Zusammenführen, Übernahme aus dem Vorgänger, Aliase |
 | 02c | `plugins/*/import.sh` | Ergänzende Quellen (heute `curated`, `inaturalist`) auf den endgültigen IDs |
 | 02d | `core/placeholders.sh` | Rang-Platzhalter der Quellen markieren (`is_placeholder`), für alle Quellen nach derselben Namensregel |
-| 03 | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
+| 03 | `core/lookup.sh` | `species_name_lookup` materialisieren: nur Namen, die genau eine aktive Art meinen |
 | 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
 | — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
 | 05 | `core/check_references.sh`, `core/validate.sh` | Verweise auf Entitäten, Mindestzahlen und Invarianten prüfen |
@@ -88,7 +90,10 @@ je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
 Identitäts-Stage schreibt unter `identity` (mehrdeutige Abgleiche,
 abweichende Einordnung zusammengeführter Arten), Stage 02d unter
 `placeholders` jeden Rang-Platzhalter mit Quelle und Anzahl aktiver Arten
-darunter, SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
+darunter, Stage 03 unter `lookup` jeden Namen aktiver Arten ohne Eintrag in
+`species_name_lookup`, weil er mehrere Arten meint (`ambiguous`, mit allen
+Arten) oder nur als falsch angewandter Name vorkommt (`misapplied`; siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#wissenschaftliche-namen)), SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
 über den eindeutigen Gattungsnamen (`genus_by_name`) oder offen
 (`genus_unresolved`, mit Grund; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)).
@@ -99,8 +104,10 @@ darunter, SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
 `tbl | n | min | requires` und schlägt fehl, wenn `n < min`. `requires` ist
 Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
 
-- `always` — Invariante (ID-Format, ID-Register, `species_name_lookup`), gilt
-  für jeden Build;
+- `always` — Invariante, gilt für jeden Build: ID-Format, ID-Register, je
+  aktiver Art mit Gattung ein bevorzugter wissenschaftlicher Name, der ihr
+  eigener ist (Gattung und Epitheton), und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
+  auflösbaren Namen, jeder auf seine Art;
 - `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
 - `<plugin>[,<plugin>]` — alle genannten Plugins. Eine Mindestzahl nennt die
   Plugins, deren Zeilen sie allein erreichen (gemessen an refdb-v2): die
@@ -321,7 +328,9 @@ Rangfolge.
 Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
 Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
-Erkennung der Rang-Platzhalter,
+Erkennung der Rang-Platzhalter, die Exporte von FishBase und SeaLifeBase
+mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name), die
+Namensauflösung über `species_name_lookup`,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
 Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
 Validierung mit ihren Voraussetzungen sowie das Laden des Vorgängers über

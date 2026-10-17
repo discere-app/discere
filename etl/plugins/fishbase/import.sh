@@ -159,6 +159,7 @@ DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_distribution_regions WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM species_scientific_names WHERE source = '${PLUGIN_SOURCE}';
+DELETE FROM ambiguous_scientific_names WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
@@ -279,6 +280,11 @@ CREATE TEMP TABLE tmp_common_names (
     is_preferred INTEGER,
     name_type TEXT
 );
+CREATE TEMP TABLE tmp_ambiguous_scientific_names (
+    normalized_name TEXT,
+    source TEXT,
+    species_count INTEGER
+);
 CREATE TEMP TABLE tmp_species_scientific_names (
     species_id TEXT,
     name TEXT,
@@ -313,6 +319,7 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
 .import --skip 1 ${EXPORT_DIR}/common_names.csv tmp_common_names
 .import --skip 1 ${EXPORT_DIR}/species_scientific_names.csv tmp_species_scientific_names
+.import --skip 1 ${EXPORT_DIR}/ambiguous_scientific_names.csv tmp_ambiguous_scientific_names
 .import --skip 1 ${EXPORT_DIR}/pictures.csv tmp_pictures
 .import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
 .import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
@@ -433,7 +440,9 @@ INSERT OR IGNORE INTO common_names (
 FROM tmp_common_names
 WHERE entity_id != '' AND name != '' AND language != '';
 
-INSERT OR REPLACE INTO species_scientific_names (
+-- Ohne OR REPLACE: export.sql liefert je Schlüssel eine Zeile, eine
+-- Kollision ist ein Fehler im Export und bricht den Import ab.
+INSERT INTO species_scientific_names (
     species_id, name, normalized_name, name_status, source,
     source_ref, is_preferred, synonymy, combination, misspelling
 ) SELECT
@@ -449,6 +458,9 @@ INSERT OR REPLACE INTO species_scientific_names (
     CAST(COALESCE(NULLIF(misspelling, ''), '0') AS INTEGER)
 FROM tmp_species_scientific_names
 WHERE species_id != '' AND name != '' AND normalized_name != '';
+
+INSERT INTO ambiguous_scientific_names (normalized_name, source, species_count)
+SELECT normalized_name, source, species_count FROM tmp_ambiguous_scientific_names;
 
 -- Pictures: INSERT OR IGNORE (neu importiert nach clear_existing_data)
 INSERT OR IGNORE INTO pictures (

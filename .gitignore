@@ -90,6 +90,9 @@ feature_comparison.md
 # Sidecars the test suite leaves behind when it opens the checked-in fixture.
 /test/fixtures/*.db-shm
 /test/fixtures/*.db-wal
+# Downloads der Plugins (Parquets mit --keep, iNaturalist-Taxa)
+/etl/plugins/fishbase/cache/
+/etl/plugins/sealifebase/cache/
 /etl/plugins/inaturalist/cache/
 # Vorgänger-Releases, die build.sh für das ID-Register lädt
 /etl/cache/

@@ -153,3 +153,92 @@ genus_unresolved	12	Duplo ambiguus	2 Gattungen dieses Namens
 genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
         "$(cat "$TEST_TMP/export/genus_report.tsv")" "Bericht"
 }
+
+# Ersetzt synonyms.parquet durch Synonyme von Abra alba (Art 10), die mit
+# ihrem kanonischen Namen oder untereinander denselben normalisierten Namen
+# tragen, in der Reihenfolge <ASC|DESC>:
+#   abra alba     synonym (Ref 5), ambiguous synonym „Alba “ (Ref 6)
+#   abra nitida   misapplied name (Ref 1), ambiguous synonym (Ref 2),
+#                 synonym (Ref 4)
+#   abra ovata    synonym (Ref 12), synonym (Ref 11)
+write_colliding_sealifebase_synonyms() {
+    duckdb << SQL
+COPY (
+    SELECT SpecCode, SynGenus, SynSpecies, SynonymsRef, 'Species' AS TaxonLevel, Status,
+           NULL::VARCHAR AS Synonymy, NULL::VARCHAR AS Combination, 0 AS Misspelling
+    FROM (VALUES
+        (1, 10, 'Abra', 'alba',   5,  'synonym'),
+        (2, 10, 'Abra', 'Alba ',  6,  'ambiguous synonym'),
+        (3, 10, 'Abra', 'nitida', 1,  'misapplied name'),
+        (4, 10, 'Abra', 'nitida', 2,  'ambiguous synonym'),
+        (5, 10, 'Abra', 'nitida', 4,  'synonym'),
+        (6, 10, 'Abra', 'ovata',  12, 'synonym'),
+        (7, 10, 'Abra', 'ovata',  11, 'synonym')
+    ) AS t(pos, SpecCode, SynGenus, SynSpecies, SynonymsRef, Status)
+    ORDER BY pos $1
+) TO '$TEST_TMP/sealifebase/synonyms.parquet' (FORMAT parquet);
+SQL
+}
+
+# Je Art und normalisiertem Namen eine Zeile: Der kanonische Name bleibt
+# bevorzugt, auch wenn die Quelle ihn zusätzlich als Synonym führt; unter
+# gleichnamigen Synonymen entscheidet erst der Status, dann source_ref — in
+# jeder Reihenfolge der Eingabe gleich.
+test_sealifebase_export_keeps_one_name_per_species_canonical_first() {
+    local expected="abra alba,valid,10,1
+abra nitida,synonym,4,0
+abra ovata,synonym,11,0"
+    local order
+    create_sealifebase_parquets
+    for order in ASC DESC; do
+        write_colliding_sealifebase_synonyms "$order"
+        run_sealifebase_export
+        assert_status 0
+        assert_eq "$expected" "$(slb_csv_columns species_scientific_names 1,3,4,6,7 \
+            | sed -n 's/^discere:sealifebase_species:10,//p')" \
+            "wissenschaftliche Namen ($order)"
+    done
+}
+
+# Ersetzt synonyms.parquet durch Synonyme von Abra alba (10) und Abra tenuis
+# (11) auf verschiedenen Ebenen:
+#   abra prima    ambiguous synonym bei 10 (Species) und 11 (Other)
+#   abra secunda  Synonym bei 11 auf Species und Other — dieselbe Art
+#   abra tertia   Synonym bei 10 und beim Platzhalter 14, der keine Art ist
+#   abra quarta   falsch angewandt bei 10, Synonym bei 11
+#   abra quinta   bei 11 nur als Varietät (kein Binom), Synonym bei 10
+write_sealifebase_synonyms_across_levels() {
+    duckdb << SQL
+COPY (
+    SELECT SpecCode, SynGenus, SynSpecies, 1 AS SynonymsRef, TaxonLevel, Status,
+           NULL::VARCHAR AS Synonymy, NULL::VARCHAR AS Combination, 0 AS Misspelling
+    FROM (VALUES
+        (10, 'Abra', 'prima',          'Species', 'ambiguous synonym'),
+        (11, 'Abra', 'prima',          'Other',   'ambiguous synonym'),
+        (11, 'Abra', 'secunda',        'Species', 'synonym'),
+        (11, 'Abra', 'secunda',        'Other',   'synonym'),
+        (10, 'Abra', 'tertia',         'Species', 'synonym'),
+        (14, 'Abra', 'tertia',         'Species', 'synonym'),
+        (10, 'Abra', 'quarta',         'Species', 'misapplied name'),
+        (11, 'Abra', 'quarta',         'Species', 'synonym'),
+        (10, 'Abra', 'quinta',         'Species', 'synonym'),
+        (11, 'Abra', 'quinta var. x',  'Variety', 'synonym')
+    ) AS t(SpecCode, SynGenus, SynSpecies, TaxonLevel, Status)
+) TO '$TEST_TMP/sealifebase/synonyms.parquet' (FORMAT parquet);
+SQL
+}
+
+# Ein Name, den die Quelle als Synonym zweier Arten führt, ist mehrdeutig,
+# auch wenn eine der Zeilen auf einer anderen Ebene als Species steht und
+# deshalb nicht in species_scientific_names kommt. Dieselbe Art auf zwei
+# Ebenen, ein Platzhalter, ein falsch angewandter Name und ein Name, der kein
+# Binom ist, machen keinen Namen mehrdeutig.
+test_sealifebase_export_lists_names_that_are_synonyms_of_several_species() {
+    create_sealifebase_parquets
+    write_sealifebase_synonyms_across_levels
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "abra prima,sealifebase,2" "$(slb_csv_columns ambiguous_scientific_names 1-3)" "mehrdeutige Namen"
+    assert_eq "discere:sealifebase_species:10,abra prima" \
+        "$(slb_csv_columns species_scientific_names 1,3 | grep 'abra prima')" "Name nur auf der Ebene Species"
+}
