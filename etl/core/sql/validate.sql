@@ -46,24 +46,24 @@ HAVING SUM(is_preferred) = 1
 
 -- Höhere Taxa mit ihrem Namensschlüssel (genus:barbus, wie die
 -- iNaturalist-Zuordnung ihn ablegt) und ob ihre Kette bis zu einer Klasse
--- reicht.
+-- mit Stamm reicht.
 CREATE TEMP VIEW validate_taxon_chain AS
-SELECT 'genus:' || LOWER(TRIM(g.name)) AS name_key, c.id IS NOT NULL AS has_chain
+SELECT 'genus:' || LOWER(TRIM(g.name)) AS name_key, TRIM(COALESCE(c.super_class, '')) != '' AS has_chain
 FROM genera g
 LEFT JOIN families f ON f.id = g.family
 LEFT JOIN orders o ON o.id = f."order"
 LEFT JOIN classes c ON c.id = o.class
 UNION ALL
-SELECT 'family:' || LOWER(TRIM(f.name)), c.id IS NOT NULL
+SELECT 'family:' || LOWER(TRIM(f.name)), TRIM(COALESCE(c.super_class, '')) != ''
 FROM families f
 LEFT JOIN orders o ON o.id = f."order"
 LEFT JOIN classes c ON c.id = o.class
 UNION ALL
-SELECT 'order:' || LOWER(TRIM(o.name)), c.id IS NOT NULL
+SELECT 'order:' || LOWER(TRIM(o.name)), TRIM(COALESCE(c.super_class, '')) != ''
 FROM orders o
 LEFT JOIN classes c ON c.id = o.class
 UNION ALL
-SELECT 'class:' || LOWER(TRIM(name)), 1 FROM classes;
+SELECT 'class:' || LOWER(TRIM(name)), TRIM(super_class) != '' FROM classes;
 
 -- Mindest-Zeilenzahlen
 SELECT
@@ -182,8 +182,10 @@ UNION ALL
 -- Zuordnung nur, wenn der Stamm des iNaturalist-Taxons zur Kette jeder
 -- Entität seines Namens passt (plugins/inaturalist/sql/export.sql). Den
 -- iNaturalist-Stamm kennt die DB nicht; prüfen lässt sich hier, was ohne
--- ihn feststeht: Jede zugeordnete Art hat eine Kette bis zur Klasse, und
--- jede Entität hinter einem zugeordneten Namensschlüssel ebenso. Ein
+-- ihn feststeht: Jede zugeordnete Art hat eine Kette bis zu einer Klasse
+-- mit Stamm, und jede Entität hinter einem zugeordneten Namensschlüssel
+-- ebenso. Den Abgleich mit dem iNaturalist-Stamm prüft das Plugin selbst
+-- (plugins/inaturalist/sql/validate_mappings.sql). Ein
 -- Schlüssel ohne Entität fiele auch auf.
 SELECT 'inaturalist (species with chain)',
     (SELECT COUNT(*) FROM entity_external_ids e
@@ -191,7 +193,7 @@ SELECT 'inaturalist (species with chain)',
      JOIN genera g ON g.id = s.genus
      JOIN families f ON f.id = g.family
      JOIN orders o ON o.id = f."order"
-     JOIN classes c ON c.id = o.class
+     JOIN classes c ON c.id = o.class AND TRIM(c.super_class) != ''
      WHERE e.provider = 'inaturalist' AND e.entity_type = 'species'),
     (SELECT COUNT(*) FROM entity_external_ids
      WHERE provider = 'inaturalist' AND entity_type = 'species'),

@@ -14,32 +14,41 @@
 -- Lebenswelt; ohne diese Eingrenzung landeten über eine Million Taxa als
 -- „none“ im Build-Bericht.
 --
--- Stammprüfung (docs/datenquellen.md, iNaturalist-Abgleich): Der Name allein
--- trennt keine Homonyme über Reiche und Stämme hinweg. Ein iNaturalist-Taxon
--- geht nur in den Abgleich, wenn sein Stamm zu jeder Entität passt, die
--- seinen Namen auf diesem Rang trägt — bei Arten auch als Synonym:
---   - Stamm der Kette gleich dem iNaturalist-Stamm oder ihm gleichwertig
---     (${PHYLUM_EQUIVALENTS}: Stamm der Kette, iNaturalist-Stamm);
---   - ist der Stamm der Kette ein Rang-Platzhalter, der ein Reich nennt
---     („Not Assigned (Plantae)“), das iNaturalist führt, das Reich — nur
---     beim einzigen Träger des Namens;
---   - sonst — Kette ohne Stamm, Platzhalter ohne Reich, iNaturalist-Taxon
---     ohne Stamm bzw. Reich in seiner Ahnenkette — ist nichts prüfbar.
--- Den Stamm und das Reich eines iNaturalist-Taxons liefern die eigenen
--- Zeilen von taxa.csv über ancestry, ohne API.
+-- Prüfung gegen die eigene Kette (docs/datenquellen.md, Stamm und Kette bei
+-- der iNaturalist-Zuordnung): Der Name allein trennt keine Homonyme. Ein
+-- iNaturalist-Taxon geht nur in den Abgleich, wenn es zu jeder Entität
+-- passt, die seinen Namen auf diesem Rang trägt — bei Arten auch als
+-- Synonym. Stamm, Klasse, Ordnung und Familie des iNaturalist-Taxons kommen
+-- aus den eigenen Zeilen von taxa.csv über ancestry, ohne API.
+--
+--   Stamm    gleich dem der Kette oder gleichwertig (${PHYLUM_EQUIVALENTS}).
+--            Nicht prüfbar sind eine Kette ohne Stamm (etwa eine Art ohne
+--            Gattung), ein Platzhalter-Stamm („Not Assigned (Plantae)“ —
+--            SeaLifeBase ordnet darunter Einzeller auch falschen Reichen zu)
+--            und ein iNaturalist-Taxon ohne Stamm in seiner Ahnenkette.
+--   Klasse   Die Entitäten eines Namens liegen in höchstens einer Klasse
+--            (Platzhalter zählen nicht): Sonst steht der Name für Taxa
+--            verschiedener Klassen, und jedes iNaturalist-Taxon ist für
+--            eine davon falsch.
+--   Rang     Bei Gattungen, Familien und Ordnungen, und bei Arten, deren
+--            Name bei iNaturalist mehrere aktive Taxa trägt: Klasse oder
+--            Ordnung oder Familie des iNaturalist-Taxons passt zu jeder
+--            Entität — verglichen werden nur die Ränge über dem eigenen,
+--            die Klasse gleich oder gleichwertig (${CLASS_EQUIVALENTS}),
+--            Ordnung und Familie gleich. Klassen prüft nur der Stamm.
 --
 -- Abgelehnt wird mit Grund, in dieser Reihenfolge:
 --   phylum_mixed     der Stamm passt zu einem Teil der Entitäten des Namens,
---                    zu einem anderen nicht: Der Name steht in der DB für
---                    Taxa verschiedener Stämme (bei höheren Taxa teilen sie
---                    sich einen Namensschlüssel)
---   phylum_unknown   für mindestens eine Entität nicht prüfbar
---   phylum_mismatch  zu keiner Entität passend
+--                    zu einem anderen nicht
+--   phylum_unknown   der Stamm ist für mindestens eine Entität nicht prüfbar
+--   phylum_mismatch  der Stamm passt zu keiner Entität
+--   class_mixed      die Entitäten des Namens liegen in mehreren Klassen
+--   rank_mismatch    weder Klasse noch Ordnung noch Familie passen zu jeder
+--                    Entität
 --
 -- Mehrere aktive iNaturalist-Taxa mit gleichem Namen und Rang (Homonyme)
--- bekommen keine Zuordnung, wenn nach der Stammprüfung mehr als eines übrig
--- bleibt: Welches gemeint ist, lässt sich dann nicht entscheiden. Bleibt
--- genau eines, geht es in den Abgleich.
+-- bekommen keine Zuordnung, wenn nach diesen Prüfungen mehr als eines übrig
+-- bleibt. Bleibt genau eines, geht es in den Abgleich.
 --
 -- Alle TSVs hier sind ohne Quoting: Ein " gehört zum Namen (es gibt
 -- Gattungsnamen in Anführungszeichen), Tabs und Zeilenumbrüche kommen in den
@@ -49,22 +58,40 @@
 --   ${TAXA_FILE}             — taxa.csv.gz
 --   ${REFERENCE_NAMES}       — TSV aus reference_names.sql
 --   ${PHYLUM_EQUIVALENTS}    — data/phylum_equivalents.csv
+--   ${CLASS_EQUIVALENTS}     — data/class_equivalents.csv
 --   ${PLACEHOLDER_PATTERNS}  — core/data/placeholder_patterns.csv
 --   ${EXPORT_DIR}            — Ausgabeverzeichnis
 --
 -- Ausgaben in ${EXPORT_DIR}:
 --   match_input.tsv  record_key, rank, name — Eingabe für core/match.sh
+--   lineage.tsv      record_key, phylum, class, order, family, homonym — je
+--                    Datensatz aus match_input.tsv, für die Prüfung der
+--                    Synonym-Treffer und metadata_json in import.sh
 --   report.tsv       Zeilen für plugin_report: Kategorie, Schlüssel, Name,
 --                    Detail (abgelehnte Taxa und Homonyme)
 -- =============================================================================
 
+CREATE TEMP TABLE t_placeholder_patterns AS
+SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
+
+CREATE OR REPLACE MACRO is_rank_placeholder(name) AS
+    EXISTS (SELECT 1 FROM t_placeholder_patterns p WHERE LOWER(TRIM(name)) GLOB p.pattern);
+
 CREATE TEMP TABLE t_carriers AS
-SELECT DISTINCT rank, normalized_name, entity_id, NULLIF(chain_phylum, '') AS chain_phylum
+SELECT DISTINCT
+    rank, normalized_name, entity_id,
+    NULLIF(chain_phylum, '') AS chain_phylum,
+    NULLIF(chain_class, '')  AS chain_class,
+    NULLIF(chain_order, '')  AS chain_order,
+    NULLIF(chain_family, '') AS chain_family
 FROM read_csv('${REFERENCE_NAMES}', delim = '\t', header = true, quote = '', escape = '', columns = {
     'rank':            'VARCHAR',
     'normalized_name': 'VARCHAR',
     'entity_id':       'VARCHAR',
-    'chain_phylum':    'VARCHAR'
+    'chain_phylum':    'VARCHAR',
+    'chain_class':     'VARCHAR',
+    'chain_order':     'VARCHAR',
+    'chain_family':    'VARCHAR'
 });
 
 CREATE TEMP TABLE t_phylum_equivalents AS
@@ -75,8 +102,13 @@ FROM read_csv('${PHYLUM_EQUIVALENTS}', header = true, columns = {
     'reason':      'VARCHAR'
 });
 
-CREATE TEMP TABLE t_placeholder_patterns AS
-SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
+CREATE TEMP TABLE t_class_equivalents AS
+SELECT LOWER(class) AS class, LOWER(inat_class) AS inat_class
+FROM read_csv('${CLASS_EQUIVALENTS}', header = true, columns = {
+    'class':      'VARCHAR',
+    'inat_class': 'VARCHAR',
+    'reason':     'VARCHAR'
+});
 
 CREATE TEMP TABLE t_taxa AS
 SELECT t.taxon_id, t.ancestry, t.rank, TRIM(t.name) AS name
@@ -95,46 +127,21 @@ FROM read_csv('${TAXA_FILE}',
 ) t
 WHERE t.active = true;
 
--- Was je Entität geprüft wird: check_rank 'phylum' oder 'kingdom' mit dem
--- Wert, gegen den verglichen wird; ohne check_rank ist nichts prüfbar. Das
--- Reich allein genügt nur für den einzigen Träger eines Namens: Neben
--- weiteren gleichnamigen Entitäten ließe es offen, ob alle zum selben Stamm
--- gehören.
-CREATE TEMP TABLE t_carrier_checks AS
-WITH classified AS (
-    SELECT
-        c.*,
-        EXISTS (SELECT 1 FROM t_placeholder_patterns p
-                WHERE LOWER(TRIM(c.chain_phylum)) GLOB p.pattern) AS is_placeholder,
-        regexp_extract(TRIM(c.chain_phylum), '\(([^()]*)\)$', 1) AS named_kingdom,
-        COUNT(*) OVER (PARTITION BY c.rank, c.normalized_name) AS carriers_of_name
-    FROM t_carriers c
-)
-SELECT
-    rank, normalized_name, entity_id, chain_phylum,
-    CASE
-        WHEN chain_phylum IS NULL THEN NULL
-        WHEN NOT is_placeholder THEN 'phylum'
-        WHEN carriers_of_name = 1
-         AND named_kingdom IN (SELECT name FROM t_taxa WHERE rank = 'kingdom') THEN 'kingdom'
-    END AS check_rank,
-    CASE WHEN is_placeholder THEN named_kingdom ELSE chain_phylum END AS check_value
-FROM classified;
-
 CREATE TEMP TABLE t_inat_taxa AS
 SELECT
     CAST(t.taxon_id AS VARCHAR) AS record_key,
     t.rank,
     t.name,
     LOWER(t.name) AS normalized_name,
-    t.ancestry
+    t.ancestry,
+    COUNT(*) OVER (PARTITION BY t.rank, LOWER(t.name)) > 1 AS is_homonym
 FROM t_taxa t
 SEMI JOIN t_carriers c
   ON c.rank = t.rank
  AND c.normalized_name = LOWER(t.name);
 
--- Stamm und Reich aus der Ahnenkette; eine Kette mit zwei Stämmen oder
--- Reichen zählt als ohne.
+-- Stamm, Klasse, Ordnung und Familie aus der Ahnenkette; ein Rang, den die
+-- Kette zweimal nennt, zählt als fehlend.
 CREATE TEMP TABLE t_inat_lineage AS
 WITH ancestors AS (
     SELECT i.record_key, TRY_CAST(a.ancestor_id AS INTEGER) AS ancestor_id
@@ -145,74 +152,109 @@ SELECT
     i.record_key,
     CASE WHEN COUNT(DISTINCT t.name) FILTER (WHERE t.rank = 'phylum') = 1
          THEN MAX(t.name) FILTER (WHERE t.rank = 'phylum') END AS phylum,
-    CASE WHEN COUNT(DISTINCT t.name) FILTER (WHERE t.rank = 'kingdom') = 1
-         THEN MAX(t.name) FILTER (WHERE t.rank = 'kingdom') END AS kingdom
+    CASE WHEN COUNT(DISTINCT t.name) FILTER (WHERE t.rank = 'class') = 1
+         THEN MAX(t.name) FILTER (WHERE t.rank = 'class') END AS class,
+    CASE WHEN COUNT(DISTINCT t.name) FILTER (WHERE t.rank = 'order') = 1
+         THEN MAX(t.name) FILTER (WHERE t.rank = 'order') END AS "order",
+    CASE WHEN COUNT(DISTINCT t.name) FILTER (WHERE t.rank = 'family') = 1
+         THEN MAX(t.name) FILTER (WHERE t.rank = 'family') END AS family
 FROM t_inat_taxa i
 LEFT JOIN ancestors a ON a.record_key = i.record_key
-LEFT JOIN t_taxa t ON t.taxon_id = a.ancestor_id AND t.rank IN ('phylum', 'kingdom')
+LEFT JOIN t_taxa t ON t.taxon_id = a.ancestor_id AND t.rank IN ('phylum', 'class', 'order', 'family')
 GROUP BY i.record_key;
 
--- Je iNaturalist-Taxon und Entität seines Namens: passt (true), passt nicht
--- (false) oder nicht prüfbar (NULL).
-CREATE TEMP TABLE t_phylum_checks AS
+-- Klassen der Entitäten eines Namens, ohne Platzhalter.
+CREATE TEMP TABLE t_name_classes AS
+SELECT rank, normalized_name, COUNT(DISTINCT LOWER(TRIM(chain_class))) AS classes
+FROM t_carriers
+WHERE chain_class IS NOT NULL AND NOT is_rank_placeholder(chain_class)
+GROUP BY rank, normalized_name;
+
+-- Je iNaturalist-Taxon und Entität seines Namens:
+--   phylum_fits  passt (true), passt nicht (false), nicht prüfbar (NULL)
+--   rank_fits    Klasse, Ordnung oder Familie passt
+CREATE TEMP TABLE t_checks AS
 SELECT
-    i.record_key, i.rank, i.name, i.normalized_name,
-    l.phylum AS inat_phylum, l.kingdom AS inat_kingdom,
-    c.entity_id, c.chain_phylum,
-    CASE c.check_rank
-        WHEN 'phylum' THEN
-            l.phylum = c.check_value
-            OR EXISTS (SELECT 1 FROM t_phylum_equivalents e
-                       WHERE e.phylum = c.check_value AND e.inat_phylum = l.phylum)
-        WHEN 'kingdom' THEN l.kingdom = c.check_value
-    END AS fits
+    i.record_key, i.rank, i.name, i.normalized_name, i.is_homonym,
+    l.phylum AS inat_phylum, l.class AS inat_class, l."order" AS inat_order, l.family AS inat_family,
+    c.entity_id, c.chain_phylum, c.chain_class, c.chain_order, c.chain_family,
+    CASE
+        WHEN c.chain_phylum IS NULL OR is_rank_placeholder(c.chain_phylum) OR l.phylum IS NULL THEN NULL
+        ELSE l.phylum = c.chain_phylum
+             OR EXISTS (SELECT 1 FROM t_phylum_equivalents e
+                        WHERE e.phylum = c.chain_phylum AND e.inat_phylum = l.phylum)
+    END AS phylum_fits,
+    COALESCE(
+        LOWER(TRIM(c.chain_class)) = LOWER(l.class)
+        OR EXISTS (SELECT 1 FROM t_class_equivalents e
+                   WHERE e.class = LOWER(TRIM(c.chain_class)) AND e.inat_class = LOWER(l.class))
+        OR LOWER(TRIM(c.chain_order)) = LOWER(l."order")
+        OR LOWER(TRIM(c.chain_family)) = LOWER(l.family),
+        false) AS rank_fits
 FROM t_inat_taxa i
 JOIN t_inat_lineage l ON l.record_key = i.record_key
-JOIN t_carrier_checks c ON c.rank = i.rank AND c.normalized_name = i.normalized_name;
+JOIN t_carriers c ON c.rank = i.rank AND c.normalized_name = i.normalized_name;
 
-CREATE TEMP TABLE t_phylum_verdicts AS
+CREATE TEMP TABLE t_verdicts AS
 SELECT
-    record_key, rank, name, normalized_name,
+    k.record_key, k.rank, k.name, k.normalized_name, k.is_homonym,
     CASE
-        WHEN bool_or(fits) AND bool_or(NOT fits) THEN 'phylum_mixed'
-        WHEN bool_or(fits IS NULL) THEN 'phylum_unknown'
-        WHEN NOT bool_or(fits) THEN 'phylum_mismatch'
+        WHEN bool_or(k.phylum_fits) AND bool_or(NOT k.phylum_fits) THEN 'phylum_mixed'
+        WHEN bool_or(k.phylum_fits IS NULL) THEN 'phylum_unknown'
+        WHEN NOT bool_or(k.phylum_fits) THEN 'phylum_mismatch'
+        WHEN MAX(COALESCE(n.classes, 0)) > 1 THEN 'class_mixed'
+        WHEN (k.rank IN ('genus', 'family', 'order') OR (k.rank = 'species' AND k.is_homonym))
+             AND NOT bool_and(k.rank_fits) THEN 'rank_mismatch'
     END AS rejection,
-    'iNaturalist: ' || COALESCE(MIN(inat_phylum), 'ohne Stamm')
-        || ' (' || COALESCE(MIN(inat_kingdom), 'ohne Reich') || '); Kette: '
-        || string_agg(entity_id || ' ' || COALESCE(chain_phylum, 'ohne Stamm'), ', ' ORDER BY entity_id)
+    'iNaturalist: ' || concat_ws(' / ',
+            COALESCE(MIN(k.inat_phylum), '-'), COALESCE(MIN(k.inat_class), '-'),
+            COALESCE(MIN(k.inat_order), '-'), COALESCE(MIN(k.inat_family), '-'))
+        || '; Kette: '
+        || string_agg(k.entity_id || ' ' || concat_ws(' / ',
+               COALESCE(k.chain_phylum, '-'), COALESCE(k.chain_class, '-'),
+               COALESCE(k.chain_order, '-'), COALESCE(k.chain_family, '-')),
+               ', ' ORDER BY k.entity_id)
         AS detail
-FROM t_phylum_checks
-GROUP BY record_key, rank, name, normalized_name;
+FROM t_checks k
+LEFT JOIN t_name_classes n ON n.rank = k.rank AND n.normalized_name = k.normalized_name
+GROUP BY k.record_key, k.rank, k.name, k.normalized_name, k.is_homonym;
 
 CREATE TEMP TABLE t_homonyms AS
 SELECT rank, normalized_name
-FROM t_phylum_verdicts
+FROM t_verdicts
 WHERE rejection IS NULL
 GROUP BY rank, normalized_name
 HAVING COUNT(*) > 1;
 
+CREATE TEMP TABLE t_accepted AS
+SELECT v.record_key, v.rank, v.name, v.is_homonym
+FROM t_verdicts v
+ANTI JOIN t_homonyms h
+  ON h.rank = v.rank
+ AND h.normalized_name = v.normalized_name
+WHERE v.rejection IS NULL;
+
 COPY (
-    SELECT v.record_key, v.rank, v.name
-    FROM t_phylum_verdicts v
-    ANTI JOIN t_homonyms h
-      ON h.rank = v.rank
-     AND h.normalized_name = v.normalized_name
-    WHERE v.rejection IS NULL
-    ORDER BY v.rank, v.record_key
+    SELECT record_key, rank, name FROM t_accepted ORDER BY rank, record_key
 ) TO '${EXPORT_DIR}/match_input.tsv' (FORMAT csv, DELIMITER '\t', HEADER true, QUOTE '', ESCAPE '');
 
 COPY (
+    SELECT a.record_key, l.phylum, l.class, l."order", l.family, CAST(a.is_homonym AS INTEGER) AS homonym
+    FROM t_accepted a JOIN t_inat_lineage l ON l.record_key = a.record_key
+    ORDER BY a.record_key
+) TO '${EXPORT_DIR}/lineage.tsv' (FORMAT csv, DELIMITER '\t', HEADER true, QUOTE '', ESCAPE '');
+
+COPY (
     SELECT rejection, record_key, name, detail
-    FROM t_phylum_verdicts
+    FROM t_verdicts
     WHERE rejection IS NOT NULL
     UNION ALL
     SELECT
         'ambiguous',
         string_agg(v.record_key, ', ' ORDER BY v.record_key),
         MIN(v.name),
-        'mehrere aktive iNaturalist-Taxa mit passendem Stamm auf Rang ' || v.rank
-    FROM t_phylum_verdicts v
+        'mehrere aktive iNaturalist-Taxa passend zur Kette auf Rang ' || v.rank
+    FROM t_verdicts v
     JOIN t_homonyms h
       ON h.rank = v.rank
      AND h.normalized_name = v.normalized_name
