@@ -156,7 +156,7 @@ test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
     create_mini_reference_db
     sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
         ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1'),
-        ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', NULL);"
+        ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', 'discere:fishbase_family:1');"
     write_taxa_file $'200\t1/2\t20\tgenus\tPremnas\ttrue'
     run_inaturalist_import
     assert_status 0
@@ -175,4 +175,131 @@ test_inaturalist_ignores_names_of_deprecated_species() {
     assert_status 0
     assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
     assert_eq "" "$(tail -n +2 "$TEST_TMP/report/inaturalist.tsv" 2> /dev/null || true)" "Build-Bericht"
+}
+
+# Stammprüfung (plugins/inaturalist/sql/export.sql): Ein Name allein trennt
+# keine Homonyme über Stämme hinweg. Fälle, die ablehnen, ordnen zusätzlich
+# Amphiprion ocellaris zu: Ohne jede Zuordnung bricht das Plugin ab.
+test_inaturalist_maps_species_whose_phylum_fits_its_chain() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'400\t1/4\t10\tspecies\tTriphora pusilla\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:sealifebase_species:1 species 400" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "" "$(inaturalist_report)" "Build-Bericht"
+}
+
+test_inaturalist_rejects_species_from_another_phylum() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'401\t10/11\t10\tspecies\tTriphora pusilla\ttrue' \
+                    $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_mismatch	401	Triphora pusilla	iNaturalist: Tracheophyta (Plantae); Kette: discere:sealifebase_species:1 Mollusca" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+# Kamptozoa in der Kette, Entoprocta bei iNaturalist: gleichwertig laut
+# data/phylum_equivalents.csv.
+test_inaturalist_maps_species_of_an_equivalent_phylum() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'402\t1/5\t10\tspecies\tLoxosomella vivipara\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:sealifebase_species:3 species 402" "$(inaturalist_mappings)" "Zuordnungen"
+}
+
+test_inaturalist_rejects_species_without_chain() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'403\t10/11\t10\tspecies\tAlsidium pusillum\ttrue' \
+                    $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_unknown	403	Alsidium pusillum	iNaturalist: Tracheophyta (Plantae); Kette: discere:sealifebase_species:5 ohne Stamm" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+test_inaturalist_rejects_taxon_without_phylum_in_its_ancestry() {
+    create_mini_reference_db
+    write_taxa_file $'404\t1\t10\tspecies\tAmphiprion percula\ttrue' \
+                    $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_unknown	404	Amphiprion percula	iNaturalist: ohne Stamm (Animalia); Kette: discere:fishbase_species:2 Chordata" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+# Die Krabbe führt den Namen eines Kratzwurms als Synonym.
+test_inaturalist_rejects_synonym_from_another_phylum() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'405\t1/6\t10\tspecies\tParatenuisentis ambiguus\ttrue' \
+                    $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_mismatch	405	Paratenuisentis ambiguus	iNaturalist: Acanthocephala (Animalia); Kette: discere:sealifebase_species:2 Mollusca" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+# Apus ist bei FishBase (Chordata) und SeaLifeBase (Arthropoda) eine Gattung;
+# genus:apus stünde für beide.
+test_inaturalist_gives_no_key_to_genus_name_across_phyla() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'406\t1/2\t20\tgenus\tApus\ttrue' \
+                    $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_mixed	406	Apus	iNaturalist: Chordata (Animalia); Kette: discere:fishbase_genus:9 Chordata, discere:sealifebase_genus:3 Arthropoda" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+test_inaturalist_resolves_homonym_with_one_candidate_in_the_phylum() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'407\t1/4\t20\tgenus\tTriphora\ttrue' \
+                    $'408\t10/11\t20\tgenus\tTriphora\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "genus:triphora genera 407" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_mismatch	408	Triphora	iNaturalist: Tracheophyta (Plantae); Kette: discere:sealifebase_genus:1 Mollusca" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+# FishBase führt Gobio mehrfach, eine Zeile ohne Familie: Für sie ist der
+# Stamm nicht prüfbar, und genus:gobio stünde auch für sie.
+test_inaturalist_gives_no_key_to_name_with_a_row_without_chain() {
+    create_mini_reference_db
+    sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+        ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1'),
+        ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', NULL);"
+    write_taxa_file $'200\t1/2\t20\tgenus\tPremnas\ttrue' \
+                    $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_unknown	200	Premnas	iNaturalist: Chordata (Animalia); Kette: discere:fishbase_genus:2 Chordata, discere:fishbase_genus:3 ohne Stamm" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+# Ein Platzhalter-Stamm, der ein Reich nennt, prüft wenigstens das Reich.
+test_inaturalist_checks_kingdom_for_placeholder_phylum() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file $'409\t20/21\t10\tspecies\tTintinnopsis baltica\ttrue' \
+                    $'410\t10/11\t20\tgenus\tTintinnopsis\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "genus:tintinnopsis genera 410" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	phylum_mismatch	409	Tintinnopsis baltica	iNaturalist: Ciliophora (Chromista); Kette: discere:sealifebase_species:4 Not Assigned (Plantae)" \
+        "$(inaturalist_report)" "Build-Bericht"
 }
