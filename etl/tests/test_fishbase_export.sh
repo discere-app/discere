@@ -111,10 +111,11 @@ SQL
 run_fishbase_export() {
     local sql
     mkdir -p "$TEST_TMP/export"
-    sql="$(sed \
+    sql="$(source "$ETL_DIR/core/plugin_api.sh"; PLUGIN_CORE_DIR="$ETL_DIR/core"
+        plugin_render_sql "$ETL_DIR/plugins/fishbase/sql/export.sql" | sed \
         -e "s|\${FISHBASE_DIR}|$TEST_TMP/fishbase|g" \
-        -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g" \
-        "$ETL_DIR/plugins/fishbase/sql/export.sql")"
+        -e "s|\${PARQUET_DIR}|$TEST_TMP/fishbase|g" \
+        -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g")"
     run_capture duckdb "$TEST_TMP/export/tmp.duckdb" -c "$sql"
 }
 
@@ -192,4 +193,40 @@ amphiprion ocellaris,valid,2,1"
         assert_status 0
         assert_eq "$expected" "$(fishbase_scientific_name_rows)" "wissenschaftliche Namen ($order)"
     done
+}
+
+# Vergibt Ordnum 1 ein zweites Mal, an Carcharhiniformes in der Klasse 8
+# Elasmobranchii, mit der Familie 3 Carcharhinidae ohne Arten darunter.
+write_duplicate_fishbase_order() {
+    local dir="$TEST_TMP/fishbase"
+    duckdb << SQL
+CREATE TABLE classes AS SELECT * FROM '$dir/classes.parquet';
+INSERT INTO classes VALUES (8, 'Elasmobranchii', NULL, NULL, 'Chondrichthyes');
+CREATE TABLE orders AS SELECT * FROM '$dir/orders.parquet';
+INSERT INTO orders VALUES (1, 'Carcharhiniformes', NULL, NULL, 0, 8, 'Elasmobranchii', NULL, NULL, NULL, NULL);
+CREATE TABLE families AS SELECT * FROM '$dir/families.parquet';
+INSERT INTO families VALUES (3, 'Carcharhinidae', NULL, 'Carcharhiniformes', 1, 'Elasmobranchii', 8, 0, 0, NULL,
+    false, NULL, NULL, NULL, NULL, NULL, NULL);
+COPY classes  TO '$dir/classes.parquet'  (FORMAT parquet);
+COPY orders   TO '$dir/orders.parquet'   (FORMAT parquet);
+COPY families TO '$dir/families.parquet' (FORMAT parquet);
+SQL
+}
+
+# Doppelte Codes behandelt FishBase nach derselben Regel wie SeaLifeBase
+# (core/sql/source_codes.sql): Entität wird die Ordnung, an deren Familien
+# Arten hängen; die Familie, die die andere nennt, bleibt ohne Ordnung.
+test_fishbase_export_resolves_duplicate_order_code() {
+    create_fishbase_parquets
+    write_duplicate_fishbase_order
+    run_fishbase_export
+    assert_status 0
+    assert_eq "discere:fishbase_order:1,Ovalentaria" "$(csv_column orders 1,4)" "Ordnungen"
+    assert_eq "discere:fishbase_family:1,discere:fishbase_order:1
+discere:fishbase_family:3," "$(csv_column families 1,7)" "Ordnung je Familie"
+    assert_eq "code_duplicate	Ordnum 1	Carcharhiniformes	2 Zeilen; nicht exportiert, Schlüssel bei Ovalentaria
+code_duplicate	Ordnum 1	Ovalentaria	2 Zeilen; Entität unter diesem Schlüssel (einzige Zeile mit Arten)
+family_order_rejected	3	Carcharhinidae	Ordnum 1 doppelt, Familie nennt Carcharhiniformes (ClassNum 8): Ordnung Carcharhiniformes nicht exportiert
+family_order_resolved	1	Pomacentridae	Ordnum 1 doppelt, Familie nennt Ovalentaria (ClassNum 7): Ordnung Ovalentaria" \
+        "$(cat "$TEST_TMP/export/code_report.tsv")" "Bericht"
 }

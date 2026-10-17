@@ -192,11 +192,12 @@ export_to_csv() {
     local duck_db="${EXPORT_DIR}/tmp.duckdb"
 
     local sql
-    sql=$(sed \
+    sql=$(plugin_render_sql "$SQL_DIR/export.sql" | sed \
         -e "s|\${SLB_DIR}|${SLB_DIR}|g" \
+        -e "s|\${PARQUET_DIR}|${SLB_DIR}|g" \
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
-        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g" \
-        "$SQL_DIR/export.sql")
+        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g") \
+        || plugin_fail "export.sql nicht lesbar."
 
     duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
 
@@ -382,49 +383,24 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
 .import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
 
-INSERT OR IGNORE INTO classes (
+-- Ohne OR IGNORE: clear_existing_data hat die Zeilen dieser Quelle
+-- gelöscht, und export.sql liefert je Code eine Zeile. Eine Kollision ist
+-- ein Fehler im Export und bricht den Import ab.
+INSERT INTO classes (
     id, external_id, external_source, name, body_shape, super_class
 ) SELECT
     id, external_id, external_source, name, body_shape, super_class
 FROM tmp_classes;
-INSERT OR IGNORE INTO orders (
+INSERT INTO orders (
     id, external_id, external_source, name, sister_order, class
 ) SELECT
     id, external_id, external_source, name, sister_order, class
 FROM tmp_orders;
-INSERT OR IGNORE INTO families (
+INSERT INTO families (
     id, external_id, external_source, name, body_shape, division, "order"
 ) SELECT
     id, external_id, external_source, name, body_shape, division, "order"
 FROM tmp_families;
-
-UPDATE classes
-SET
-    name        = tmp.name,
-    body_shape  = tmp.body_shape,
-    super_class = tmp.super_class
-FROM tmp_classes tmp
-WHERE classes.external_id     = tmp.external_id
-  AND classes.external_source = tmp.external_source;
-
-UPDATE orders
-SET
-    name         = tmp.name,
-    sister_order = tmp.sister_order,
-    class        = tmp.class
-FROM tmp_orders tmp
-WHERE orders.external_id     = tmp.external_id
-  AND orders.external_source = tmp.external_source;
-
-UPDATE families
-SET
-    name        = tmp.name,
-    body_shape  = tmp.body_shape,
-    division    = tmp.division,
-    "order"     = tmp."order"
-FROM tmp_families tmp
-WHERE families.external_id     = tmp.external_id
-  AND families.external_source = tmp.external_source;
 
 INSERT OR IGNORE INTO genera (
     id, external_id, external_source, name, subfamily, body_shape, family
@@ -624,6 +600,7 @@ check_parquet_files
 clear_existing_data
 export_to_csv
 import_to_sqlite
+plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
 report_genus_resolution
 write_source_metadata
 validate
