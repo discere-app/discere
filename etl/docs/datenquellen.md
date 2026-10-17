@@ -306,6 +306,73 @@ Familie, Gattung und Art genau einmal im Export. Klassen, Ordnungen und
 Familien importieren die Plugins ohne `OR IGNORE`; eine Kollision bricht den
 Import ab, statt still eine Zeile zu behalten.
 
+### Mehrere Verbreitungszeilen einer Art und Region
+
+Die Verbreitung (`country`, `countrysub`) führt für eine Art in einem Land
+bzw. einer Teilregion teils mehrere Zeilen, meist für verschiedene
+Populationen oder Unterarten. *Oreochromis niloticus* (FishBase 2) steht in
+Kenia fünfmal: `native` im Turkana-Becken (zweimal), `introduced` im
+Viktoriasee, `endemic` als Unterart im Baringo-See und im Suguta. Die DB hält
+je Art und Region eine Zeile (`taxonomy_distribution_regions`), und die App
+zeigt sie als Aussage über die Art: Mit `native` oder `endemic` gilt das
+Land als heimisch. Beide Exporte fassen die Zeilen deshalb nach derselben
+Regel zusammen (`core/sql/distribution_regions.sql`), den Status verglichen
+ohne Groß- und Kleinschreibung:
+
+1. **native**, sobald eine Zeile `native` sagt.
+2. **endemic** nur, wenn alle Zeilen `endemic` sagen. Endemisch im Land ist
+   die Art nicht, wenn es nur eine ihrer Unterarten ist; neben `native`
+   gilt `native`.
+3. **introduced**, wenn keine Zeile `native` oder `endemic` sagt.
+4. **Sonst** der erste Status der Rangfolge `questionable`, `error`,
+   `misidentification`, `extirpated`, `stray`, `not established`,
+   `reintroduced`, `established`, ohne Status. Vorn steht, was weniger über
+   die Präsenz der Art behauptet: ein Zweifel, dann ein als falsch erkannter
+   Nachweis, dann eine frühere Präsenz, dann eine gelegentliche oder
+   gescheiterte eingeführte, zuletzt eine dauerhafte. Ohne Status steht
+   hinten, weil die App eine Region ohne Status als heimisch zeigt.
+
+`endemic` neben einem anderen Status als `native` (etwa `endemic` und
+`introduced`) sowie ein Status außerhalb dieser Liste brechen den Export ab,
+sobald sie in einem Schlüssel mit mehreren Zeilen stehen: Keine Regel sagt,
+was dann für die Art gilt. In v26.06 kommt beides nicht vor.
+
+Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar kommen aus der
+Zeile, die den Status liefert, damit eine Zeile der DB nie Angaben
+verschiedener Populationen mischt. Unter gleichrangigen Zeilen entscheiden
+diese Spalten samt Status in der Schreibweise der Quelle, in der Reihenfolge
+Präsenz, Status, threatened, Häufigkeit, Bedeutung, Kommentar, je
+aufsteigend und leere Werte zuletzt. Die Wahl hängt so nicht von der
+Reihenfolge der Eingabe ab, und die Plugins importieren die Verbreitung ohne
+`OR IGNORE`: Eine Kollision bricht den Import ab.
+
+Jeder Schlüssel mit mehreren Zeilen steht im Build-Bericht, mit dem Status
+seiner Zeilen, dem Ergebnis und den Spalten, in denen die Zeilen abweichen:
+`distribution_status_merged` bei verschiedenem Status, sonst
+`distribution_rows_merged`. In v26.06:
+
+| Status der Zeilen | FishBase | SeaLifeBase | Ergebnis |
+|---|---|---|---|
+| endemic, native | 19 | – | native |
+| introduced, native | 7 | 1 | native |
+| native, questionable | 4 | 1 | native |
+| extirpated, native | 2 | – | native |
+| endemic, introduced, native | 1 | – | native |
+| introduced, not established | 1 | – | introduced |
+| native, stray | – | 1 | native |
+| gleicher Status | 140 | 145 | dieser |
+
+Die Regel sieht die Art als Ganzes und verliert damit, was nur für eine
+Population gilt: *Salmo trutta* gilt in der Schweiz als `native`, obwohl
+eine zweite Zeile sie dort als ausgestorben führt („Considered locally
+extinct in 1990“), und in Nepal als `introduced` mit Präsenz `present`,
+obwohl eine zweite Zeile die Einführung als gescheitert führt. Ebenso hängt
+threatened an der gewählten Zeile, auch wo die Zeilen darin abweichen
+(v26.06: 12 Schlüssel). Sagen gleichrangige Zeilen mit gleicher Präsenz
+verschiedenes, gilt die mit 0 (*Clupea harengus* in Deutschland,
+*Cobitis minamorii* in Japan); liefert eine höherrangige Zeile den Status,
+gilt ihr Wert (*Salvelinus malma* in Japan: 1 aus der native-Zeile).
+
 ### Gattung und Familie einer Art widersprechen sich
 
 Eine SeaLifeBase-Art nennt ihre Familie zweimal: über die Gattung (GenCode)
