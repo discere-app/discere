@@ -4,7 +4,9 @@
 -- Eingebunden von plugins/fishbase und plugins/sealifebase an der Zeile
 -- „-- @include source_codes.sql“ ihrer export.sql (plugin_render_sql in
 -- core/plugin_api.sh), nach dem Makro is_placeholder_species. Liest
--- classes, orders, families, genera und species aus ${PARQUET_DIR}.
+-- classes, orders, families, genera und species aus ${PARQUET_DIR} und die
+-- Muster der Rang-Platzhalter aus ${PLACEHOLDER_PATTERNS}
+-- (core/data/placeholder_patterns.csv).
 --
 -- Der Code einer Zeile (ClassNum, Ordnum, FamCode, GenCode, SpecCode) ist
 -- ihr Quellenschlüssel: Die Identitäts-Stage ordnet ihn einer Entität zu,
@@ -21,11 +23,14 @@
 --     ist. Trifft das nicht genau eine Zeile, hat die Familie keine Ordnung.
 --   - Entität unter einem doppelten Ordnum: höchstens eine Zeile, nämlich die
 --     einzige, an deren Familien (nach der Regel oben) Arten hängen — über
---     den FamCode der Art oder über ihre Gattung. Die übrigen Zeilen werden
+--     den FamCode der Art oder über ihre Gattung —, und nur, wenn sie kein
+--     Rang-Platzhalter ist („Not assigned“ …): Zwei gleichnamige Platzhalter
+--     verschiedener Klassen könnten den Schlüssel tauschen, ohne dass die
+--     Identitäts-Stage es am Namen merkt. Die übrigen Zeilen werden
 --     nicht exportiert, und ihre Familien haben keine Ordnung: Den Schlüssel
 --     trägt schon das Taxon, das Arten hält, und eine zweite Entität mit
 --     eigenem Schlüssel gibt es nicht. Halten keine oder mehrere Zeilen
---     Arten, wird keine exportiert. Dass der Schlüssel dabei kein anderes
+--     Arten oder nur ein Platzhalter, wird keine exportiert. Dass der Schlüssel dabei kein anderes
 --     Taxon nennt als im Vorgänger, prüft die Identitäts-Stage
 --     (core/sql/identity_key_names.sql).
 --   - Übrige Ränge: Für einen doppelten ClassNum, FamCode, GenCode oder
@@ -44,6 +49,12 @@
 --                              Name und ClassNum gefunden
 --     family_order_rejected    Familie unter doppeltem Ordnum ohne Ordnung
 -- =============================================================================
+
+CREATE TEMP TABLE t_placeholder_patterns AS
+SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
+
+CREATE OR REPLACE MACRO is_rank_placeholder(name) AS
+    EXISTS (SELECT 1 FROM t_placeholder_patterns p WHERE LOWER(TRIM(name)) GLOB p.pattern);
 
 CREATE TEMP TABLE t_code_rows AS
 SELECT 'ClassNum' AS code_name, ClassNum AS code, TRIM(Class) AS name, ClassNum AS classnum
@@ -114,7 +125,7 @@ JOIN src_genera g ON g.GenCode = s.GenCode
 WHERE NOT is_placeholder_species(s.SpecCode);
 
 -- Zeilen doppelter Ordnum, an deren Familien Arten hängen; die einzige je
--- Ordnum gilt als Entität.
+-- Ordnum gilt als Entität, wenn sie kein Rang-Platzhalter ist.
 CREATE TEMP TABLE t_order_rows_with_species AS
 SELECT DISTINCT r.ordnum, r.order_name, r.classnum
 FROM t_family_order_row r
@@ -126,7 +137,7 @@ CREATE TEMP TABLE t_order_key_holder AS
 SELECT ordnum, ANY_VALUE(order_name) AS order_name, ANY_VALUE(classnum) AS classnum
 FROM t_order_rows_with_species
 GROUP BY ordnum
-HAVING COUNT(*) = 1;
+HAVING COUNT(*) = 1 AND NOT is_rank_placeholder(ANY_VALUE(order_name));
 
 CREATE TEMP VIEW src_orders AS
 SELECT o.*
@@ -160,6 +171,8 @@ COPY (
                        THEN 'keine exportiert, ' || CASE
                                 WHEN (SELECT COUNT(*) FROM t_order_rows_with_species w WHERE w.ordnum = c.code) = 0
                                     THEN 'keine Zeile hält Arten'
+                                WHEN (SELECT COUNT(*) FROM t_order_rows_with_species w WHERE w.ordnum = c.code) = 1
+                                    THEN 'nur ein Platzhalter hält Arten'
                                 ELSE 'mehrere Zeilen halten Arten'
                             END
                    WHEN k.order_name = c.name AND k.classnum = c.classnum

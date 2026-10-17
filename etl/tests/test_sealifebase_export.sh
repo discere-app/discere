@@ -463,6 +463,57 @@ family_order_rejected	7	Ambigidae	Ordnum 7 doppelt, Familie nennt Ostreida (Clas
         "$(grep 'Ordnum 7' "$TEST_TMP/export/code_report.tsv")" "Bericht"
 }
 
+# Hängt unter Chromidae (13) die Art 35 Chromus vagus: Unter Ordnum 8 hält
+# dann nur die Platzhalter-Zeile „Not assigned“ Arten.
+add_species_under_placeholder_duplicate_order() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+CREATE TABLE species AS SELECT * FROM '$dir/species.parquet';
+INSERT INTO species (SpecCode, Genus, Species, GenCode, FamCode) VALUES (35, 'Chromus', 'vagus', NULL, 13);
+COPY species TO '$dir/species.parquet' (FORMAT parquet);
+SQL
+}
+
+# Ein Rang-Platzhalter trägt nie den Schlüssel eines doppelten Codes: Zwei
+# gleichnamige Platzhalter verschiedener Klassen könnten ihn sonst tauschen,
+# ohne dass ein Name sich ändert. Hält nur er Arten, wird keine Zeile
+# exportiert.
+test_sealifebase_export_never_gives_duplicate_order_code_to_placeholder() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    add_species_under_placeholder_duplicate_order
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "" "$(slb_csv_columns orders 1 | grep -E '_order:8$')" "Ordnung unter Ordnum 8"
+    assert_eq "discere:sealifebase_family:13," "$(slb_csv_columns families 1,7 | grep '_family:13,')" "Chromidae"
+    assert_eq "code_duplicate	Ordnum 8	Not assigned	2 Zeilen; keine exportiert, nur ein Platzhalter hält Arten
+code_duplicate	Ordnum 8	Phymosomatoida	2 Zeilen; keine exportiert, nur ein Platzhalter hält Arten" \
+        "$(grep 'Ordnum 8	' "$TEST_TMP/export/code_report.tsv")" "Bericht"
+}
+
+# Fügt unter Ordnum 7 die Familie 14 Ostreidae hinzu, die ihre Ordnung
+# „ ostreida “ schreibt, in der Klasse der Zeile Ostreida.
+add_family_naming_order_in_other_spelling() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+CREATE TABLE families AS SELECT * FROM '$dir/families.parquet';
+INSERT INTO families (FamCode, Family, Ordnum, "Order", ClassNum) VALUES (14, 'Ostreidae', 7, ' ostreida ', 1);
+COPY families TO '$dir/families.parquet' (FORMAT parquet);
+SQL
+}
+
+# Den Namen der Ordnung vergleicht die Regel ohne Leerzeichen am Rand und
+# ohne Groß- und Kleinschreibung.
+test_sealifebase_export_matches_duplicate_order_name_ignoring_case_and_spaces() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    add_family_naming_order_in_other_spelling
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "discere:sealifebase_family:14,discere:sealifebase_order:7" \
+        "$(slb_csv_columns families 1,7 | grep '_family:14,')" "Ostreidae"
+}
+
 # Ein doppelter GenCode nennt keine Gattung: Keine der Zeilen wird
 # exportiert.
 test_sealifebase_export_skips_duplicate_genus_code() {

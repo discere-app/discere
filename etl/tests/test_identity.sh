@@ -376,14 +376,35 @@ test_identity_aborts_when_known_higher_taxon_key_names_another_taxon() {
     assert_eq "0" "$(sqlite3 "$TEST_TMP/build.db" "SELECT COUNT(*) FROM entity_source_keys;")" "nichts geschrieben"
 }
 
+# Gleichnamige Taxa unterscheidet der Name nicht: Hängt eine Ordnung unter
+# dem Schlüssel einer anderen Klasse oder eine Familie unter dem einer
+# anderen Ordnung als im Vorgänger, Abbruch.
+test_identity_aborts_when_known_key_moves_to_another_parent_key() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
+            ('discere:sealifebase_class:5', '5', 'sealifebase', 'Hexanauplia', 'Arthropoda');
+        INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+            ('discere:fishbase_order:9', '9', 'fishbase', 'Gobiiformes', 'discere:fishbase_class:7');
+        UPDATE orders SET class = 'discere:sealifebase_class:5' WHERE id = 'discere:sealifebase_order:2';
+        UPDATE families SET \"order\" = 'discere:fishbase_order:9' WHERE id = 'discere:fishbase_family:1';"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "Identität: 2 Schlüssel von Ordnungen bzw. Familien hängen unter einem anderen Elternschlüssel als im Vorgänger (Typ Quelle:Schlüssel Name, Eltern Vorgänger → jetzt): family fishbase:1 Pomacentridae, 1 → 9; order sealifebase:2 Decapoda, 1 → 5"
+    assert_eq "0" "$(sqlite3 "$TEST_TMP/build.db" "SELECT COUNT(*) FROM entity_source_keys;")" "nichts geschrieben"
+}
+
 # Leerzeichen am Rand und Groß- und Kleinschreibung ändern das Taxon nicht,
-# ebenso wenig ein anderes Epitheton einer Art unter gleichem Schlüssel.
+# ebenso wenig ein anderes Epitheton einer Art unter gleichem Schlüssel oder
+# eine Familie, die ihre Ordnung verliert.
 test_identity_accepts_same_higher_taxon_name_in_other_spelling() {
     create_initial_release "$TEST_TMP/prev.db"
     create_identity_build_db "$TEST_TMP/build.db"
     sqlite3 "$TEST_TMP/build.db" "
         UPDATE orders SET name = ' decapoda' WHERE id = 'discere:sealifebase_order:2';
-        UPDATE species SET name = 'ocellata' WHERE id = 'discere:fishbase_species:2';"
+        UPDATE species SET name = 'ocellata' WHERE id = 'discere:fishbase_species:2';
+        UPDATE families SET \"order\" = '' WHERE id = 'discere:sealifebase_family:3';"
     run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
     assert_status 0
 }

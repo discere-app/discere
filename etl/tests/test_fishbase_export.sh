@@ -115,7 +115,8 @@ run_fishbase_export() {
         plugin_render_sql "$ETL_DIR/plugins/fishbase/sql/export.sql" | sed \
         -e "s|\${FISHBASE_DIR}|$TEST_TMP/fishbase|g" \
         -e "s|\${PARQUET_DIR}|$TEST_TMP/fishbase|g" \
-        -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g")"
+        -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g" \
+        -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g")"
     run_capture duckdb "$TEST_TMP/export/tmp.duckdb" -c "$sql"
 }
 

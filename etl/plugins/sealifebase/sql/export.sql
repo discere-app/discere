@@ -191,12 +191,7 @@ SELECT TRIM(GenName) AS gen_name, COUNT(*) AS matches, MIN(GenCode) AS gencode
 FROM src_genera
 GROUP BY TRIM(GenName);
 
-CREATE TEMP TABLE t_placeholder_patterns AS
-SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
-
-CREATE OR REPLACE MACRO is_rank_placeholder(name) AS
-    EXISTS (SELECT 1 FROM t_placeholder_patterns p WHERE LOWER(TRIM(name)) GLOB p.pattern);
-
+-- is_rank_placeholder kommt aus core/sql/source_codes.sql.
 -- Kette über einer Familie, wie sie exportiert wird: Ordnung aus
 -- t_family_order (bei doppeltem Ordnum über Name und ClassNum der Familie).
 CREATE TEMP TABLE t_family_chain AS

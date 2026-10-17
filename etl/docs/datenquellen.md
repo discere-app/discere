@@ -266,8 +266,12 @@ Exporte wenden deshalb dieselbe Regel an (`core/sql/source_codes.sql`):
   Trifft das nicht genau eine Zeile, hat die Familie keine Ordnung.
 - **Entität unter einem doppelten Ordnum** wird höchstens eine Zeile: die
   einzige, an deren Familien Arten hängen, über den FamCode der Art oder
-  über ihre Gattung. Halten keine oder mehrere Zeilen Arten, wird keine
-  exportiert. Die übrigen Zeilen bekommen keinen eigenen Schlüssel, denn
+  über ihre Gattung —, und nur, wenn sie kein Rang-Platzhalter ist (Muster
+  aus `core/data/placeholder_patterns.csv`): Zwei gleichnamige Platzhalter
+  verschiedener Klassen könnten den Schlüssel sonst tauschen, ohne dass sich
+  ein Name ändert. Halten keine oder mehrere Zeilen Arten oder nur ein
+  Platzhalter, wird keine exportiert. Die übrigen Zeilen bekommen keinen
+  eigenen Schlüssel, denn
   der Code nennt schon das Taxon, das Arten hält; ihre Familien bleiben
   ohne Ordnung.
 - **Übrige Ränge.** Für einen doppelten ClassNum, FamCode, GenCode oder
@@ -440,7 +444,11 @@ Referenz-DB durch die endgültigen:
   auf etwas anderes. Ob es dasselbe Taxon in neuer Schreibweise ist, kann
   der Build nicht entscheiden. Arten sind ausgenommen: Ihr Name in `species`
   ist das Epitheton, dessen Schreibweise die Quellen unter gleichem
-  Schlüssel korrigieren.
+  Schlüssel korrigieren. Gleichnamige Taxa unterscheidet der Name nicht;
+  bei Ordnungen und Familien bricht der Build deshalb auch ab, wenn sie
+  unter dem Schlüssel einer anderen Klasse bzw. Ordnung hängen als im
+  Vorgänger (Schlüssel der Quelle, nicht IDs). Fehlt die Elternstufe auf
+  einer Seite, ist das kein Wechsel.
 - **Höheres Taxon mit unbekanntem Schlüssel** — eine neue Entität. Siehe
   [Bekannte Grenzen](#bekannte-grenzen).
 - **Neue IDs** zählen je Typ ab der größten Nummer, die Register, Aliase oder
@@ -875,14 +883,15 @@ installiert.
   Klasse der Familie gibt es deshalb weder im Export noch in
   `validate.sql`: Die DB kennt diese Angabe nicht, und über alle Familien
   gälte sie nicht. Die Regel prüfen Bericht und Tests.
-- **Ein neuer Name unter bekanntem Schlüssel stoppt den Build.** Die
-  Identitäts-Stage erkennt einen Schlüsselwechsel nur am Namen (siehe
+- **Ein neuer Name oder Elternschlüssel unter bekanntem Schlüssel stoppt
+  den Build.** Die Identitäts-Stage erkennt einen Schlüsselwechsel am Namen
+  und, bei Ordnungen und Familien, am Elternschlüssel (siehe
   [Das Register vergibt IDs stabil](#das-register-vergibt-ids-stabil)).
-  Korrigiert eine Quelle die Schreibweise eines höheren Taxons unter
-  gleichem Code, bricht der Build ebenso ab, und es braucht eine
-  Entscheidung im Code; zwischen refdb-v2 und v26.06 kommt das auf keinem
-  Rang vor. Umgekehrt fällt ein Wechsel zwischen zwei gleichnamigen Taxa
-  (etwa zwei Ordnungen „Not assigned“) nicht auf.
+  Korrigiert eine Quelle die Schreibweise eines höheren Taxons oder stellt
+  sie eine Familie in eine andere Ordnung, unter gleichem Code, bricht der
+  Build ebenso ab, und es braucht eine Entscheidung im Code; zwischen
+  refdb-v2 und v26.06 kommt beides nicht vor. Ein Wechsel zwischen zwei
+  gleichnamigen Gattungen derselben Familie fiele nicht auf.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

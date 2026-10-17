@@ -176,7 +176,8 @@ export_to_csv() {
     sql=$(plugin_render_sql "$SQL_DIR/export.sql" | sed \
         -e "s|\${FISHBASE_DIR}|${FISHBASE_DIR}|g" \
         -e "s|\${PARQUET_DIR}|${FISHBASE_DIR}|g" \
-        -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g") \
+        -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
+        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g") \
         || plugin_fail "export.sql nicht lesbar."
 
     duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
