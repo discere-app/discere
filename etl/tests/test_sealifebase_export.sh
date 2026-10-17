@@ -430,6 +430,39 @@ discere:sealifebase_family:7,discere:sealifebase_order:7" \
         "$(slb_csv_columns families 1,7 | grep -E '_family:(7|1[123]),')" "Ordnung je Familie"
 }
 
+# Hängt unter Desidae (11) die Art 34 Desis marina: Unter Ordnum 7 halten
+# dann Ostreida und Araneae Arten.
+add_species_under_second_duplicate_order() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+CREATE TABLE species AS SELECT * FROM '$dir/species.parquet';
+INSERT INTO species (SpecCode, Genus, Species, GenCode, FamCode) VALUES (34, 'Desis', 'marina', NULL, 11);
+COPY species TO '$dir/species.parquet' (FORMAT parquet);
+SQL
+}
+
+# Halten unter einem doppelten Ordnum mehrere Zeilen Arten, nennt der Code
+# kein Taxon: Keine Zeile wird exportiert, keine Familie darunter bekommt
+# eine Ordnung, und der Bericht nennt den Fall.
+test_sealifebase_export_skips_duplicate_order_code_held_by_several_rows() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    add_species_under_second_duplicate_order
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "" "$(slb_csv_columns orders 1 | grep -E '_order:[78]$')" "Ordnungen unter doppelten Codes"
+    assert_eq "discere:sealifebase_family:11,
+discere:sealifebase_family:12,
+discere:sealifebase_family:7," \
+        "$(slb_csv_columns families 1,7 | grep -E '_family:(7|1[12]),')" "Ordnung je Familie"
+    assert_eq "code_duplicate	Ordnum 7	Araneae	2 Zeilen; keine exportiert, mehrere Zeilen halten Arten
+code_duplicate	Ordnum 7	Ostreida	2 Zeilen; keine exportiert, mehrere Zeilen halten Arten
+family_order_rejected	11	Desidae	Ordnum 7 doppelt, Familie nennt Araneae (ClassNum 6): Ordnung Araneae nicht exportiert
+family_order_rejected	12	Mixtidae	Ordnum 7 doppelt, Familie nennt ostreida (ClassNum 2): keine Ordnungszeile mit diesem Namen und dieser ClassNum
+family_order_rejected	7	Ambigidae	Ordnum 7 doppelt, Familie nennt Ostreida (ClassNum 1): Ordnung Ostreida nicht exportiert" \
+        "$(grep 'Ordnum 7' "$TEST_TMP/export/code_report.tsv")" "Bericht"
+}
+
 # Ein doppelter GenCode nennt keine Gattung: Keine der Zeilen wird
 # exportiert.
 test_sealifebase_export_skips_duplicate_genus_code() {
