@@ -246,6 +246,21 @@ test_validate_fails_on_inaturalist_mapping_without_chain() {
     assert_contains "$ERR" "FEHLER: inaturalist (name keys with chain) — 0 (erwartet >= 1)"
 }
 
+# Eine Klasse ohne Stamm ist keine Kette, auch für ihren eigenen Schlüssel.
+test_validate_fails_on_inaturalist_class_key_without_phylum() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id)
+        VALUES ('class:c1', 'classes', 'inaturalist', '1');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "UPDATE classes SET super_class = ' ' WHERE id = 'discere:class:1';"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: inaturalist (name keys with chain) — 0 (erwartet >= 1)"
+}
+
 test_validate_aborts_on_unknown_requirement() {
     create_validatable_db
     copy_core
