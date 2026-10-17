@@ -508,7 +508,10 @@ INSERT OR IGNORE INTO taxonomy_traits (
     entity_id, entity_type, trait_key, trait_value_text,
     trait_value_num, trait_value_bool, source
 FROM tmp_taxonomy_traits;
-INSERT OR IGNORE INTO taxonomy_distribution_regions (
+-- Ohne OR IGNORE: export.sql liefert je Art und Region eine Zeile
+-- (core/sql/distribution_regions.sql), eine Kollision ist ein Fehler im
+-- Export und bricht den Import ab.
+INSERT INTO taxonomy_distribution_regions (
     entity_id, entity_type, source, region_scope, region_key, region_label,
     presence_status, establishment_status, threatened_flag, abundance,
     importance, comment
@@ -601,6 +604,7 @@ clear_existing_data
 export_to_csv
 import_to_sqlite
 plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
+plugin_report_distribution "${EXPORT_DIR}/distribution_report.tsv"
 report_genus_resolution
 write_source_metadata
 validate

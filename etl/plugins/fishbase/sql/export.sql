@@ -482,47 +482,27 @@ WHERE NOT is_placeholder_species(e.SpecCode);
 COPY t_taxonomy_traits TO '${EXPORT_DIR}/taxonomy_traits.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
--- Taxonomy Distribution Regions (country / countrysub)
+-- Taxonomy Distribution Regions (country / countrysub) — je Art und Region
+-- eine Zeile; Regel für mehrere Zeilen der Quelle und Bericht in
+-- core/sql/distribution_regions.sql.
 -- ---------------------------------------------------------------------------
+-- @include distribution_regions.sql
+
 CREATE TEMP TABLE t_taxonomy_distribution_regions AS
-SELECT DISTINCT
-    discere_uuid('fishbase', 'species', CAST(c.SpecCode AS VARCHAR)) AS entity_id,
-    'species'                                                        AS entity_type,
-    'fishbase'                                                       AS source,
-    'country'                                                        AS region_scope,
-    CAST(c.C_Code AS VARCHAR)                                        AS region_key,
-    CAST(c.C_Code AS VARCHAR)                                        AS region_label,
-    NULLIF(TRIM(c.CurrentPresence), '')                              AS presence_status,
-    NULLIF(TRIM(c.Status), '')                                       AS establishment_status,
-    c.Threatened                                                     AS threatened_flag,
-    NULLIF(TRIM(c.Abundance), '')                                    AS abundance,
-    NULLIF(TRIM(c.Importance), '')                                   AS importance,
-    NULLIF(TRIM(c.Comments), '')                                     AS comment
-FROM read_parquet('${FISHBASE_DIR}/country.parquet') c
-WHERE c.SpecCode IS NOT NULL
-  AND NOT is_placeholder_species(c.SpecCode)
-  AND NULLIF(TRIM(CAST(c.C_Code AS VARCHAR)), '') IS NOT NULL
-
-UNION ALL
-
-SELECT DISTINCT
-    discere_uuid('fishbase', 'species', CAST(cs.SpecCode AS VARCHAR))  AS entity_id,
-    'species'                                                          AS entity_type,
-    'fishbase'                                                         AS source,
-    'subregion'                                                        AS region_scope,
-    CAST(cs.C_Code AS VARCHAR) || ':' || CAST(cs.CSub_Code AS VARCHAR) AS region_key,
-    CAST(cs.C_Code AS VARCHAR) || ':' || CAST(cs.CSub_Code AS VARCHAR) AS region_label,
-    NULLIF(TRIM(cs.CurrentPresence), '')                               AS presence_status,
-    NULLIF(TRIM(cs.Status), '')                                        AS establishment_status,
-    CAST(NULL AS INTEGER)                                              AS threatened_flag,
-    NULLIF(TRIM(cs.Abundance), '')                                     AS abundance,
-    CAST(NULL AS VARCHAR)                                              AS importance,
-    NULLIF(TRIM(cs.Comments), '')                                      AS comment
-FROM read_parquet('${FISHBASE_DIR}/countrysub.parquet') cs
-WHERE cs.SpecCode IS NOT NULL
-  AND NOT is_placeholder_species(cs.SpecCode)
-  AND NULLIF(TRIM(CAST(cs.C_Code AS VARCHAR)), '') IS NOT NULL
-  AND NULLIF(TRIM(CAST(cs.CSub_Code AS VARCHAR)), '') IS NOT NULL;
+SELECT
+    discere_uuid('fishbase', 'species', CAST(speccode AS VARCHAR)) AS entity_id,
+    'species'                                                      AS entity_type,
+    'fishbase'                                                     AS source,
+    region_scope,
+    region_key,
+    region_key                                                     AS region_label,
+    presence_status,
+    establishment_status,
+    threatened_flag,
+    abundance,
+    importance,
+    comment
+FROM t_distribution_regions;
 
 COPY t_taxonomy_distribution_regions TO '${EXPORT_DIR}/taxonomy_distribution_regions.csv' (FORMAT csv, HEADER true);
 

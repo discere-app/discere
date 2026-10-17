@@ -245,6 +245,15 @@ plugin_report_source_codes() {
         "ohne: $(grep -c '^family_order_rejected' "$report" || true)"
 }
 
+# Bericht von core/sql/distribution_regions.sql (distribution_report.tsv
+# eines Exports) in den Build-Bericht, mit Zählung im Log.
+plugin_report_distribution() {
+    local report="$1"
+    plugin_report < "$report"
+    plugin_log "Verbreitung zusammengefasst: $(grep -c '^distribution_status_merged' "$report" || true)" \
+        "Schlüssel mit verschiedenem Status, $(grep -c '^distribution_rows_merged' "$report" || true) mit gleichem"
+}
+
 plugin_validate_min_count() {
     local db_path="$1"
     local table_name="$2"
