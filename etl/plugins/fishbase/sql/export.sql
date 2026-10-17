@@ -49,6 +49,14 @@ CREATE OR REPLACE MACRO is_placeholder_species(code) AS
     COALESCE(TRY_CAST(code AS INTEGER) IN (SELECT SpecCode FROM t_placeholder_species), false);
 
 -- ---------------------------------------------------------------------------
+-- Doppelte Codes (v26.06: keine) — Regel und Bericht in
+-- core/sql/source_codes.sql. Entitäten entstehen nur aus src_classes,
+-- src_orders, src_families, src_genera und src_species; die Ordnung einer
+-- Familie steht in t_family_order.
+-- ---------------------------------------------------------------------------
+-- @include source_codes.sql
+
+-- ---------------------------------------------------------------------------
 -- Classes
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_classes AS
@@ -59,7 +67,7 @@ SELECT
     class                                        AS name,
     BodyShapeI                                   AS body_shape,
     superclass                                   AS super_class
-FROM read_parquet('${FISHBASE_DIR}/classes.parquet');
+FROM src_classes;
 
 COPY t_classes TO '${EXPORT_DIR}/classes.csv' (FORMAT csv, HEADER true);
 
@@ -74,7 +82,7 @@ SELECT
     o."order"                                    AS name,
     o.SisterOrder                                AS sister_order,
     c.id                                         AS class
-FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+FROM src_orders o
 LEFT JOIN t_classes c ON c.external_id = CAST(o.classNum AS VARCHAR);
 
 COPY t_orders TO '${EXPORT_DIR}/orders.csv' (FORMAT csv, HEADER true);
@@ -91,8 +99,9 @@ SELECT
     f.BodyShapeI                                   AS body_shape,
     f.Division                                     AS division,
     o.id                                           AS "order"
-FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
-LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR)
+FROM src_families f
+JOIN t_family_order fo ON fo.famcode = f.famcode
+LEFT JOIN t_orders o ON o.external_id = CAST(fo.ordnum AS VARCHAR)
 WHERE f.famcode != 0;
 
 COPY t_families TO '${EXPORT_DIR}/families.csv' (FORMAT csv, HEADER true);
@@ -109,7 +118,7 @@ SELECT
     g.subfamily                                   AS subfamily,
     g.BodyShapeI                                  AS body_shape,
     f.id                                          AS family
-FROM read_parquet('${FISHBASE_DIR}/genera.parquet') g
+FROM src_genera g
 LEFT JOIN t_families f ON f.external_id = CAST(g.famcode AS VARCHAR)
 WHERE g.gencode != 0;
 
@@ -177,7 +186,7 @@ SELECT
     g.id                                                                                         AS genus,
     'active'                                                                                     AS status,
     NULL                                                                                         AS deprecated_at
-FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
+FROM src_species s
 LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
 LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
 WHERE NOT is_placeholder_species(s.speccode)
@@ -223,8 +232,8 @@ COPY (
             CAST(NULL AS VARCHAR)                                  AS synonymy,
             CAST(NULL AS VARCHAR)                                  AS combination,
             0                                                      AS misspelling
-        FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
-        JOIN read_parquet('${FISHBASE_DIR}/genera.parquet') g
+        FROM src_species s
+        JOIN src_genera g
           ON g.gencode = s.gencode
         JOIN t_species sp
           ON sp.external_id = CAST(s.speccode AS VARCHAR)
@@ -349,28 +358,28 @@ COPY (
     -- Order-Namen (je eine Zeile pro Sprache)
     SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'en', NULL,
            TRIM(o.commonName), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'de', NULL,
            TRIM(o.commonName_German), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName_German), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'fr', NULL,
            TRIM(o.commonName_French), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName_French), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'es', NULL,
            TRIM(o.commonName_Spanish), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName_Spanish), '') IS NOT NULL
 
     UNION ALL
@@ -378,7 +387,7 @@ COPY (
     -- Family-Namen
     SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'en', NULL,
            TRIM(f.commonName), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName), '') IS NOT NULL
       AND f.famcode != 0
 
@@ -386,7 +395,7 @@ COPY (
 
     SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'de', NULL,
            TRIM(f.commonName_German), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName_German), '') IS NOT NULL
       AND f.famcode != 0
 
@@ -394,7 +403,7 @@ COPY (
 
     SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'fr', NULL,
            TRIM(f.commonName_French), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName_French), '') IS NOT NULL
       AND f.famcode != 0
 
@@ -402,7 +411,7 @@ COPY (
 
     SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'es', NULL,
            TRIM(f.commonName_Spanish), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName_Spanish), '') IS NOT NULL
       AND f.famcode != 0
 
@@ -411,7 +420,7 @@ COPY (
     -- Genera-Namen (nur Englisch, kein Sprachfeld in FishBase)
     SELECT discere_uuid('fishbase', 'genus', g.gencode), 'genus', 'en', NULL,
            TRIM(g.gencomname), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/genera.parquet') g
+    FROM src_genera g
     WHERE NULLIF(TRIM(g.gencomname), '') IS NOT NULL
       AND g.gencode != 0
 
@@ -420,7 +429,7 @@ COPY (
     -- Class-Namen (nur Englisch)
     SELECT discere_uuid('fishbase', 'class', c.classnum), 'class', 'en', NULL,
            TRIM(c.commonName), 'fishbase', NULL, 1, NULL
-    FROM read_parquet('${FISHBASE_DIR}/classes.parquet') c
+    FROM src_classes c
     WHERE NULLIF(TRIM(c.commonName), '') IS NOT NULL
 
     ORDER BY entity_type, entity_id, language, country, rank, is_preferred DESC

@@ -33,6 +33,14 @@ CREATE OR REPLACE MACRO is_placeholder_species(code) AS
     COALESCE(TRY_CAST(code AS INTEGER) IN (SELECT SpecCode FROM t_placeholder_species), false);
 
 -- ---------------------------------------------------------------------------
+-- Doppelte Codes (v26.06: drei Ordnum) — Regel und Bericht in
+-- core/sql/source_codes.sql. Entitäten entstehen nur aus src_classes,
+-- src_orders, src_families, src_genera und src_species; die Ordnung einer
+-- Familie steht in t_family_order.
+-- ---------------------------------------------------------------------------
+-- @include source_codes.sql
+
+-- ---------------------------------------------------------------------------
 -- Classes
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_classes AS
@@ -43,7 +51,7 @@ SELECT
     class                                           AS name,
     CAST(NULL AS VARCHAR)                           AS body_shape,
     phylum                                          AS super_class  -- SLB hat kein superclass; Phylum als Ersatz
-FROM read_parquet('${SLB_DIR}/classes.parquet');
+FROM src_classes;
 
 COPY t_classes TO '${EXPORT_DIR}/classes.csv' (FORMAT csv, HEADER true);
 
@@ -58,7 +66,7 @@ SELECT
     o."order"                                       AS name,
     o.SisterOrder                                   AS sister_order,
     c.id                                            AS class
-FROM read_parquet('${SLB_DIR}/orders.parquet') o
+FROM src_orders o
 LEFT JOIN t_classes c ON c.external_id = CAST(o.classNum AS VARCHAR);
 
 COPY t_orders TO '${EXPORT_DIR}/orders.csv' (FORMAT csv, HEADER true);
@@ -75,8 +83,9 @@ SELECT
     CAST(NULL AS VARCHAR)                             AS body_shape,
     f.Division                                        AS division,
     o.id                                              AS "order"
-FROM read_parquet('${SLB_DIR}/families.parquet') f
-LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
+FROM src_families f
+JOIN t_family_order fo ON fo.famcode = f.famcode
+LEFT JOIN t_orders o ON o.external_id = CAST(fo.ordnum AS VARCHAR);
 
 COPY t_families TO '${EXPORT_DIR}/families.csv' (FORMAT csv, HEADER true);
 
@@ -92,7 +101,7 @@ SELECT
     g.Subfamily                                      AS subfamily,
     CAST(NULL AS VARCHAR)                            AS body_shape,
     f.id                                             AS family
-FROM read_parquet('${SLB_DIR}/genera.parquet') g
+FROM src_genera g
 LEFT JOIN t_families f ON f.external_id = CAST(g.famcode AS VARCHAR);
 
 COPY t_genera TO '${EXPORT_DIR}/genera.csv' (FORMAT csv, HEADER true);
@@ -150,16 +159,19 @@ GROUP BY e.SpecCode;
 -- einer Rotalgen-Gattung). Welche Angabe stimmt, lässt sich aus der Quelle
 -- allein nicht entscheiden, und eine falsche Einordnung ist schlimmer als
 -- keine. Verglichen wird über die Kette, die die DB zeigt: Familie → Ordnung
--- (Ordnum) → Klasse (ClassNum der Ordnung) → Stamm (Phylum der Klasse). Die
--- eigenen Felder ClassNum und Phylum der Familien bleiben außen vor; sie
--- widersprechen der Kette bei Hunderten Familien und erscheinen nirgends.
+-- (t_family_order) → Klasse (ClassNum der Ordnung) → Stamm (Phylum der
+-- Klasse). Die eigenen Felder ClassNum und Phylum der Familien bleiben außen
+-- vor; sie widersprechen der Kette bei Hunderten Familien und erscheinen
+-- nirgends. Nur unter einem doppelten Ordnum wählen Name und ClassNum der
+-- Familie die Ordnung (core/sql/source_codes.sql).
 --
 --   - Name der Gattung ungleich Genus der Art (trim, ohne Groß- und
 --     Kleinschreibung): Die Gattung ist eine andere, als die Art nennt.
 --     Gattung leer, Grund „Name“.
 --   - Gleiche Familie: Die Gattung passt.
---   - Ordnung einer Seite unklar — Ordnum mehrdeutig (#335), ohne Ordnung,
---     ohne Familie, Kette darüber unvollständig, oder Klasse bzw. Stamm ein
+--   - Ordnung einer Seite unklar — ohne Ordnung (auch unter einem doppelten
+--     Ordnum, der sich nicht auflösen ließ), ohne Familie, Kette darüber
+--     unvollständig, oder Klasse bzw. Stamm ein
 --     Rang-Platzhalter („Not assigned“, Muster wie core/sql/placeholders.sql
 --     aus core/data/placeholder_patterns.csv): Ein Vergleich ist nicht
 --     möglich, denn zwei Familien unter derselben Platzhalter-Klasse können
@@ -176,38 +188,28 @@ GROUP BY e.SpecCode;
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_genus_names AS
 SELECT TRIM(GenName) AS gen_name, COUNT(*) AS matches, MIN(GenCode) AS gencode
-FROM read_parquet('${SLB_DIR}/genera.parquet')
+FROM src_genera
 GROUP BY TRIM(GenName);
 
-CREATE TEMP TABLE t_placeholder_patterns AS
-SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
-
-CREATE OR REPLACE MACRO is_rank_placeholder(name) AS
-    EXISTS (SELECT 1 FROM t_placeholder_patterns p WHERE LOWER(TRIM(name)) GLOB p.pattern);
-
--- Kette über einer Familie. Ein Ordnum, den die Quelle mehrfach vergibt,
--- nennt keine Ordnung.
+-- is_rank_placeholder kommt aus core/sql/source_codes.sql.
+-- Kette über einer Familie, wie sie exportiert wird: Ordnung aus
+-- t_family_order (bei doppeltem Ordnum über Name und ClassNum der Familie).
 CREATE TEMP TABLE t_family_chain AS
-WITH unique_orders AS (
-    SELECT Ordnum, ANY_VALUE(TRIM("Order")) AS order_name, ANY_VALUE(ClassNum) AS classnum
-    FROM read_parquet('${SLB_DIR}/orders.parquet')
-    GROUP BY Ordnum
-    HAVING COUNT(*) = 1
-)
 SELECT
     f.FamCode                        AS famcode,
     TRIM(f.Family)                   AS family,
     o.Ordnum                         AS ordnum,
-    o.order_name                     AS order_name,
+    TRIM(o."Order")                  AS order_name,
     c.ClassNum                       AS classnum,
     TRIM(c.Class)                    AS class_name,
     NULLIF(LOWER(TRIM(c.Phylum)), '') AS phylum,
     TRIM(c.Phylum)                   AS phylum_name,
     is_rank_placeholder(c.Phylum)    AS placeholder_phylum,
     is_rank_placeholder(c.Class) OR is_rank_placeholder(c.Phylum) AS placeholder_class
-FROM read_parquet('${SLB_DIR}/families.parquet') f
-LEFT JOIN unique_orders o ON o.Ordnum = f.Ordnum
-LEFT JOIN read_parquet('${SLB_DIR}/classes.parquet') c ON c.ClassNum = o.classnum;
+FROM src_families f
+JOIN t_family_order fo ON fo.famcode = f.FamCode
+LEFT JOIN src_orders o ON o.Ordnum = fo.ordnum
+LEFT JOIN src_classes c ON c.ClassNum = o.ClassNum;
 
 CREATE TEMP TABLE t_species_genus_check AS
 WITH candidates AS (
@@ -221,7 +223,7 @@ WITH candidates AS (
         CASE WHEN s.GenCode IS NOT NULL THEN s.GenCode
              WHEN n.matches = 1         THEN n.gencode
         END                                                             AS candidate
-    FROM read_parquet('${SLB_DIR}/species.parquet') s
+    FROM src_species s
     LEFT JOIN t_genus_names n
       ON s.GenCode IS NULL AND n.gen_name = TRIM(s.Genus)
     WHERE NOT is_placeholder_species(s.SpecCode)
@@ -250,7 +252,7 @@ SELECT
     CONCAT_WS(' / ', COALESCE(cs.family, '?'), COALESCE(cs.order_name, '?'),
               COALESCE(cs.class_name, '?'), COALESCE(cs.phylum_name, '?'))   AS species_chain
 FROM candidates c
-LEFT JOIN read_parquet('${SLB_DIR}/genera.parquet') g ON g.GenCode = c.candidate
+LEFT JOIN src_genera g ON g.GenCode = c.candidate
 LEFT JOIN t_family_chain cg ON cg.famcode = g.FamCode
 LEFT JOIN t_family_chain cs ON cs.famcode = c.famcode;
 
@@ -310,7 +312,7 @@ SELECT
     g.id                                                                AS genus,
     'active'                                                            AS status,
     NULL                                                                AS deprecated_at
-FROM read_parquet('${SLB_DIR}/species.parquet') s
+FROM src_species s
 JOIN t_species_genus sg ON sg.speccode = s.speccode
 LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
 LEFT JOIN t_genera g ON g.external_id = CAST(sg.gencode AS VARCHAR)
@@ -361,10 +363,10 @@ COPY (
             CAST(NULL AS VARCHAR)                                  AS synonymy,
             CAST(NULL AS VARCHAR)                                  AS combination,
             0                                                      AS misspelling
-        FROM read_parquet('${SLB_DIR}/species.parquet') s
+        FROM src_species s
         JOIN t_species_genus sg
           ON sg.speccode = s.speccode
-        LEFT JOIN read_parquet('${SLB_DIR}/genera.parquet') g
+        LEFT JOIN src_genera g
           ON g.gencode = sg.gencode
         JOIN t_species sp
           ON sp.external_id = CAST(s.speccode AS VARCHAR)
@@ -490,28 +492,28 @@ COPY (
     -- Order-Namen (je eine Zeile pro Sprache)
     SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'en', NULL,
            TRIM(o.commonName), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'de', NULL,
            TRIM(o.commonName_German), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName_German), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'fr', NULL,
            TRIM(o.commonName_French), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName_French), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'es', NULL,
            TRIM(o.commonName_Spanish), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    FROM src_orders o
     WHERE NULLIF(TRIM(o.commonName_Spanish), '') IS NOT NULL
 
     UNION ALL
@@ -519,28 +521,28 @@ COPY (
     -- Family-Namen
     SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'en', NULL,
            TRIM(f.commonName), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'de', NULL,
            TRIM(f.commonName_German), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName_German), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'fr', NULL,
            TRIM(f.commonName_French), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName_French), '') IS NOT NULL
 
     UNION ALL
 
     SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'es', NULL,
            TRIM(f.commonName_Spanish), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    FROM src_families f
     WHERE NULLIF(TRIM(f.commonName_Spanish), '') IS NOT NULL
 
     UNION ALL
@@ -548,7 +550,7 @@ COPY (
     -- Genera-Namen (nur Englisch, kein Sprachfeld in SLB)
     SELECT discere_uuid('sealifebase', 'genus', g.gencode), 'genus', 'en', NULL,
            TRIM(g.CommonName), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/genera.parquet') g
+    FROM src_genera g
     WHERE NULLIF(TRIM(g.CommonName), '') IS NOT NULL
 
     UNION ALL
@@ -556,7 +558,7 @@ COPY (
     -- Class-Namen (nur Englisch)
     SELECT discere_uuid('sealifebase', 'class', c.classnum), 'class', 'en', NULL,
            TRIM(c.commonName), 'sealifebase', NULL, 1, NULL
-    FROM read_parquet('${SLB_DIR}/classes.parquet') c
+    FROM src_classes c
     WHERE NULLIF(TRIM(c.commonName), '') IS NOT NULL
 
     ORDER BY entity_type, entity_id, language, country, rank, is_preferred DESC

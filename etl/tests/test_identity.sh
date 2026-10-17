@@ -360,6 +360,55 @@ discere:fishbase_pic:50:v2.jpg|discere:species:5|https://example.org/v2.jpg|0" "
     assert_contains "$ERR" "Bilder ohne Art durch übernommene ersetzt: 1"
 }
 
+# Höhere Taxa ordnet die Stage allein über den Schlüssel zu. Liefert ein
+# bekannter Schlüssel ein Taxon anderen Namens — etwa weil die Quelle den
+# Code zweimal vergibt und der Export die andere Zeile wählt —, bekäme die ID
+# ein anderes Taxon: Abbruch, ohne etwas zu schreiben.
+test_identity_aborts_when_known_higher_taxon_key_names_another_taxon() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        UPDATE orders SET name = 'Araneae' WHERE id = 'discere:sealifebase_order:2';
+        UPDATE genera SET name = 'Gobius' WHERE id = 'discere:fishbase_genus:3';"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "Identität: 2 Schlüssel höherer Taxa nennen ein anderes Taxon als im Vorgänger (Typ Quelle:Schlüssel Vorgänger → jetzt): genus fishbase:3 Gobio → Gobius; order sealifebase:2 Decapoda → Araneae"
+    assert_eq "0" "$(sqlite3 "$TEST_TMP/build.db" "SELECT COUNT(*) FROM entity_source_keys;")" "nichts geschrieben"
+}
+
+# Gleichnamige Taxa unterscheidet der Name nicht: Hängt eine Ordnung unter
+# dem Schlüssel einer anderen Klasse oder eine Familie unter dem einer
+# anderen Ordnung als im Vorgänger, Abbruch.
+test_identity_aborts_when_known_key_moves_to_another_parent_key() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
+            ('discere:sealifebase_class:5', '5', 'sealifebase', 'Hexanauplia', 'Arthropoda');
+        INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+            ('discere:fishbase_order:9', '9', 'fishbase', 'Gobiiformes', 'discere:fishbase_class:7');
+        UPDATE orders SET class = 'discere:sealifebase_class:5' WHERE id = 'discere:sealifebase_order:2';
+        UPDATE families SET \"order\" = 'discere:fishbase_order:9' WHERE id = 'discere:fishbase_family:1';"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "Identität: 2 Schlüssel von Ordnungen bzw. Familien hängen unter einem anderen Elternschlüssel als im Vorgänger (Typ Quelle:Schlüssel Name, Eltern Vorgänger → jetzt): family fishbase:1 Pomacentridae, 1 → 9; order sealifebase:2 Decapoda, 1 → 5"
+    assert_eq "0" "$(sqlite3 "$TEST_TMP/build.db" "SELECT COUNT(*) FROM entity_source_keys;")" "nichts geschrieben"
+}
+
+# Leerzeichen am Rand und Groß- und Kleinschreibung ändern das Taxon nicht,
+# ebenso wenig ein anderes Epitheton einer Art unter gleichem Schlüssel oder
+# eine Familie, die ihre Ordnung verliert.
+test_identity_accepts_same_higher_taxon_name_in_other_spelling() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        UPDATE orders SET name = ' decapoda' WHERE id = 'discere:sealifebase_order:2';
+        UPDATE species SET name = 'ocellata' WHERE id = 'discere:fishbase_species:2';
+        UPDATE families SET \"order\" = '' WHERE id = 'discere:sealifebase_family:3';"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 0
+}
+
 # Den Einbruch einer Quelle prüft die Default-Schwelle von 5 %: Die Manifeste
 # verlieren die großzügige Schwelle von create_identity_build_db.
 use_default_loss_limits() {

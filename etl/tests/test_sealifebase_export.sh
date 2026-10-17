@@ -26,9 +26,10 @@ CREATE TABLE orders (Ordnum INTEGER, "Order" VARCHAR, SisterOrder VARCHAR, Class
     CommonName_German VARCHAR, CommonName_French VARCHAR, CommonName_Spanish VARCHAR);
 INSERT INTO orders VALUES (1, 'Cardiida', NULL, 1, NULL, NULL, NULL, NULL);
 
-CREATE TABLE families (FamCode INTEGER, Family VARCHAR, Division VARCHAR, Ordnum INTEGER, CommonName VARCHAR,
-    CommonName_German VARCHAR, CommonName_French VARCHAR, CommonName_Spanish VARCHAR);
-INSERT INTO families VALUES (1, 'Semelidae', NULL, 1, NULL, NULL, NULL, NULL);
+CREATE TABLE families (FamCode INTEGER, Family VARCHAR, Division VARCHAR, Ordnum INTEGER, "Order" VARCHAR,
+    ClassNum INTEGER, CommonName VARCHAR, CommonName_German VARCHAR, CommonName_French VARCHAR,
+    CommonName_Spanish VARCHAR);
+INSERT INTO families VALUES (1, 'Semelidae', NULL, 1, 'Cardiida', 1, NULL, NULL, NULL, NULL);
 
 CREATE TABLE genera (GenCode INTEGER, GenName VARCHAR, Subfamily VARCHAR, FamCode INTEGER, CommonName VARCHAR);
 INSERT INTO genera VALUES (1, 'Abra',  NULL, 1, NULL),
@@ -96,11 +97,12 @@ SQL
 run_sealifebase_export() {
     local sql
     mkdir -p "$TEST_TMP/export"
-    sql="$(sed \
+    sql="$(source "$ETL_DIR/core/plugin_api.sh"; PLUGIN_CORE_DIR="$ETL_DIR/core"
+        plugin_render_sql "$ETL_DIR/plugins/sealifebase/sql/export.sql" | sed \
         -e "s|\${SLB_DIR}|$TEST_TMP/sealifebase|g" \
+        -e "s|\${PARQUET_DIR}|$TEST_TMP/sealifebase|g" \
         -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g" \
-        -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g" \
-        "$ETL_DIR/plugins/sealifebase/sql/export.sql")"
+        -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g")"
     run_capture duckdb "$TEST_TMP/export/tmp.duckdb" -c "$sql"
 }
 
@@ -159,17 +161,26 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 
 # Ersetzt Klassen, Ordnungen, Familien, Gattungen und Arten durch eine
 # Taxonomie, in der Gattung (GenCode) und Familie der Art (FamCode)
-# auseinanderlaufen:
+# auseinanderlaufen und die Quelle Codes mehrfach vergibt:
 #
-#   Mollusca    › Bivalvia (1)       › Cardiida (1)    › Semelidae (1), Tellinidae (2)
-#                                    › Venerida (2)    › Veneridae (3)
-#                                    › Ordnum 7, zweimal vergeben (Ostreida,
-#                                      Pectinida)      › Ambigidae (7)
-#               › Gastropoda (2)     › Neogastropoda (5) › Muricidae (6)
-#   Cnidaria    › Hydrozoa (3)       › Leptothecata (3)  › Halopterididae (4)
-#   Rhodophyta  › Florideophyceae (4) › Ceramiales (4)   › Ceramiaceae (5)
-#               › Not assigned (5)   › Not assigned (6)  › Fooidae (9), Barridae (10)
+#   Mollusca      › Bivalvia (1)       › Cardiida (1)    › Semelidae (1), Tellinidae (2)
+#                                      › Venerida (2)    › Veneridae (3)
+#                 › Gastropoda (2)     › Neogastropoda (5) › Muricidae (6)
+#   Cnidaria      › Hydrozoa (3)       › Leptothecata (3)  › Halopterididae (4)
+#   Rhodophyta    › Florideophyceae (4) › Ceramiales (4)   › Ceramiaceae (5)
+#   Mollusca      › Not assigned (5)   › Not assigned (6)  › Fooidae (9), Barridae (10)
+#   Arthropoda    › Arachnida (6)
+#   Echinodermata › Echinoidea (7)
 #   Orphanidae (8) zeigt auf eine Ordnung, die es nicht gibt.
+#
+#   Ordnum 7, zweimal vergeben: Ostreida (Bivalvia) und Araneae (Arachnida)
+#     Ambigidae (7)  nennt Ostreida, Bivalvia    → Ostreida, hält Arten
+#     Desidae (11)   nennt Araneae, Arachnida    → Araneae, ohne Arten
+#     Mixtidae (12)  nennt Ostreida, Gastropoda  → keine Zeile passt
+#   Ordnum 8, zweimal vergeben: Phymosomatoida (Echinoidea) und Not assigned
+#   (Not assigned)
+#     Chromidae (13) nennt Not assigned, Klasse 5 → Not assigned, ohne Arten
+#   GenCode 10, zweimal vergeben: Dupla und Duplex (beide Semelidae)
 #
 #   Gattungen: 1 Abra (1), 2 Tellina (2), 3 Venus (3), 4 Gattya (5),
 #   5 Murex (6), 6 Halistemma (4), 7 Ambix (7), 8 Solus (1), 9 Placo (10)
@@ -181,8 +192,15 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 #   22 Gattya humilis            4        4        anderer Stamm
 #   23 Murex brandaris           5        1        andere Klasse
 #   24 Stephanomia amphytridis   6        4        Gattung heißt anders
-#   25 Ambix dubius              7        1        Ordnung der Gattung mehrdeutig
+#   25 Ambix dubius              7        1        Ordnung der Gattung über den
+#                                                  doppelten Ordnum aufgelöst,
+#                                                  anders, Klasse gleich
+#   32 Ambix aranea              7        6        Ordnung der Gattung
+#                                                  aufgelöst, andere Klasse
 #   28 Abra orba                 1        8        Ordnung der Art unbekannt
+#   33 Abra mixta                1        12       Ordnung der Art unter dem
+#                                                  doppelten Ordnum nicht
+#                                                  auflösbar
 #   29 Ambix certus              7        7        passt (gleiche Familie)
 #   31 Placo incertus            9        9        Familie anders, beide in der
 #                                                  Platzhalter-Klasse
@@ -196,29 +214,35 @@ write_genus_check_parquets() {
 COPY (SELECT ClassNum, Class, Phylum, NULL::VARCHAR AS CommonName FROM (VALUES
     (1, 'Bivalvia', 'Mollusca'), (2, 'Gastropoda', 'Mollusca'),
     (3, 'Hydrozoa', 'Cnidaria'), (4, 'Florideophyceae', 'Rhodophyta'),
-    (5, 'Not assigned', 'Mollusca')
+    (5, 'Not assigned', 'Mollusca'), (6, 'Arachnida', 'Arthropoda'),
+    (7, 'Echinoidea', 'Echinodermata')
 ) AS t(ClassNum, Class, Phylum)) TO '$dir/classes.parquet' (FORMAT parquet);
 
 COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARCHAR AS CommonName,
              NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
              NULL::VARCHAR AS CommonName_Spanish
-      FROM (VALUES (1, 'Cardiida', 1), (2, 'Venerida', 1), (7, 'Ostreida', 1), (7, 'Pectinida', 1),
+      FROM (VALUES (1, 'Cardiida', 1), (2, 'Venerida', 1), (7, 'Ostreida', 1), (7, 'Araneae', 6),
+                   (8, 'Phymosomatoida', 7), (8, 'Not assigned', 5),
                    (5, 'Neogastropoda', 2), (3, 'Leptothecata', 3), (4, 'Ceramiales', 4),
                    (6, 'Not assigned', 5)
       ) AS t(Ordnum, "Order", ClassNum)) TO '$dir/orders.parquet' (FORMAT parquet);
 
-COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, NULL::VARCHAR AS CommonName,
+COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassNum, NULL::VARCHAR AS CommonName,
              NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
              NULL::VARCHAR AS CommonName_Spanish
-      FROM (VALUES (1, 'Semelidae', 1), (2, 'Tellinidae', 1), (3, 'Veneridae', 2), (7, 'Ambigidae', 7),
-                   (6, 'Muricidae', 5), (4, 'Halopterididae', 3), (5, 'Ceramiaceae', 4), (8, 'Orphanidae', 99),
-                   (9, 'Fooidae', 6), (10, 'Barridae', 6)
-      ) AS t(FamCode, Family, Ordnum)) TO '$dir/families.parquet' (FORMAT parquet);
+      FROM (VALUES (1, 'Semelidae', 1, 'Cardiida', 1), (2, 'Tellinidae', 1, 'Cardiida', 1),
+                   (3, 'Veneridae', 2, 'Venerida', 1), (7, 'Ambigidae', 7, 'Ostreida', 1),
+                   (11, 'Desidae', 7, 'Araneae', 6), (12, 'Mixtidae', 7, ' ostreida', 2),
+                   (13, 'Chromidae', 8, 'Not assigned', 5),
+                   (6, 'Muricidae', 5, 'Neogastropoda', 2), (4, 'Halopterididae', 3, 'Leptothecata', 3),
+                   (5, 'Ceramiaceae', 4, 'Ceramiales', 4), (8, 'Orphanidae', 99, 'Unknownida', 1),
+                   (9, 'Fooidae', 6, 'Not assigned', 5), (10, 'Barridae', 6, 'Not assigned', 5)
+      ) AS t(FamCode, Family, Ordnum, "Order", ClassNum)) TO '$dir/families.parquet' (FORMAT parquet);
 
 COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
       FROM (VALUES (1, 'Abra', 1), (2, 'Tellina', 2), (3, 'Venus', 3), (4, 'Gattya', 5),
                    (5, 'Murex', 6), (6, 'Halistemma', 4), (7, 'Ambix', 7), (8, 'Solus', 1),
-                   (9, 'Placo', 10)
+                   (9, 'Placo', 10), (10, 'Dupla', 1), (10, 'Duplex', 1)
       ) AS t(GenCode, GenName, FamCode)) TO '$dir/genera.parquet' (FORMAT parquet);
 
 COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
@@ -239,7 +263,9 @@ COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
           (28, 'Abra',        'orba',        1,    8),
           (29, 'Ambix',       'certus',      7,    7),
           (30, 'Tellina',     'nova',        NULL, 1),
-          (31, 'Placo',       'incertus',    9,    9)
+          (31, 'Placo',       'incertus',    9,    9),
+          (32, 'Ambix',       'aranea',      7,    6),
+          (33, 'Abra',        'mixta',       1,    12)
       ) AS t(SpecCode, Genus, Species, GenCode, FamCode)) TO '$dir/species.parquet' (FORMAT parquet);
 SQL
 }
@@ -253,10 +279,8 @@ run_genus_check_export() {
 }
 
 # Vorläufige Gattungs-ID der Art <speccode> in species.csv, leer ohne Gattung.
-# Unter dem zweimal vergebenen Ordnum steht eine Art heute zweimal im Export
-# (#335; der Import behält eine Zeile), deshalb einmal je Wert.
 slb_genus_of() {
-    slb_csv_columns species 1,15 | sed -n "s/^discere:sealifebase_species:$1,//p" | uniq
+    slb_csv_columns species 1,15 | sed -n "s/^discere:sealifebase_species:$1,//p"
 }
 
 # Zeile der Art <speccode> in genus_report.tsv, ohne die Spalte mit dem Namen.
@@ -295,16 +319,29 @@ test_sealifebase_export_rejects_genus_with_other_name() {
         "$(slb_genus_report_of 24)" "Bericht"
 }
 
-# Ist die Ordnung auf einer Seite mehrdeutig (zweimal vergebener Ordnum)
-# oder unbekannt, lässt sich nicht vergleichen: leer.
+# Ist die Ordnung auf einer Seite unbekannt oder unter einem doppelten
+# Ordnum nicht auflösbar, lässt sich nicht vergleichen: leer.
 test_sealifebase_export_rejects_genus_when_order_is_unclear() {
     run_genus_check_export
-    assert_eq "" "$(slb_genus_of 25)" "Ambix dubius"
     assert_eq "" "$(slb_genus_of 28)" "Abra orba"
-    assert_eq "genus_rejected	Ordnung unklar: GenCode 7 Ambix (Ambigidae / ? / ? / ?), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
-        "$(slb_genus_report_of 25)" "Bericht Gattung"
+    assert_eq "" "$(slb_genus_of 33)" "Abra mixta"
     assert_eq "genus_rejected	Ordnung unklar: GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Orphanidae / ? / ? / ?" \
-        "$(slb_genus_report_of 28)" "Bericht Art"
+        "$(slb_genus_report_of 28)" "Bericht unbekannte Ordnung"
+    assert_eq "genus_rejected	Ordnung unklar: GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Mixtidae / ? / ? / ?" \
+        "$(slb_genus_report_of 33)" "Bericht doppelter Ordnum"
+}
+
+# Unter einem doppelten Ordnum gilt für den Vergleich die Ordnung, die Name
+# und ClassNum der Familie wählen: Weicht dann nur die Ordnung ab, bleibt die
+# Gattung; zeigt die Kette eine andere Klasse, bleibt sie leer.
+test_sealifebase_export_compares_genus_through_resolved_duplicate_order() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:7" "$(slb_genus_of 25)" "Ambix dubius"
+    assert_eq "genus_kept_order_differs	GenCode 7 Ambix (Ambigidae / Ostreida / Bivalvia / Mollusca), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
+        "$(slb_genus_report_of 25)" "Bericht Ordnung"
+    assert_eq "" "$(slb_genus_of 32)" "Ambix aranea"
+    assert_eq "genus_rejected	Klasse: GenCode 7 Ambix (Ambigidae / Ostreida / Bivalvia / Mollusca), Art: Muricidae / Neogastropoda / Gastropoda / Mollusca" \
+        "$(slb_genus_report_of 32)" "Bericht Klasse"
 }
 
 # Liegen beide Familien unter derselben Platzhalter-Klasse („Not assigned“),
@@ -365,14 +402,152 @@ test_sealifebase_export_reports_each_genus_check_once() {
     assert_eq "genus_by_name	26	Solus novus
 genus_kept_family_differs	30	Tellina nova
 genus_kept_family_differs	20	Tellina tenuis
+genus_kept_order_differs	25	Ambix dubius
 genus_kept_order_differs	21	Venus verrucosa
+genus_rejected	33	Abra mixta
 genus_rejected	28	Abra orba
 genus_rejected	27	Abra rara
-genus_rejected	25	Ambix dubius
+genus_rejected	32	Ambix aranea
 genus_rejected	22	Gattya humilis
 genus_rejected	23	Murex brandaris
 genus_rejected	31	Placo incertus
 genus_rejected	24	Stephanomia amphytridis" "$(cut -f 1-3 "$TEST_TMP/export/genus_report.tsv")" "Bericht"
+}
+
+# Unter einem doppelten Ordnum bekommt eine Familie die Ordnungszeile, deren
+# Name und ClassNum sie selbst nennt; Entität wird nur die Zeile, an deren
+# Familien Arten hängen. Desidae wählt Araneae, die ohne Arten nicht
+# exportiert wird; Mixtidae nennt den Namen Ostreida, aber eine andere
+# Klasse; unter Ordnum 8 hält keine Zeile Arten.
+test_sealifebase_export_resolves_duplicate_order_code_by_name_and_class() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_order:7,Ostreida,discere:sealifebase_class:1" \
+        "$(slb_csv_columns orders 1,4,6 | grep -E '_order:[78],')" "Ordnungen unter doppelten Codes"
+    assert_eq "discere:sealifebase_family:11,
+discere:sealifebase_family:12,
+discere:sealifebase_family:13,
+discere:sealifebase_family:7,discere:sealifebase_order:7" \
+        "$(slb_csv_columns families 1,7 | grep -E '_family:(7|1[123]),')" "Ordnung je Familie"
+}
+
+# Hängt unter Desidae (11) die Art 34 Desis marina: Unter Ordnum 7 halten
+# dann Ostreida und Araneae Arten.
+add_species_under_second_duplicate_order() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+CREATE TABLE species AS SELECT * FROM '$dir/species.parquet';
+INSERT INTO species (SpecCode, Genus, Species, GenCode, FamCode) VALUES (34, 'Desis', 'marina', NULL, 11);
+COPY species TO '$dir/species.parquet' (FORMAT parquet);
+SQL
+}
+
+# Halten unter einem doppelten Ordnum mehrere Zeilen Arten, nennt der Code
+# kein Taxon: Keine Zeile wird exportiert, keine Familie darunter bekommt
+# eine Ordnung, und der Bericht nennt den Fall.
+test_sealifebase_export_skips_duplicate_order_code_held_by_several_rows() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    add_species_under_second_duplicate_order
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "" "$(slb_csv_columns orders 1 | grep -E '_order:[78]$')" "Ordnungen unter doppelten Codes"
+    assert_eq "discere:sealifebase_family:11,
+discere:sealifebase_family:12,
+discere:sealifebase_family:7," \
+        "$(slb_csv_columns families 1,7 | grep -E '_family:(7|1[12]),')" "Ordnung je Familie"
+    assert_eq "code_duplicate	Ordnum 7	Araneae	2 Zeilen; keine exportiert, mehrere Zeilen halten Arten
+code_duplicate	Ordnum 7	Ostreida	2 Zeilen; keine exportiert, mehrere Zeilen halten Arten
+family_order_rejected	11	Desidae	Ordnum 7 doppelt, Familie nennt Araneae (ClassNum 6): Ordnung Araneae nicht exportiert
+family_order_rejected	12	Mixtidae	Ordnum 7 doppelt, Familie nennt ostreida (ClassNum 2): keine Ordnungszeile mit diesem Namen und dieser ClassNum
+family_order_rejected	7	Ambigidae	Ordnum 7 doppelt, Familie nennt Ostreida (ClassNum 1): Ordnung Ostreida nicht exportiert" \
+        "$(grep 'Ordnum 7' "$TEST_TMP/export/code_report.tsv")" "Bericht"
+}
+
+# Hängt unter Chromidae (13) die Art 35 Chromus vagus: Unter Ordnum 8 hält
+# dann nur die Platzhalter-Zeile „Not assigned“ Arten.
+add_species_under_placeholder_duplicate_order() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+CREATE TABLE species AS SELECT * FROM '$dir/species.parquet';
+INSERT INTO species (SpecCode, Genus, Species, GenCode, FamCode) VALUES (35, 'Chromus', 'vagus', NULL, 13);
+COPY species TO '$dir/species.parquet' (FORMAT parquet);
+SQL
+}
+
+# Ein Rang-Platzhalter trägt nie den Schlüssel eines doppelten Codes: Zwei
+# gleichnamige Platzhalter verschiedener Klassen könnten ihn sonst tauschen,
+# ohne dass ein Name sich ändert. Hält nur er Arten, wird keine Zeile
+# exportiert.
+test_sealifebase_export_never_gives_duplicate_order_code_to_placeholder() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    add_species_under_placeholder_duplicate_order
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "" "$(slb_csv_columns orders 1 | grep -E '_order:8$')" "Ordnung unter Ordnum 8"
+    assert_eq "discere:sealifebase_family:13," "$(slb_csv_columns families 1,7 | grep '_family:13,')" "Chromidae"
+    assert_eq "code_duplicate	Ordnum 8	Not assigned	2 Zeilen; keine exportiert, nur ein Platzhalter hält Arten
+code_duplicate	Ordnum 8	Phymosomatoida	2 Zeilen; keine exportiert, nur ein Platzhalter hält Arten" \
+        "$(grep 'Ordnum 8	' "$TEST_TMP/export/code_report.tsv")" "Bericht"
+}
+
+# Fügt unter Ordnum 7 die Familie 14 Ostreidae hinzu, die ihre Ordnung
+# „ ostreida “ schreibt, in der Klasse der Zeile Ostreida.
+add_family_naming_order_in_other_spelling() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+CREATE TABLE families AS SELECT * FROM '$dir/families.parquet';
+INSERT INTO families (FamCode, Family, Ordnum, "Order", ClassNum) VALUES (14, 'Ostreidae', 7, ' ostreida ', 1);
+COPY families TO '$dir/families.parquet' (FORMAT parquet);
+SQL
+}
+
+# Den Namen der Ordnung vergleicht die Regel ohne Leerzeichen am Rand und
+# ohne Groß- und Kleinschreibung.
+test_sealifebase_export_matches_duplicate_order_name_ignoring_case_and_spaces() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    add_family_naming_order_in_other_spelling
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "discere:sealifebase_family:14,discere:sealifebase_order:7" \
+        "$(slb_csv_columns families 1,7 | grep '_family:14,')" "Ostreidae"
+}
+
+# Ein doppelter GenCode nennt keine Gattung: Keine der Zeilen wird
+# exportiert.
+test_sealifebase_export_skips_duplicate_genus_code() {
+    run_genus_check_export
+    assert_not_contains "$(slb_csv_columns genera 1)" "discere:sealifebase_genus:10"
+}
+
+# Jede Klasse, Ordnung, Familie, Gattung und Art steht genau einmal im
+# Export, auch unter doppelten Codes.
+test_sealifebase_export_writes_each_entity_once() {
+    local table
+    run_genus_check_export
+    for table in classes orders families genera species; do
+        assert_eq "" "$(slb_csv_columns "$table" 1 | uniq -d)" "doppelte Zeilen in $table"
+    done
+    assert_eq "15" "$(slb_csv_columns species 1 | wc -l | tr -d ' ')" "Arten"
+}
+
+# Der Bericht nennt jede Zeile eines doppelten Codes mit ihrem Ausgang und
+# jede Familie unter einem doppelten Ordnum mit ihrer Ordnung oder dem Grund,
+# warum sie keine hat.
+test_sealifebase_export_reports_duplicate_codes() {
+    run_genus_check_export
+    assert_eq "code_duplicate	GenCode 10	Dupla	2 Zeilen; keine exportiert, ohne Name zur Auswahl
+code_duplicate	GenCode 10	Duplex	2 Zeilen; keine exportiert, ohne Name zur Auswahl
+code_duplicate	Ordnum 7	Araneae	2 Zeilen; nicht exportiert, Schlüssel bei Ostreida
+code_duplicate	Ordnum 7	Ostreida	2 Zeilen; Entität unter diesem Schlüssel (einzige Zeile mit Arten)
+code_duplicate	Ordnum 8	Not assigned	2 Zeilen; keine exportiert, keine Zeile hält Arten
+code_duplicate	Ordnum 8	Phymosomatoida	2 Zeilen; keine exportiert, keine Zeile hält Arten
+family_order_rejected	11	Desidae	Ordnum 7 doppelt, Familie nennt Araneae (ClassNum 6): Ordnung Araneae nicht exportiert
+family_order_rejected	12	Mixtidae	Ordnum 7 doppelt, Familie nennt ostreida (ClassNum 2): keine Ordnungszeile mit diesem Namen und dieser ClassNum
+family_order_rejected	13	Chromidae	Ordnum 8 doppelt, Familie nennt Not assigned (ClassNum 5): Ordnung Not assigned nicht exportiert
+family_order_resolved	7	Ambigidae	Ordnum 7 doppelt, Familie nennt Ostreida (ClassNum 1): Ordnung Ostreida" \
+        "$(cat "$TEST_TMP/export/code_report.tsv")" "Bericht"
 }
 
 # Ersetzt synonyms.parquet durch Synonyme von Abra alba (Art 10), die mit

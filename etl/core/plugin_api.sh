@@ -105,6 +105,23 @@ plugin_init() {
     [[ -n "${PLUGIN_MANIFEST_VERSION:-}" ]] || plugin_fail "Pflichtfeld 'version' fehlt in plugin.yaml"
 }
 
+# Gibt <sql-datei> aus und ersetzt jede Zeile „-- @include <name>“ durch den
+# Inhalt von $PLUGIN_CORE_DIR/sql/<name>. So teilen Plugins Regeln, die für
+# mehrere Quellen gleich gelten (core/sql/source_codes.sql), statt sie zu
+# kopieren. Fehlt die Datei, bricht die Funktion ab.
+plugin_render_sql() {
+    awk -v dir="$PLUGIN_CORE_DIR/sql" '
+        /^-- @include / {
+            file = dir "/" $3
+            while ((status = (getline line < file)) > 0) print line
+            if (status < 0) { print "Include nicht gefunden: " file > "/dev/stderr"; exit 1 }
+            close(file)
+            next
+        }
+        { print }
+    ' "$1"
+}
+
 plugin_require_db_path() {
     local db_path="$1"
     [[ -n "$db_path" ]] || plugin_fail "--db ist ein Pflichtfeld."
@@ -216,6 +233,16 @@ plugin_report() {
         printf 'source\tcategory\tkey\tname\tdetail\n' > "$report_file"
     fi
     awk -v source="$PLUGIN_SOURCE" 'NF { print source "\t" $0 }' >> "$report_file"
+}
+
+# Bericht von core/sql/source_codes.sql (code_report.tsv eines Exports) in
+# den Build-Bericht, mit Zählung im Log.
+plugin_report_source_codes() {
+    local report="$1"
+    plugin_report < "$report"
+    plugin_log "Doppelte Codes: $(grep -c '^code_duplicate' "$report" || true) Zeilen," \
+        "Familien darunter mit Ordnung: $(grep -c '^family_order_resolved' "$report" || true)," \
+        "ohne: $(grep -c '^family_order_rejected' "$report" || true)"
 }
 
 plugin_validate_min_count() {

@@ -37,6 +37,8 @@ build.sh                       ← Orchestrator
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
 │       ├── match.sql          ← Regeln des Abgleichs
 │       ├── identity_*.sql     ← Schritte der Identitäts-Stage
+│       ├── source_codes.sql   ← DuckDB, in den FishBase- und SeaLifeBase-Export
+│       │                         eingebunden: doppelte Codes der Quelle
 │       ├── rebuild_lookup.sql ← Regel für species_name_lookup (lookup_report.sql: Bericht)
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten
@@ -88,7 +90,12 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 Der Build-Bericht liegt neben der Ausgabe-DB in `<db ohne Endung>.build-report/`,
 je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
 Identitäts-Stage schreibt unter `identity` (mehrdeutige Abgleiche,
-abweichende Einordnung zusammengeführter Arten), Stage 02d unter
+abweichende Einordnung zusammengeführter Arten), FishBase und SeaLifeBase
+jede Zeile eines Codes, den die Quelle mehrfach vergibt (`code_duplicate`,
+mit Ausgang), und jede Familie unter einem doppelten Ordnum, mit der über
+Name und Klasse gefundenen Ordnung (`family_order_resolved`) oder ohne
+(`family_order_rejected`, mit Grund; siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#doppelte-codes-in-der-quelle)), Stage 02d unter
 `placeholders` jeden Rang-Platzhalter mit Quelle und Anzahl aktiver Arten
 darunter, Stage 03 unter `lookup` jeden Namen aktiver Arten ohne Eintrag in
 `species_name_lookup`, weil er mehrere Arten meint (`ambiguous`, mit allen
