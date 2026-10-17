@@ -44,6 +44,27 @@ HAVING SUM(is_preferred) = 1
     OR (SUM(is_preferred) = 0 AND COUNT(*) = 1
         AND normalized_name NOT IN (SELECT normalized_name FROM ambiguous_scientific_names));
 
+-- Höhere Taxa mit ihrem Namensschlüssel (genus:barbus, wie die
+-- iNaturalist-Zuordnung ihn ablegt) und ob ihre Kette bis zu einer Klasse
+-- reicht.
+CREATE TEMP VIEW validate_taxon_chain AS
+SELECT 'genus:' || LOWER(TRIM(g.name)) AS name_key, c.id IS NOT NULL AS has_chain
+FROM genera g
+LEFT JOIN families f ON f.id = g.family
+LEFT JOIN orders o ON o.id = f."order"
+LEFT JOIN classes c ON c.id = o.class
+UNION ALL
+SELECT 'family:' || LOWER(TRIM(f.name)), c.id IS NOT NULL
+FROM families f
+LEFT JOIN orders o ON o.id = f."order"
+LEFT JOIN classes c ON c.id = o.class
+UNION ALL
+SELECT 'order:' || LOWER(TRIM(o.name)), c.id IS NOT NULL
+FROM orders o
+LEFT JOIN classes c ON c.id = o.class
+UNION ALL
+SELECT 'class:' || LOWER(TRIM(name)), 1 FROM classes;
+
 -- Mindest-Zeilenzahlen
 SELECT
     'classes'         AS tbl, COUNT(*) AS n, 10     AS min, 'fishbase' AS requires FROM classes  UNION ALL
@@ -154,4 +175,33 @@ SELECT 'species_name_lookup (targets)',
      JOIN species_name_lookup l
        ON l.normalized_name = e.normalized_name AND l.species_id = e.species_id),
     (SELECT COUNT(*) FROM validate_lookup_expected),
-    'always';
+    'always'
+UNION ALL
+
+-- iNaturalist-Zuordnungen nur mit eigener Kette: Das Plugin übernimmt eine
+-- Zuordnung nur, wenn der Stamm des iNaturalist-Taxons zur Kette jeder
+-- Entität seines Namens passt (plugins/inaturalist/sql/export.sql). Den
+-- iNaturalist-Stamm kennt die DB nicht; prüfen lässt sich hier, was ohne
+-- ihn feststeht: Jede zugeordnete Art hat eine Kette bis zur Klasse, und
+-- jede Entität hinter einem zugeordneten Namensschlüssel ebenso. Ein
+-- Schlüssel ohne Entität fiele auch auf.
+SELECT 'inaturalist (species with chain)',
+    (SELECT COUNT(*) FROM entity_external_ids e
+     JOIN species s ON s.id = e.entity_id
+     JOIN genera g ON g.id = s.genus
+     JOIN families f ON f.id = g.family
+     JOIN orders o ON o.id = f."order"
+     JOIN classes c ON c.id = o.class
+     WHERE e.provider = 'inaturalist' AND e.entity_type = 'species'),
+    (SELECT COUNT(*) FROM entity_external_ids
+     WHERE provider = 'inaturalist' AND entity_type = 'species'),
+    'inaturalist'
+UNION ALL
+SELECT 'inaturalist (name keys with chain)',
+    (SELECT COUNT(*) FROM entity_external_ids
+     WHERE provider = 'inaturalist' AND entity_type != 'species'
+       AND entity_id IN (SELECT name_key FROM validate_taxon_chain)
+       AND entity_id NOT IN (SELECT name_key FROM validate_taxon_chain WHERE NOT has_chain)),
+    (SELECT COUNT(*) FROM entity_external_ids
+     WHERE provider = 'inaturalist' AND entity_type != 'species'),
+    'inaturalist';

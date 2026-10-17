@@ -19,9 +19,11 @@
 #   Alle anderen Flags von build.sh werden mit Warnung ignoriert.
 #
 # Zuordnung über core/match.sh: Arten über alle wissenschaftlichen Namen
-# aktiver Arten samt Synonymen, höhere Taxa über ihre Rangtabelle. Höhere
-# Taxa werden unter ihrem Namensschlüssel abgelegt (genus:barbus), den die App
-# abfragt, Arten unter ihrer ID. Was nicht eindeutig zuzuordnen ist, steht im
+# aktiver Arten samt Synonymen, höhere Taxa über ihre Rangtabelle. Vorher
+# fallen iNaturalist-Taxa heraus, deren Stamm nicht zur eigenen Kette jeder
+# Entität ihres Namens passt (sql/export.sql). Höhere Taxa werden unter ihrem
+# Namensschlüssel abgelegt (genus:barbus), den die App abfragt, Arten unter
+# ihrer ID. Was nicht eindeutig zuzuordnen ist oder abgelehnt wird, steht im
 # Build-Bericht statt in der DB.
 #
 # Plugin-Konventionen:
@@ -59,7 +61,7 @@ while [[ $# -gt 0 ]]; do
         --keep)        KEEP_FILES=true ;;
         --taxa-file)   TAXA_FILE="$2"; DOWNLOAD=false; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 30
+            plugin_print_help_from_header "$0" 2 32
             exit 0
             ;;
         *) plugin_warn "Unbekanntes Argument: $1" ;;
@@ -113,29 +115,15 @@ download_taxa() {
 # ETL
 # ---------------------------------------------------------------------------
 
-# Alle Namen, die der Abgleich treffen kann, normalisiert wie
-# species_scientific_names.normalized_name: bei Arten nur die aktiver, denn
-# nur sie sind Kandidaten (die Identitäts-Stage hat übernommene Arten des
-# Vorgängers samt Namen als deprecated eingetragen). export.sql grenzt die
-# iNaturalist-Taxa damit auf die ein, die überhaupt in Frage kommen. Namen
-# mit Tab oder Zeilenumbruch (Tippfehler in den Quelldaten) passen in keine
-# TSV-Zeile und auf keinen iNaturalist-Namen; sie fallen hier weg.
+# Alle Namen, die der Abgleich treffen kann, mit jeder Entität, die sie
+# trägt, und dem Stamm ihrer Kette (sql/reference_names.sql). export.sql
+# grenzt die iNaturalist-Taxa damit auf die ein, die überhaupt in Frage
+# kommen, und prüft deren Stamm gegen jede dieser Entitäten.
 export_reference_names() {
     plugin_log "Exportiere Namen der Referenz-DB..."
     {
-        printf 'rank\tnormalized_name\n'
-        sqlite3 -separator $'\t' "$DB_PATH" "
-            SELECT rank, normalized_name FROM (
-                SELECT 'species' AS rank, n.normalized_name FROM species_scientific_names n
-                JOIN species s ON s.id = n.species_id AND s.status = 'active'
-                UNION SELECT 'genus',  LOWER(TRIM(name)) FROM genera
-                UNION SELECT 'family', LOWER(TRIM(name)) FROM families
-                UNION SELECT 'order',  LOWER(TRIM(name)) FROM orders
-                UNION SELECT 'class',  LOWER(TRIM(name)) FROM classes
-            )
-            WHERE instr(normalized_name, char(9))  = 0
-              AND instr(normalized_name, char(10)) = 0
-              AND instr(normalized_name, char(13)) = 0;"
+        printf 'rank\tnormalized_name\tentity_id\tchain_phylum\n'
+        sqlite3 -separator $'\t' "$DB_PATH" < "$PLUGIN_SQL_DIR/reference_names.sql"
     } > "$WORK_DIR/reference_names.tsv" || plugin_fail "Export der Namen fehlgeschlagen."
 }
 
@@ -145,11 +133,17 @@ export_records() {
     sql=$(sed \
         -e "s|\${TAXA_FILE}|${TAXA_FILE}|g" \
         -e "s|\${REFERENCE_NAMES}|${WORK_DIR}/reference_names.tsv|g" \
+        -e "s|\${PHYLUM_EQUIVALENTS}|${PLUGIN_DIR}/data/phylum_equivalents.csv|g" \
+        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g" \
         -e "s|\${EXPORT_DIR}|${WORK_DIR}|g" \
         "$PLUGIN_SQL_DIR/export.sql")
     duckdb "$WORK_DIR/tmp.duckdb" -c "$sql" > /dev/null || plugin_fail "DuckDB-Export fehlgeschlagen."
-    plugin_report < "$WORK_DIR/homonyms.tsv"
-    plugin_log "$(( $(wc -l < "$WORK_DIR/match_input.tsv") - 1 )) Taxa zum Abgleich, $(wc -l < "$WORK_DIR/homonyms.tsv" | tr -d ' ') Homonyme im Build-Bericht."
+    plugin_report < "$WORK_DIR/report.tsv"
+    plugin_log "$(( $(wc -l < "$WORK_DIR/match_input.tsv") - 1 )) Taxa zum Abgleich." \
+        "Abgelehnt nach Stamm: $(grep -c '^phylum_mismatch' "$WORK_DIR/report.tsv" || true)," \
+        "Name über Stämme: $(grep -c '^phylum_mixed' "$WORK_DIR/report.tsv" || true)," \
+        "nicht prüfbar: $(grep -c '^phylum_unknown' "$WORK_DIR/report.tsv" || true)," \
+        "Homonyme: $(grep -c '^ambiguous' "$WORK_DIR/report.tsv" || true)."
 }
 
 # Ersetzt alle iNaturalist-Zuordnungen in einer Transaktion. entity_type und
@@ -157,12 +151,12 @@ export_records() {
 #
 # Arten werden nur bei matched zugeordnet. Höhere Taxa adressiert die App über
 # den Namensschlüssel, den alle gleichnamigen Zeilen einer Rangtabelle teilen
-# (FishBase führt etwa Gobio viermal, drei davon ohne Arten). Für den
-# Schlüssel zählt deshalb nur, ob der Name auf dem Rang vorkommt: Auch
-# ambiguous wegen mehrerer gleichnamiger Zeilen ergibt eine Zuordnung. Andere
-# Gründe für ambiguous gibt es bei höheren Taxa nicht, weil Homonyme auf
-# iNaturalist-Seite schon vor dem Abgleich herausfallen. Der Build-Bericht
-# führt die gleichnamigen Zeilen trotzdem auf.
+# (FishBase führt etwa Gobio viermal, drei davon ohne Arten). Auch ambiguous
+# wegen mehrerer gleichnamiger Zeilen ergibt deshalb eine Zuordnung: Ein
+# Taxon kommt nur in den Abgleich, wenn sein Stamm zu jeder dieser Zeilen
+# passt (export.sql). Andere Gründe für ambiguous gibt es bei höheren Taxa
+# nicht, weil Homonyme auf iNaturalist-Seite schon vor dem Abgleich
+# herausfallen. Der Build-Bericht führt die gleichnamigen Zeilen trotzdem auf.
 import_mappings() {
     local synced_at
     synced_at="$(date -u +%Y-%m-%d)"
