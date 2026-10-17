@@ -96,7 +96,13 @@ Arten) oder nur als falsch angewandter Name vorkommt (`misapplied`; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#wissenschaftliche-namen)), SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
 über den eindeutigen Gattungsnamen (`genus_by_name`) oder offen
 (`genus_unresolved`, mit Grund; siehe
-[`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)).
+[`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)),
+und jede Art, deren Gattung nicht zu ihrer eigenen Familie passt: verworfen
+(`genus_rejected`, Grund `Name`, `Stamm`, `Klasse` oder `Ordnung unklar`)
+oder behalten, weil nur Familie bzw. Ordnung abweichen
+(`genus_kept_family_differs`, `genus_kept_order_differs`), je mit beiden
+Ketten (siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#gattung-und-familie-einer-art-widersprechen-sich)).
 
 ### Validierung
 
@@ -106,7 +112,8 @@ Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
 
 - `always` — Invariante, gilt für jeden Build: ID-Format, ID-Register, je
   aktiver Art mit Gattung ein bevorzugter wissenschaftlicher Name, der ihr
-  eigener ist (Gattung und Epitheton), und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
+  eigener ist (Gattung und Epitheton), bei einer Art ohne Gattung einer, der
+  auf ihr Epitheton endet, und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
   auflösbaren Namen, jeder auf seine Art;
 - `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
 - `<plugin>[,<plugin>]` — alle genannten Plugins. Eine Mindestzahl nennt die
@@ -273,7 +280,7 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 `external_id` + `external_source` bilden einen Unique Constraint — jede Quell-Entität existiert genau einmal.
 
-`classes`, `orders`, `families` und `genera` führen zusätzlich `is_placeholder` (INTEGER, 0/1): 1 für einen Rang-Platzhalter einer Quelle, etwa die SeaLifeBase-Familie „Not assigned“. Platzhalter halten echte Arten in ihrer Kette und bleiben deshalb Entitäten; Stage 02d erkennt sie an ihrem Namen (`not assigned*` und `*incer[a-z]* sedis*`, ohne Rücksicht auf Groß- und Kleinschreibung, `core/sql/placeholders.sql`). Die App zeigt sie als „nicht zugeordnet“, bietet sie nicht als Distraktor an und findet sie nicht in der Suche.
+`classes`, `orders`, `families` und `genera` führen zusätzlich `is_placeholder` (INTEGER, 0/1): 1 für einen Rang-Platzhalter einer Quelle, etwa die SeaLifeBase-Familie „Not assigned“. Platzhalter halten echte Arten in ihrer Kette und bleiben deshalb Entitäten; Stage 02d erkennt sie an ihrem Namen (`not assigned*` und `*incer[a-z]* sedis*`, ohne Rücksicht auf Groß- und Kleinschreibung, Muster in `core/data/placeholder_patterns.csv`, Regel in `core/sql/placeholders.sql`). Die App zeigt sie als „nicht zugeordnet“, bietet sie nicht als Distraktor an und findet sie nicht in der Suche.
 
 **ID-Vergabe:** Plugins erzeugen vorläufige IDs über `discere_uuid(source, entity, external_id)` (`discere:<source>_<entity>:<external_id>`) und verknüpfen damit ihre eigenen Tabellen. Die Identitäts-Stage ersetzt sie durch die endgültigen IDs aus `entity_source_keys`, dem ID-Register: je Quellenschlüssel (`source`, `entity_type`, `external_id`) die Entitäts-ID und ob die Quelle ihn in diesem Build geliefert hat (`active`). `entity_aliases` führt jede frühere ID, die keine Entität mehr bezeichnet, mit ihrer gültigen. Beide Tabellen reisen im Release mit.
 
@@ -329,7 +336,7 @@ Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
 Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
 Erkennung der Rang-Platzhalter, die Exporte von FishBase und SeaLifeBase
-mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name), die
+mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name, Gattung passend zur Familie der Art), die
 Namensauflösung über `species_name_lookup`,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
 Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die

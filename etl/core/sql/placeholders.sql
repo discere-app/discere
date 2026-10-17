@@ -4,7 +4,10 @@
 -- Ein Rang-Platzhalter ist ein höheres Taxon, mit dem eine Quelle ausdrückt,
 -- dass eine Gruppe auf diesem Rang keinem Taxon zugeordnet ist (SeaLifeBase:
 -- „Not assigned“, „Incertae sedis (Nemertea)“). Erkannt wird er am Namen,
--- ohne Rücksicht auf Groß- und Kleinschreibung und umgebende Leerzeichen:
+-- ohne Rücksicht auf Groß- und Kleinschreibung und umgebende Leerzeichen,
+-- nach den GLOB-Mustern in core/data/placeholder_patterns.csv (auch der
+-- SeaLifeBase-Export liest sie, um Gattung und Familie einer Art zu
+-- vergleichen):
 --
 --   not assigned*          „Not assigned“
 --   *incer[a-z]* sedis*    „Incertae sedis“ an beliebiger Stelle, auch in der
@@ -17,9 +20,7 @@
 -- ---------------------------------------------------------------------------
 
 CREATE TEMP TABLE placeholder_patterns (pattern TEXT NOT NULL);
-INSERT INTO placeholder_patterns (pattern) VALUES
-    ('not assigned*'),
-    ('*incer[a-z]* sedis*');
+.import --csv --skip 1 "${PLACEHOLDER_PATTERNS}" placeholder_patterns
 
 UPDATE classes SET is_placeholder = EXISTS (
     SELECT 1 FROM placeholder_patterns WHERE lower(trim(name)) GLOB pattern);

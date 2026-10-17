@@ -178,8 +178,10 @@ name`, und manche Synonyme mehrfach. Der Export ihrer Plugins
 Der Import schreibt ohne `OR REPLACE`: Eine doppelte Zeile wäre ein Fehler im
 Export und bricht den Build ab. Jede aktive Art mit Gattung hat so genau einen
 bevorzugten Namen je Quelle, und er ist ihr eigener (Gattung und Epitheton);
-die Validierung prüft beides (`etl/README.md`, Validierung). Eine Art ohne
-Gattung hat in ihrer Quelle keinen kanonischen Namen.
+die Validierung prüft beides (`etl/README.md`, Validierung). Eine
+SeaLifeBase-Art ohne Gattung trägt den Namen, den die Quelle ihr gibt (siehe
+[Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich));
+gegen eine Gattung prüfen lässt er sich nicht.
 
 In `species_scientific_names` kommen nur Synonyme der Ebene `Species`
 (`TaxonLevel`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
@@ -244,6 +246,49 @@ leer. Der Build-Bericht nennt jede Art, deren Gattung über den Namen kam
 Grund). Für höhere Ränge gibt es keine solche Regel: Fehlt einer Gattung die
 Familie oder einer Familie die Ordnung, nennt die Quelle keinen Namen, über
 den sie sich auflösen ließe (siehe [Bekannte Grenzen](#bekannte-grenzen)).
+
+### Gattung und Familie einer Art widersprechen sich
+
+Eine SeaLifeBase-Art nennt ihre Familie zweimal: über die Gattung (GenCode)
+und selbst (FamCode). In v26.06 widersprechen sich beide bei 854 Arten,
+teils bis hinauf zum Stamm (Hydrozoen der Gattung *Gattya* hängen an einer
+gleichnamigen Rotalgen-Gattung). Welche Angabe stimmt, sagt die Quelle
+nicht. Der Export behält die Gattung — über GenCode oder über den Namen
+gefunden — nur, wenn sie zur Art passt, und vergleicht dazu die Kette, die
+die DB zeigt: Familie → Ordnung (Ordnum) → Klasse → Stamm. Die eigenen
+Felder `ClassNum` und `Phylum` der Familien zählen nicht; sie widersprechen
+der Kette bei Hunderten Familien.
+
+- **Gleiche Familie und gleicher Name** (Gattungsname gleich `Genus` der
+  Art, ohne Rücksicht auf Leerzeichen und Groß- und Kleinschreibung): Die
+  Gattung bleibt.
+- **Anderer Name, anderer Stamm, andere Klasse, oder die Ordnung einer Seite
+  ist unklar** (Ordnum mehrdeutig, Familie ohne Ordnung, Gattung ohne
+  Familie, Klasse oder Stamm ein Rang-Platzhalter wie „Not assigned“ —
+  zwei Familien unter derselben Platzhalter-Klasse können in verschiedenen
+  echten Klassen stehen): Die Gattung bleibt leer (`genus_rejected`, Grund
+  `Name`, `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 71 Arten). Lieber
+  keine Einordnung als eine falsche, auch wenn im Einzelfall die Gattung
+  recht hätte und der FamCode der Art falsch ist. Platzhalter erkennt der
+  Export nach denselben Mustern wie Stage 02d
+  (`core/data/placeholder_patterns.csv`).
+- **Nur Familie oder Ordnung anders, Klasse und Stamm gleich:** Die Gattung
+  bleibt (`genus_kept_family_differs`, `genus_kept_order_differs`, mit
+  beiden Ketten; v26.06: 639 bzw. 145). Meist ist eine der beiden Angaben
+  nach einer Umstellung veraltet.
+
+Eine Art ohne Gattung behält ihren wissenschaftlichen Namen: Bevorzugt ist
+der Name, den die Quelle ihr in den Spalten `Genus` und `Species` gibt, auch
+wenn ihr GenCode auf eine anders benannte Gattung zeigt. Er ordnet sie
+keiner Gattung zu, und über ihn findet sie `species_name_lookup` und der
+iNaturalist-Abgleich. Die App lädt sie und zeigt die Ränge über ihr als
+„nicht zugeordnet“.
+
+Eine Invariante in `validate.sql` für die Gattung gibt es nicht: Die DB
+kennt den FamCode der Art nicht, nur die Kette über ihre Gattung. Die
+Prüfung sitzt im Export, der Build-Bericht hält jeden Fall fest. Die
+Validierung prüft nur, dass der bevorzugte Name einer Art ohne Gattung auf
+ihr Epitheton endet.
 
 ### Fehlende und mehrdeutige Zuordnungen
 
@@ -737,16 +782,23 @@ installiert.
   darunter hängt. Ohne aktive Art erscheint sie in keiner Liste und keiner
   Suche.
 - **Die Kette kann über der Gattung abbrechen.** In SeaLifeBase v26.06 zeigen
-  zwei Gattungen mit je einer aktiven Art (*Abrina*, *Ophiolophus*) auf einen
-  FamCode, den die Quelle nicht führt, und zwei Familien haben keine Ordnung:
-  *Lernaeodiscidae* (9 aktive Arten) zeigt auf einen unbekannten Ordnungscode,
-  *Mictocarididae* (eine) nennt nur den Namen einer Ordnung, die die Quelle
-  nicht führt. Über einen Namen auflösen lässt sich keine dieser Stufen; die
-  Arten der beiden Gattungen nennen zwar selbst eine Familie, aber eine
-  andere, als ihre Gattung angibt. Die Stufen bleiben leer. Die App lädt
-  solche Arten trotzdem und zeigt die fehlenden Stufen als „nicht
-  zugeordnet“; im Familienmodus haben die Arten der beiden Gattungen keine
-  Antwort und bekommen dort keine Karte.
+  zwei Gattungen (*Abrina*, *Ophiolophus*) auf einen FamCode, den die Quelle
+  nicht führt, und zwei Familien haben keine Ordnung: *Lernaeodiscidae* zeigt
+  auf einen unbekannten Ordnungscode, *Mictocarididae* nennt nur den Namen
+  einer Ordnung, die die Quelle nicht führt. Über einen Namen auflösen lässt
+  sich keine dieser Stufen; die Stufen bleiben leer. Die Arten der beiden
+  Gattungen und von *Lernaeodiscidae* nennen selbst eine andere Familie und
+  hängen deshalb an keiner Gattung (siehe
+  [Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich));
+  unter *Mictocarididae* bleibt eine aktive Art. Die App lädt solche Arten
+  trotzdem und zeigt die fehlenden Stufen als „nicht zugeordnet“; im
+  Gattungs- bzw. Familienmodus bekommen sie ohne Antwort keine Karte.
+- **Die SeaLifeBase-Einordnung ist teils veraltet.** Weichen Gattung und
+  FamCode einer Art nur in Familie oder Ordnung ab, bleibt die Gattung (siehe
+  [Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich)).
+  Eine Stichprobe gegen WoRMS fand darunter etwa so viele veraltete wie
+  aktuelle Familien der Gattung. Entscheiden ließe sich das nur mit einer
+  Referenz von außen ([#337](https://github.com/discere-app/discere/issues/337)).
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

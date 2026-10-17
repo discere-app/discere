@@ -143,39 +143,147 @@ GROUP BY e.SpecCode;
 -- die SeaLifeBase-Gattung dieses Namens, wenn es genau eine gibt: Gattungs-
 -- namen sind in SeaLifeBase nicht eindeutig (v26.06: 87 doppelte), und ein
 -- mehrdeutiger Name ordnet nichts zu. Ohne Treffer bleibt die Gattung leer.
--- Beides steht im Build-Bericht (genus_report.tsv).
+--
+-- Die so gefundene Gattung gilt nur, wenn sie zur Art passt. Die Art nennt
+-- mit FamCode auch selbst eine Familie, und beide Angaben widersprechen sich
+-- in SeaLifeBase gelegentlich bis hinauf zum Stamm (v26.06: Hydrozoen unter
+-- einer Rotalgen-Gattung). Welche Angabe stimmt, lässt sich aus der Quelle
+-- allein nicht entscheiden, und eine falsche Einordnung ist schlimmer als
+-- keine. Verglichen wird über die Kette, die die DB zeigt: Familie → Ordnung
+-- (Ordnum) → Klasse (ClassNum der Ordnung) → Stamm (Phylum der Klasse). Die
+-- eigenen Felder ClassNum und Phylum der Familien bleiben außen vor; sie
+-- widersprechen der Kette bei Hunderten Familien und erscheinen nirgends.
+--
+--   - Name der Gattung ungleich Genus der Art (trim, ohne Groß- und
+--     Kleinschreibung): Die Gattung ist eine andere, als die Art nennt.
+--     Gattung leer, Grund „Name“.
+--   - Gleiche Familie: Die Gattung passt.
+--   - Ordnung einer Seite unklar — Ordnum mehrdeutig (#335), ohne Ordnung,
+--     ohne Familie, Kette darüber unvollständig, oder Klasse bzw. Stamm ein
+--     Rang-Platzhalter („Not assigned“, Muster wie core/sql/placeholders.sql
+--     aus core/data/placeholder_patterns.csv): Ein Vergleich ist nicht
+--     möglich, denn zwei Familien unter derselben Platzhalter-Klasse können
+--     in verschiedenen echten Klassen stehen. Gattung leer, Grund „Ordnung
+--     unklar“.
+--   - Anderer Stamm oder andere Klasse: Gattung leer, Grund „Stamm“ bzw.
+--     „Klasse“.
+--   - Nur Familie oder Ordnung anders, Klasse und Stamm gleich: Die Gattung
+--     bleibt. Das sind meist Umstellungen, bei denen eine der beiden Angaben
+--     veraltet ist; welche, sagt die Quelle nicht.
+--
+-- Jede Art ohne GenCode und jede, deren Gattung nicht passt, steht im
+-- Build-Bericht (genus_report.tsv).
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_genus_names AS
 SELECT TRIM(GenName) AS gen_name, COUNT(*) AS matches, MIN(GenCode) AS gencode
 FROM read_parquet('${SLB_DIR}/genera.parquet')
 GROUP BY TRIM(GenName);
 
+CREATE TEMP TABLE t_placeholder_patterns AS
+SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
+
+CREATE OR REPLACE MACRO is_rank_placeholder(name) AS
+    EXISTS (SELECT 1 FROM t_placeholder_patterns p WHERE LOWER(TRIM(name)) GLOB p.pattern);
+
+-- Kette über einer Familie. Ein Ordnum, den die Quelle mehrfach vergibt,
+-- nennt keine Ordnung.
+CREATE TEMP TABLE t_family_chain AS
+WITH unique_orders AS (
+    SELECT Ordnum, ANY_VALUE(TRIM("Order")) AS order_name, ANY_VALUE(ClassNum) AS classnum
+    FROM read_parquet('${SLB_DIR}/orders.parquet')
+    GROUP BY Ordnum
+    HAVING COUNT(*) = 1
+)
+SELECT
+    f.FamCode                        AS famcode,
+    TRIM(f.Family)                   AS family,
+    o.Ordnum                         AS ordnum,
+    o.order_name                     AS order_name,
+    c.ClassNum                       AS classnum,
+    TRIM(c.Class)                    AS class_name,
+    NULLIF(LOWER(TRIM(c.Phylum)), '') AS phylum,
+    TRIM(c.Phylum)                   AS phylum_name,
+    is_rank_placeholder(c.Phylum)    AS placeholder_phylum,
+    is_rank_placeholder(c.Class) OR is_rank_placeholder(c.Phylum) AS placeholder_class
+FROM read_parquet('${SLB_DIR}/families.parquet') f
+LEFT JOIN unique_orders o ON o.Ordnum = f.Ordnum
+LEFT JOIN read_parquet('${SLB_DIR}/classes.parquet') c ON c.ClassNum = o.classnum;
+
+CREATE TEMP TABLE t_species_genus_check AS
+WITH candidates AS (
+    SELECT
+        s.SpecCode                                                      AS speccode,
+        CONCAT_WS(' ', TRIM(s.Genus), TRIM(s.Species))                  AS species_name,
+        TRIM(s.Genus)                                                   AS genus_name,
+        s.FamCode                                                       AS famcode,
+        s.GenCode IS NULL                                               AS by_name,
+        COALESCE(n.matches, 0)                                          AS name_matches,
+        CASE WHEN s.GenCode IS NOT NULL THEN s.GenCode
+             WHEN n.matches = 1         THEN n.gencode
+        END                                                             AS candidate
+    FROM read_parquet('${SLB_DIR}/species.parquet') s
+    LEFT JOIN t_genus_names n
+      ON s.GenCode IS NULL AND n.gen_name = TRIM(s.Genus)
+    WHERE NOT is_placeholder_species(s.SpecCode)
+)
+SELECT
+    c.*,
+    TRIM(g.GenName)                                                     AS candidate_name,
+    CASE
+        WHEN c.candidate IS NULL                                        THEN NULL
+        WHEN LOWER(TRIM(g.GenName)) IS DISTINCT FROM LOWER(c.genus_name) THEN 'Name'
+        WHEN g.FamCode = c.famcode                                      THEN 'passt'
+        WHEN cs.ordnum IS NULL OR cg.ordnum IS NULL
+          OR cs.classnum IS NULL OR cg.classnum IS NULL
+          OR cs.phylum IS NULL OR cg.phylum IS NULL                     THEN 'Ordnung unklar'
+        WHEN cs.phylum <> cg.phylum
+         AND NOT cs.placeholder_phylum AND NOT cg.placeholder_phylum    THEN 'Stamm'
+        WHEN cs.placeholder_class OR cg.placeholder_class               THEN 'Ordnung unklar'
+        WHEN cs.classnum <> cg.classnum                                 THEN 'Klasse'
+        WHEN cs.ordnum <> cg.ordnum                                     THEN 'Ordnung'
+        ELSE                                                                 'Familie'
+    END                                                                 AS verdict,
+    -- Beide Ketten für den Bericht: Familie / Ordnung / Klasse / Stamm,
+    -- Unbekanntes als „?“.
+    CONCAT_WS(' / ', COALESCE(cg.family, '?'), COALESCE(cg.order_name, '?'),
+              COALESCE(cg.class_name, '?'), COALESCE(cg.phylum_name, '?'))   AS genus_chain,
+    CONCAT_WS(' / ', COALESCE(cs.family, '?'), COALESCE(cs.order_name, '?'),
+              COALESCE(cs.class_name, '?'), COALESCE(cs.phylum_name, '?'))   AS species_chain
+FROM candidates c
+LEFT JOIN read_parquet('${SLB_DIR}/genera.parquet') g ON g.GenCode = c.candidate
+LEFT JOIN t_family_chain cg ON cg.famcode = g.FamCode
+LEFT JOIN t_family_chain cs ON cs.famcode = c.famcode;
+
 CREATE TEMP TABLE t_species_genus AS
 SELECT
-    s.SpecCode                                                          AS speccode,
-    CASE WHEN s.GenCode IS NOT NULL THEN s.GenCode
-         WHEN n.matches = 1         THEN n.gencode
-    END                                                                 AS gencode,
-    s.GenCode IS NULL                                                   AS by_name,
-    COALESCE(n.matches, 0)                                              AS name_matches
-FROM read_parquet('${SLB_DIR}/species.parquet') s
-LEFT JOIN t_genus_names n
-  ON s.GenCode IS NULL AND n.gen_name = TRIM(s.Genus)
-WHERE NOT is_placeholder_species(s.SpecCode);
+    speccode,
+    CASE WHEN verdict IN ('passt', 'Ordnung', 'Familie') THEN candidate END AS gencode
+FROM t_species_genus_check;
 
 COPY (
     SELECT
-        CASE WHEN sg.gencode IS NOT NULL THEN 'genus_by_name' ELSE 'genus_unresolved' END,
-        CAST(s.SpecCode AS VARCHAR),
-        CONCAT_WS(' ', TRIM(s.Genus), TRIM(s.Species)),
         CASE
-            WHEN sg.gencode IS NOT NULL THEN 'GenCode ' || CAST(sg.gencode AS VARCHAR)
-            WHEN sg.name_matches = 0    THEN 'keine Gattung dieses Namens'
-            ELSE CAST(sg.name_matches AS VARCHAR) || ' Gattungen dieses Namens'
+            WHEN verdict IS NULL                  THEN 'genus_unresolved'
+            WHEN verdict IN ('Name', 'Ordnung unklar', 'Stamm', 'Klasse')
+                                                  THEN 'genus_rejected'
+            WHEN verdict = 'Ordnung'              THEN 'genus_kept_order_differs'
+            WHEN verdict = 'Familie'              THEN 'genus_kept_family_differs'
+            ELSE                                       'genus_by_name'
+        END,
+        CAST(speccode AS VARCHAR),
+        species_name,
+        CASE
+            WHEN verdict IS NULL AND name_matches = 0 THEN 'keine Gattung dieses Namens'
+            WHEN verdict IS NULL THEN CAST(name_matches AS VARCHAR) || ' Gattungen dieses Namens'
+            WHEN verdict = 'passt' THEN 'GenCode ' || CAST(candidate AS VARCHAR)
+            ELSE CASE WHEN verdict IN ('Name', 'Ordnung unklar', 'Stamm', 'Klasse')
+                      THEN verdict || ': ' ELSE '' END
+                 || CASE WHEN by_name THEN 'über den Namen, ' ELSE '' END
+                 || 'GenCode ' || CAST(candidate AS VARCHAR) || ' ' || candidate_name
+                 || ' (' || genus_chain || '), Art: ' || species_chain
         END
-    FROM t_species_genus sg
-    JOIN read_parquet('${SLB_DIR}/species.parquet') s ON s.SpecCode = sg.speccode
-    WHERE sg.by_name
+    FROM t_species_genus_check
+    WHERE by_name OR verdict IS DISTINCT FROM 'passt'
     ORDER BY 1, 3, 2
 )
 TO '${EXPORT_DIR}/genus_report.tsv' (FORMAT csv, DELIMITER '\t', HEADER false, QUOTE '');
@@ -216,6 +324,11 @@ COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 -- Beinhaltet pro Species genau einen kanonischen Namen aus species.parquet
 -- sowie zusätzliche Arten-Synonyme aus synonyms.parquet.
 --
+-- Der kanonische Name ist Gattung und Epitheton. Ohne Gattung — verworfen,
+-- weil sie nicht zur Familie der Art passt, oder nicht auflösbar — steht der
+-- Gattungsname aus der Spalte Genus der Art: Das ist der Name, den die Quelle
+-- der Art gibt, und er ordnet sie keiner Gattung zu.
+--
 -- Je Art und normalisiertem Namen eine Zeile (Schlüssel der Tabelle), fest
 -- gewählt: Führt die Quelle den kanonischen Namen auch als Synonym der Art,
 -- bleibt der kanonische. Unter gleichnamigen Synonymen gewinnt der Status,
@@ -239,8 +352,8 @@ COPY (
         -- Kanonischer Species-Name
         SELECT
             sp.id                                                  AS species_id,
-            CONCAT(g.GenName, ' ', s.species)                      AS name,
-            LOWER(CONCAT(TRIM(g.GenName), ' ', TRIM(s.species)))   AS normalized_name,
+            CONCAT(COALESCE(g.GenName, TRIM(s.Genus)), ' ', s.species) AS name,
+            LOWER(CONCAT(TRIM(COALESCE(g.GenName, s.Genus)), ' ', TRIM(s.species))) AS normalized_name,
             'valid'                                                AS name_status,
             'sealifebase'                                          AS source,
             CAST(s.SpecCode AS VARCHAR)                            AS source_ref,
@@ -251,10 +364,11 @@ COPY (
         FROM read_parquet('${SLB_DIR}/species.parquet') s
         JOIN t_species_genus sg
           ON sg.speccode = s.speccode
-        JOIN read_parquet('${SLB_DIR}/genera.parquet') g
+        LEFT JOIN read_parquet('${SLB_DIR}/genera.parquet') g
           ON g.gencode = sg.gencode
         JOIN t_species sp
           ON sp.external_id = CAST(s.speccode AS VARCHAR)
+        WHERE NULLIF(TRIM(COALESCE(g.GenName, s.Genus)), '') IS NOT NULL
 
         UNION ALL
 

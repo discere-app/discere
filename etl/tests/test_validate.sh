@@ -156,6 +156,26 @@ test_validate_fails_on_active_species_with_genus_without_preferred_name() {
     assert_contains "$ERR" "FEHLER: species (preferred name) — 1 (erwartet >= 2)"
 }
 
+# Der bevorzugte Name einer Art ohne Gattung endet auf ihr Epitheton; eine
+# Art ohne Gattung und ohne bevorzugten Namen prüft diese Zeile nicht.
+test_validate_fails_on_preferred_name_of_species_without_genus_with_other_epithet() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
+            ('discere:species:1', 'Abra s1', 'abra s1', 'valid', 'sealifebase', 1),
+            ('discere:species:2', 'Abra s2', 'abra s2', 'valid', 'sealifebase', 1);"
+    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "UPDATE species_scientific_names SET name = 'Abra s22', normalized_name = 'abra s22'
+                   WHERE species_id = 'discere:species:2';"
+    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species without genus (preferred name) — 1 (erwartet >= 2)"
+}
+
 # Der bevorzugte Name einer Art ist ihr eigener: Eine Art Cytherea albus mit
 # dem bevorzugten Namen Callista niger, Synonym von Callista chione, zöge
 # diesen Namen im Lookup auf sich.
