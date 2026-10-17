@@ -96,7 +96,13 @@ Arten) oder nur als falsch angewandter Name vorkommt (`misapplied`; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#wissenschaftliche-namen)), SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
 über den eindeutigen Gattungsnamen (`genus_by_name`) oder offen
 (`genus_unresolved`, mit Grund; siehe
-[`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)).
+[`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)),
+und jede Art, deren Gattung nicht zu ihrer eigenen Familie passt: verworfen
+(`genus_rejected`, Grund `Name`, `Stamm`, `Klasse` oder `Ordnung unklar`)
+oder behalten, weil nur Familie bzw. Ordnung abweichen
+(`genus_kept_family_differs`, `genus_kept_order_differs`), je mit beiden
+Ketten (siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#gattung-und-familie-einer-art-widersprechen-sich)).
 
 ### Validierung
 
@@ -329,7 +335,7 @@ Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
 Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
 Erkennung der Rang-Platzhalter, die Exporte von FishBase und SeaLifeBase
-mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name), die
+mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name, Gattung passend zur Familie der Art), die
 Namensauflösung über `species_name_lookup`,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
 Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die

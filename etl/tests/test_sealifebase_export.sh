@@ -35,16 +35,16 @@ INSERT INTO genera VALUES (1, 'Abra',  NULL, 1, NULL),
                           (2, 'Duplo', NULL, 1, NULL),
                           (3, 'Duplo', NULL, 1, NULL);
 
-CREATE TABLE species (SpecCode INTEGER, Genus VARCHAR, Species VARCHAR, GenCode INTEGER, Length DOUBLE,
+CREATE TABLE species (SpecCode INTEGER, Genus VARCHAR, Species VARCHAR, GenCode INTEGER, FamCode INTEGER, Length DOUBLE,
     DepthRangeShallow INTEGER, DepthRangeComShallow INTEGER, DepthRangeDeep INTEGER, DepthRangeComDeep INTEGER,
     DemersPelag VARCHAR, Vulnerability DOUBLE, Dangerous VARCHAR, Importance VARCHAR, LongevityWild FLOAT,
     BodyShapeI VARCHAR);
 INSERT INTO species VALUES
-    (10, 'Abra',       'alba',         1,    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-    (11, 'Abra',       'tenuis',       NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-    (12, 'Duplo',      'ambiguus',     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-    (13, 'Nullus',     'ignotus',      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-    (14, 'DummyGenus', 'DummySpecies', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    (10, 'Abra',       'alba',         1,    1,    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    (11, 'Abra',       'tenuis',       NULL, 1,    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    (12, 'Duplo',      'ambiguus',     NULL, 1,    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    (13, 'Nullus',     'ignotus',      NULL, 1,    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    (14, 'DummyGenus', 'DummySpecies', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 CREATE TABLE synonyms (SpecCode INTEGER, SynGenus VARCHAR, SynSpecies VARCHAR, SynonymsRef INTEGER,
     TaxonLevel VARCHAR, Status VARCHAR, Synonymy VARCHAR, Combination VARCHAR, Misspelling INTEGER);
@@ -152,6 +152,186 @@ test_sealifebase_export_reports_genus_resolution() {
 genus_unresolved	12	Duplo ambiguus	2 Gattungen dieses Namens
 genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
         "$(cat "$TEST_TMP/export/genus_report.tsv")" "Bericht"
+}
+
+# Ersetzt Klassen, Ordnungen, Familien, Gattungen und Arten durch eine
+# Taxonomie, in der Gattung (GenCode) und Familie der Art (FamCode)
+# auseinanderlaufen:
+#
+#   Mollusca    › Bivalvia (1)       › Cardiida (1)    › Semelidae (1), Tellinidae (2)
+#                                    › Venerida (2)    › Veneridae (3)
+#                                    › Ordnum 7, zweimal vergeben (Ostreida,
+#                                      Pectinida)      › Ambigidae (7)
+#               › Gastropoda (2)     › Neogastropoda (5) › Muricidae (6)
+#   Cnidaria    › Hydrozoa (3)       › Leptothecata (3)  › Halopterididae (4)
+#   Rhodophyta  › Florideophyceae (4) › Ceramiales (4)   › Ceramiaceae (5)
+#   Orphanidae (8) zeigt auf eine Ordnung, die es nicht gibt.
+#
+#   Gattungen: 1 Abra (1), 2 Tellina (2), 3 Venus (3), 4 Gattya (5),
+#   5 Murex (6), 6 Halistemma (4), 7 Ambix (7), 8 Solus (1)
+#
+#   Art                          GenCode  FamCode  Fall
+#   10 Abra alba                 1        1        passt
+#   20 Tellina tenuis            2        1        nur Familie anders
+#   21 Venus verrucosa           3        1        Ordnung anders, Klasse gleich
+#   22 Gattya humilis            4        4        anderer Stamm
+#   23 Murex brandaris           5        1        andere Klasse
+#   24 Stephanomia amphytridis   6        4        Gattung heißt anders
+#   25 Ambix dubius              7        1        Ordnung der Gattung mehrdeutig
+#   28 Abra orba                 1        8        Ordnung der Art unbekannt
+#   29 Ambix certus              7        7        passt (gleiche Familie)
+#   26 Solus novus               —        1        über den Namen, passt
+#   27 Abra rara                 —        5        über den Namen, anderer Stamm
+write_genus_check_parquets() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+COPY (SELECT ClassNum, Class, Phylum, NULL::VARCHAR AS CommonName FROM (VALUES
+    (1, 'Bivalvia', 'Mollusca'), (2, 'Gastropoda', 'Mollusca'),
+    (3, 'Hydrozoa', 'Cnidaria'), (4, 'Florideophyceae', 'Rhodophyta')
+) AS t(ClassNum, Class, Phylum)) TO '$dir/classes.parquet' (FORMAT parquet);
+
+COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARCHAR AS CommonName,
+             NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
+             NULL::VARCHAR AS CommonName_Spanish
+      FROM (VALUES (1, 'Cardiida', 1), (2, 'Venerida', 1), (7, 'Ostreida', 1), (7, 'Pectinida', 1),
+                   (5, 'Neogastropoda', 2), (3, 'Leptothecata', 3), (4, 'Ceramiales', 4)
+      ) AS t(Ordnum, "Order", ClassNum)) TO '$dir/orders.parquet' (FORMAT parquet);
+
+COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, NULL::VARCHAR AS CommonName,
+             NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
+             NULL::VARCHAR AS CommonName_Spanish
+      FROM (VALUES (1, 'Semelidae', 1), (2, 'Tellinidae', 1), (3, 'Veneridae', 2), (7, 'Ambigidae', 7),
+                   (6, 'Muricidae', 5), (4, 'Halopterididae', 3), (5, 'Ceramiaceae', 4), (8, 'Orphanidae', 99)
+      ) AS t(FamCode, Family, Ordnum)) TO '$dir/families.parquet' (FORMAT parquet);
+
+COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
+      FROM (VALUES (1, 'Abra', 1), (2, 'Tellina', 2), (3, 'Venus', 3), (4, 'Gattya', 5),
+                   (5, 'Murex', 6), (6, 'Halistemma', 4), (7, 'Ambix', 7), (8, 'Solus', 1)
+      ) AS t(GenCode, GenName, FamCode)) TO '$dir/genera.parquet' (FORMAT parquet);
+
+COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
+             NULL::INTEGER AS DepthRangeShallow, NULL::INTEGER AS DepthRangeComShallow,
+             NULL::INTEGER AS DepthRangeDeep, NULL::INTEGER AS DepthRangeComDeep,
+             NULL::VARCHAR AS DemersPelag, NULL::DOUBLE AS Vulnerability, NULL::VARCHAR AS Dangerous,
+             NULL::VARCHAR AS Importance, NULL::FLOAT AS LongevityWild, NULL::VARCHAR AS BodyShapeI
+      FROM (VALUES
+          (10, 'Abra',        'alba',        1,    1),
+          (20, 'Tellina',     'tenuis',      2,    1),
+          (21, 'Venus',       'verrucosa',   3,    1),
+          (22, 'Gattya',      'humilis',     4,    4),
+          (23, 'Murex',       'brandaris',   5,    1),
+          (24, 'Stephanomia', 'amphytridis', 6,    4),
+          (25, 'Ambix',       'dubius',      7,    1),
+          (26, 'Solus',       'novus',       NULL, 1),
+          (27, 'Abra',        'rara',        NULL, 5),
+          (28, 'Abra',        'orba',        1,    8),
+          (29, 'Ambix',       'certus',      7,    7)
+      ) AS t(SpecCode, Genus, Species, GenCode, FamCode)) TO '$dir/species.parquet' (FORMAT parquet);
+SQL
+}
+
+# Exportiert die Taxonomie aus write_genus_check_parquets.
+run_genus_check_export() {
+    create_sealifebase_parquets
+    write_genus_check_parquets
+    run_sealifebase_export
+    assert_status 0
+}
+
+# Vorläufige Gattungs-ID der Art <speccode> in species.csv, leer ohne Gattung.
+# Unter dem zweimal vergebenen Ordnum steht eine Art heute zweimal im Export
+# (#335; der Import behält eine Zeile), deshalb einmal je Wert.
+slb_genus_of() {
+    slb_csv_columns species 1,15 | sed -n "s/^discere:sealifebase_species:$1,//p" | uniq
+}
+
+# Zeile der Art <speccode> in genus_report.tsv, ohne die Spalte mit dem Namen.
+slb_genus_report_of() {
+    awk -F '\t' -v key="$1" '$2 == key { print $1 "\t" $4 }' "$TEST_TMP/export/genus_report.tsv"
+}
+
+# Gattung und Familie der Art einig, auch wenn die Ordnung dieser Familie
+# mehrdeutig ist: Die Gattung bleibt, ohne Eintrag im Bericht.
+test_sealifebase_export_keeps_genus_that_matches_species_family() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:1" "$(slb_genus_of 10)" "Abra alba"
+    assert_eq "discere:sealifebase_genus:7" "$(slb_genus_of 29)" "Ambix certus"
+    assert_eq "" "$(slb_genus_report_of 10)$(slb_genus_report_of 29)" "Bericht"
+    assert_contains "$(slb_csv_columns species_scientific_names 2)" "Ambix certus"
+}
+
+# Liegt die Gattung in einem anderen Stamm oder einer anderen Klasse als die
+# Familie der Art, bleibt die Gattung leer — und mit ihr der kanonische Name.
+test_sealifebase_export_rejects_genus_from_other_phylum_or_class() {
+    run_genus_check_export
+    assert_eq "" "$(slb_genus_of 22)" "Gattya humilis"
+    assert_eq "" "$(slb_genus_of 23)" "Murex brandaris"
+    assert_eq "genus_rejected	Stamm: GenCode 4 Gattya (Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta), Art: Halopterididae / Leptothecata / Hydrozoa / Cnidaria" \
+        "$(slb_genus_report_of 22)" "Bericht Stamm"
+    assert_eq "genus_rejected	Klasse: GenCode 5 Murex (Muricidae / Neogastropoda / Gastropoda / Mollusca), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
+        "$(slb_genus_report_of 23)" "Bericht Klasse"
+    assert_not_contains "$(slb_csv_columns species_scientific_names 2)" "Gattya humilis"
+    assert_not_contains "$(slb_csv_columns species_scientific_names 2)" "Murex brandaris"
+}
+
+# Heißt die Gattung des GenCode anders, als die Art ihre Gattung nennt, ist
+# es eine andere Gattung: leer, auch bei gleicher Familie.
+test_sealifebase_export_rejects_genus_with_other_name() {
+    run_genus_check_export
+    assert_eq "" "$(slb_genus_of 24)" "Stephanomia amphytridis"
+    assert_eq "genus_rejected	Name: GenCode 6 Halistemma (Halopterididae / Leptothecata / Hydrozoa / Cnidaria), Art: Halopterididae / Leptothecata / Hydrozoa / Cnidaria" \
+        "$(slb_genus_report_of 24)" "Bericht"
+    assert_not_contains "$(cat "$TEST_TMP/export/species_scientific_names.csv")" "amphytridis"
+}
+
+# Ist die Ordnung auf einer Seite mehrdeutig (zweimal vergebener Ordnum)
+# oder unbekannt, lässt sich nicht vergleichen: leer.
+test_sealifebase_export_rejects_genus_when_order_is_unclear() {
+    run_genus_check_export
+    assert_eq "" "$(slb_genus_of 25)" "Ambix dubius"
+    assert_eq "" "$(slb_genus_of 28)" "Abra orba"
+    assert_eq "genus_rejected	Ordnung unklar: GenCode 7 Ambix (Ambigidae / ? / ? / ?), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
+        "$(slb_genus_report_of 25)" "Bericht Gattung"
+    assert_eq "genus_rejected	Ordnung unklar: GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Orphanidae / ? / ? / ?" \
+        "$(slb_genus_report_of 28)" "Bericht Art"
+}
+
+# Weicht nur die Familie oder die Ordnung ab, Klasse und Stamm gleich, bleibt
+# die Gattung; der Bericht nennt beide Ketten.
+test_sealifebase_export_keeps_genus_when_only_family_or_order_differs() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:2" "$(slb_genus_of 20)" "Tellina tenuis"
+    assert_eq "discere:sealifebase_genus:3" "$(slb_genus_of 21)" "Venus verrucosa"
+    assert_eq "genus_kept_family_differs	GenCode 2 Tellina (Tellinidae / Cardiida / Bivalvia / Mollusca), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
+        "$(slb_genus_report_of 20)" "Bericht Familie"
+    assert_eq "genus_kept_order_differs	GenCode 3 Venus (Veneridae / Venerida / Bivalvia / Mollusca), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
+        "$(slb_genus_report_of 21)" "Bericht Ordnung"
+    assert_contains "$(slb_csv_columns species_scientific_names 2)" "Venus verrucosa"
+}
+
+# Ohne GenCode gilt für die Gattung des Namens dieselbe Prüfung.
+test_sealifebase_export_checks_genus_found_by_name() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:8" "$(slb_genus_of 26)" "Solus novus"
+    assert_eq "" "$(slb_genus_of 27)" "Abra rara"
+    assert_eq "genus_by_name	GenCode 8" "$(slb_genus_report_of 26)" "Bericht passt"
+    assert_eq "genus_rejected	Stamm: GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta" \
+        "$(slb_genus_report_of 27)" "Bericht Stamm"
+}
+
+# Je Art höchstens eine Zeile, Arten mit passender Gattung über GenCode keine,
+# sortiert nach Kategorie und Name.
+test_sealifebase_export_reports_each_genus_check_once() {
+    run_genus_check_export
+    assert_eq "genus_by_name	26	Solus novus
+genus_kept_family_differs	20	Tellina tenuis
+genus_kept_order_differs	21	Venus verrucosa
+genus_rejected	28	Abra orba
+genus_rejected	27	Abra rara
+genus_rejected	25	Ambix dubius
+genus_rejected	22	Gattya humilis
+genus_rejected	23	Murex brandaris
+genus_rejected	24	Stephanomia amphytridis" "$(cut -f 1-3 "$TEST_TMP/export/genus_report.tsv")" "Bericht"
 }
 
 # Ersetzt synonyms.parquet durch Synonyme von Abra alba (Art 10), die mit

@@ -565,13 +565,17 @@ EOF2
     sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
 }
 
-# Arten, deren Gattung über den Namen statt über GenCode aufgelöst wurde
-# (genus_by_name) oder offen blieb (genus_unresolved), in den Build-Bericht.
+# Arten ohne GenCode (genus_by_name, genus_unresolved) und Arten, deren
+# Gattung nicht zu ihrer Familie passt (genus_rejected, genus_kept_*), in den
+# Build-Bericht.
 report_genus_resolution() {
     local report="${EXPORT_DIR}/genus_report.tsv"
     plugin_report < "$report"
     plugin_log "Gattung über den Namen: $(grep -c '^genus_by_name' "$report" || true)," \
-        "offen: $(grep -c '^genus_unresolved' "$report" || true)"
+        "offen: $(grep -c '^genus_unresolved' "$report" || true)," \
+        "verworfen: $(grep -c '^genus_rejected' "$report" || true)," \
+        "behalten, Familie bzw. Ordnung abweichend: $(grep -c '^genus_kept_family_differs' "$report" || true)" \
+        "bzw. $(grep -c '^genus_kept_order_differs' "$report" || true)"
 }
 
 write_source_metadata() {
