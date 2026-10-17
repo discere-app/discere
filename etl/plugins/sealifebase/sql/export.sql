@@ -159,8 +159,12 @@ GROUP BY e.SpecCode;
 --     Gattung leer, Grund „Name“.
 --   - Gleiche Familie: Die Gattung passt.
 --   - Ordnung einer Seite unklar — Ordnum mehrdeutig (#335), ohne Ordnung,
---     ohne Familie oder Kette darüber unvollständig: Ein Vergleich ist nicht
---     möglich. Gattung leer, Grund „Ordnung unklar“.
+--     ohne Familie, Kette darüber unvollständig, oder Klasse bzw. Stamm ein
+--     Rang-Platzhalter („Not assigned“, Muster wie core/sql/placeholders.sql
+--     aus core/data/placeholder_patterns.csv): Ein Vergleich ist nicht
+--     möglich, denn zwei Familien unter derselben Platzhalter-Klasse können
+--     in verschiedenen echten Klassen stehen. Gattung leer, Grund „Ordnung
+--     unklar“.
 --   - Anderer Stamm oder andere Klasse: Gattung leer, Grund „Stamm“ bzw.
 --     „Klasse“.
 --   - Nur Familie oder Ordnung anders, Klasse und Stamm gleich: Die Gattung
@@ -174,6 +178,12 @@ CREATE TEMP TABLE t_genus_names AS
 SELECT TRIM(GenName) AS gen_name, COUNT(*) AS matches, MIN(GenCode) AS gencode
 FROM read_parquet('${SLB_DIR}/genera.parquet')
 GROUP BY TRIM(GenName);
+
+CREATE TEMP TABLE t_placeholder_patterns AS
+SELECT pattern FROM read_csv('${PLACEHOLDER_PATTERNS}', header = true, columns = {'pattern': 'VARCHAR'});
+
+CREATE OR REPLACE MACRO is_rank_placeholder(name) AS
+    EXISTS (SELECT 1 FROM t_placeholder_patterns p WHERE LOWER(TRIM(name)) GLOB p.pattern);
 
 -- Kette über einer Familie. Ein Ordnum, den die Quelle mehrfach vergibt,
 -- nennt keine Ordnung.
@@ -192,7 +202,9 @@ SELECT
     c.ClassNum                       AS classnum,
     TRIM(c.Class)                    AS class_name,
     NULLIF(LOWER(TRIM(c.Phylum)), '') AS phylum,
-    TRIM(c.Phylum)                   AS phylum_name
+    TRIM(c.Phylum)                   AS phylum_name,
+    is_rank_placeholder(c.Phylum)    AS placeholder_phylum,
+    is_rank_placeholder(c.Class) OR is_rank_placeholder(c.Phylum) AS placeholder_class
 FROM read_parquet('${SLB_DIR}/families.parquet') f
 LEFT JOIN unique_orders o ON o.Ordnum = f.Ordnum
 LEFT JOIN read_parquet('${SLB_DIR}/classes.parquet') c ON c.ClassNum = o.classnum;
@@ -224,7 +236,9 @@ SELECT
         WHEN cs.ordnum IS NULL OR cg.ordnum IS NULL
           OR cs.classnum IS NULL OR cg.classnum IS NULL
           OR cs.phylum IS NULL OR cg.phylum IS NULL                     THEN 'Ordnung unklar'
-        WHEN cs.phylum <> cg.phylum                                     THEN 'Stamm'
+        WHEN cs.phylum <> cg.phylum
+         AND NOT cs.placeholder_phylum AND NOT cg.placeholder_phylum    THEN 'Stamm'
+        WHEN cs.placeholder_class OR cg.placeholder_class               THEN 'Ordnung unklar'
         WHEN cs.classnum <> cg.classnum                                 THEN 'Klasse'
         WHEN cs.ordnum <> cg.ordnum                                     THEN 'Ordnung'
         ELSE                                                                 'Familie'
@@ -252,9 +266,9 @@ COPY (
             WHEN verdict IS NULL                  THEN 'genus_unresolved'
             WHEN verdict IN ('Name', 'Ordnung unklar', 'Stamm', 'Klasse')
                                                   THEN 'genus_rejected'
-            WHEN by_name                          THEN 'genus_by_name'
             WHEN verdict = 'Ordnung'              THEN 'genus_kept_order_differs'
-            ELSE                                       'genus_kept_family_differs'
+            WHEN verdict = 'Familie'              THEN 'genus_kept_family_differs'
+            ELSE                                       'genus_by_name'
         END,
         CAST(speccode AS VARCHAR),
         species_name,
@@ -264,6 +278,7 @@ COPY (
             WHEN verdict = 'passt' THEN 'GenCode ' || CAST(candidate AS VARCHAR)
             ELSE CASE WHEN verdict IN ('Name', 'Ordnung unklar', 'Stamm', 'Klasse')
                       THEN verdict || ': ' ELSE '' END
+                 || CASE WHEN by_name THEN 'über den Namen, ' ELSE '' END
                  || 'GenCode ' || CAST(candidate AS VARCHAR) || ' ' || candidate_name
                  || ' (' || genus_chain || '), Art: ' || species_chain
         END

@@ -264,13 +264,17 @@ der Kette bei Hunderten Familien.
   Gattung bleibt.
 - **Anderer Name, anderer Stamm, andere Klasse, oder die Ordnung einer Seite
   ist unklar** (Ordnum mehrdeutig, Familie ohne Ordnung, Gattung ohne
-  Familie): Die Gattung bleibt leer (`genus_rejected`, Grund `Name`,
-  `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 61 Arten). Lieber keine
-  Einordnung als eine falsche, auch wenn im Einzelfall die Gattung recht
-  hätte und der FamCode der Art falsch ist.
+  Familie, Klasse oder Stamm ein Rang-Platzhalter wie „Not assigned“ —
+  zwei Familien unter derselben Platzhalter-Klasse können in verschiedenen
+  echten Klassen stehen): Die Gattung bleibt leer (`genus_rejected`, Grund
+  `Name`, `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 71 Arten). Lieber
+  keine Einordnung als eine falsche, auch wenn im Einzelfall die Gattung
+  recht hätte und der FamCode der Art falsch ist. Platzhalter erkennt der
+  Export nach denselben Mustern wie Stage 02d
+  (`core/data/placeholder_patterns.csv`).
 - **Nur Familie oder Ordnung anders, Klasse und Stamm gleich:** Die Gattung
   bleibt (`genus_kept_family_differs`, `genus_kept_order_differs`, mit
-  beiden Ketten; v26.06: 648 bzw. 146). Meist ist eine der beiden Angaben
+  beiden Ketten; v26.06: 639 bzw. 145). Meist ist eine der beiden Angaben
   nach einer Umstellung veraltet.
 
 Eine Art ohne Gattung behält ihren wissenschaftlichen Namen: Bevorzugt ist
@@ -280,9 +284,11 @@ keiner Gattung zu, und über ihn findet sie `species_name_lookup` und der
 iNaturalist-Abgleich. Die App lädt sie und zeigt die Ränge über ihr als
 „nicht zugeordnet“.
 
-Eine Invariante in `validate.sql` gibt es dafür nicht: Die DB kennt den
-FamCode der Art nicht, nur die Kette über ihre Gattung. Die Prüfung sitzt im
-Export, der Build-Bericht hält jeden Fall fest.
+Eine Invariante in `validate.sql` für die Gattung gibt es nicht: Die DB
+kennt den FamCode der Art nicht, nur die Kette über ihre Gattung. Die
+Prüfung sitzt im Export, der Build-Bericht hält jeden Fall fest. Die
+Validierung prüft nur, dass der bevorzugte Name einer Art ohne Gattung auf
+ihr Epitheton endet.
 
 ### Fehlende und mehrdeutige Zuordnungen
 

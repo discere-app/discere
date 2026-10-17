@@ -99,6 +99,7 @@ run_sealifebase_export() {
     sql="$(sed \
         -e "s|\${SLB_DIR}|$TEST_TMP/sealifebase|g" \
         -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g" \
+        -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g" \
         "$ETL_DIR/plugins/sealifebase/sql/export.sql")"
     run_capture duckdb "$TEST_TMP/export/tmp.duckdb" -c "$sql"
 }
@@ -167,10 +168,11 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 #               › Gastropoda (2)     › Neogastropoda (5) › Muricidae (6)
 #   Cnidaria    › Hydrozoa (3)       › Leptothecata (3)  › Halopterididae (4)
 #   Rhodophyta  › Florideophyceae (4) › Ceramiales (4)   › Ceramiaceae (5)
+#               › Not assigned (5)   › Not assigned (6)  › Fooidae (9), Barridae (10)
 #   Orphanidae (8) zeigt auf eine Ordnung, die es nicht gibt.
 #
 #   Gattungen: 1 Abra (1), 2 Tellina (2), 3 Venus (3), 4 Gattya (5),
-#   5 Murex (6), 6 Halistemma (4), 7 Ambix (7), 8 Solus (1)
+#   5 Murex (6), 6 Halistemma (4), 7 Ambix (7), 8 Solus (1), 9 Placo (10)
 #
 #   Art                          GenCode  FamCode  Fall
 #   10 Abra alba                 1        1        passt
@@ -182,33 +184,41 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 #   25 Ambix dubius              7        1        Ordnung der Gattung mehrdeutig
 #   28 Abra orba                 1        8        Ordnung der Art unbekannt
 #   29 Ambix certus              7        7        passt (gleiche Familie)
+#   31 Placo incertus            9        9        Familie anders, beide in der
+#                                                  Platzhalter-Klasse
 #   26 Solus novus               —        1        über den Namen, passt
 #   27 Abra rara                 —        5        über den Namen, anderer Stamm
+#   30 Tellina nova              —        1        über den Namen, nur Familie
+#                                                  anders
 write_genus_check_parquets() {
     local dir="$TEST_TMP/sealifebase"
     duckdb << SQL
 COPY (SELECT ClassNum, Class, Phylum, NULL::VARCHAR AS CommonName FROM (VALUES
     (1, 'Bivalvia', 'Mollusca'), (2, 'Gastropoda', 'Mollusca'),
-    (3, 'Hydrozoa', 'Cnidaria'), (4, 'Florideophyceae', 'Rhodophyta')
+    (3, 'Hydrozoa', 'Cnidaria'), (4, 'Florideophyceae', 'Rhodophyta'),
+    (5, 'Not assigned', 'Mollusca')
 ) AS t(ClassNum, Class, Phylum)) TO '$dir/classes.parquet' (FORMAT parquet);
 
 COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARCHAR AS CommonName,
              NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
              NULL::VARCHAR AS CommonName_Spanish
       FROM (VALUES (1, 'Cardiida', 1), (2, 'Venerida', 1), (7, 'Ostreida', 1), (7, 'Pectinida', 1),
-                   (5, 'Neogastropoda', 2), (3, 'Leptothecata', 3), (4, 'Ceramiales', 4)
+                   (5, 'Neogastropoda', 2), (3, 'Leptothecata', 3), (4, 'Ceramiales', 4),
+                   (6, 'Not assigned', 5)
       ) AS t(Ordnum, "Order", ClassNum)) TO '$dir/orders.parquet' (FORMAT parquet);
 
 COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, NULL::VARCHAR AS CommonName,
              NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
              NULL::VARCHAR AS CommonName_Spanish
       FROM (VALUES (1, 'Semelidae', 1), (2, 'Tellinidae', 1), (3, 'Veneridae', 2), (7, 'Ambigidae', 7),
-                   (6, 'Muricidae', 5), (4, 'Halopterididae', 3), (5, 'Ceramiaceae', 4), (8, 'Orphanidae', 99)
+                   (6, 'Muricidae', 5), (4, 'Halopterididae', 3), (5, 'Ceramiaceae', 4), (8, 'Orphanidae', 99),
+                   (9, 'Fooidae', 6), (10, 'Barridae', 6)
       ) AS t(FamCode, Family, Ordnum)) TO '$dir/families.parquet' (FORMAT parquet);
 
 COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
       FROM (VALUES (1, 'Abra', 1), (2, 'Tellina', 2), (3, 'Venus', 3), (4, 'Gattya', 5),
-                   (5, 'Murex', 6), (6, 'Halistemma', 4), (7, 'Ambix', 7), (8, 'Solus', 1)
+                   (5, 'Murex', 6), (6, 'Halistemma', 4), (7, 'Ambix', 7), (8, 'Solus', 1),
+                   (9, 'Placo', 10)
       ) AS t(GenCode, GenName, FamCode)) TO '$dir/genera.parquet' (FORMAT parquet);
 
 COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
@@ -227,7 +237,9 @@ COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
           (26, 'Solus',       'novus',       NULL, 1),
           (27, 'Abra',        'rara',        NULL, 5),
           (28, 'Abra',        'orba',        1,    8),
-          (29, 'Ambix',       'certus',      7,    7)
+          (29, 'Ambix',       'certus',      7,    7),
+          (30, 'Tellina',     'nova',        NULL, 1),
+          (31, 'Placo',       'incertus',    9,    9)
       ) AS t(SpecCode, Genus, Species, GenCode, FamCode)) TO '$dir/species.parquet' (FORMAT parquet);
 SQL
 }
@@ -295,6 +307,15 @@ test_sealifebase_export_rejects_genus_when_order_is_unclear() {
         "$(slb_genus_report_of 28)" "Bericht Art"
 }
 
+# Liegen beide Familien unter derselben Platzhalter-Klasse („Not assigned“),
+# ist ihre echte Klasse unbekannt; gleich ist sie deshalb nicht: leer.
+test_sealifebase_export_rejects_genus_when_class_is_placeholder() {
+    run_genus_check_export
+    assert_eq "" "$(slb_genus_of 31)" "Placo incertus"
+    assert_eq "genus_rejected	Ordnung unklar: GenCode 9 Placo (Barridae / Not assigned / Not assigned / Mollusca), Art: Fooidae / Not assigned / Not assigned / Mollusca" \
+        "$(slb_genus_report_of 31)" "Bericht"
+}
+
 # Weicht nur die Familie oder die Ordnung ab, Klasse und Stamm gleich, bleibt
 # die Gattung; der Bericht nennt beide Ketten.
 test_sealifebase_export_keeps_genus_when_only_family_or_order_differs() {
@@ -314,7 +335,10 @@ test_sealifebase_export_checks_genus_found_by_name() {
     assert_eq "discere:sealifebase_genus:8" "$(slb_genus_of 26)" "Solus novus"
     assert_eq "" "$(slb_genus_of 27)" "Abra rara"
     assert_eq "genus_by_name	GenCode 8" "$(slb_genus_report_of 26)" "Bericht passt"
-    assert_eq "genus_rejected	Stamm: GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta" \
+    assert_eq "discere:sealifebase_genus:2" "$(slb_genus_of 30)" "Tellina nova"
+    assert_eq "genus_kept_family_differs	über den Namen, GenCode 2 Tellina (Tellinidae / Cardiida / Bivalvia / Mollusca), Art: Semelidae / Cardiida / Bivalvia / Mollusca" \
+        "$(slb_genus_report_of 30)" "Bericht Familie anders"
+    assert_eq "genus_rejected	Stamm: über den Namen, GenCode 1 Abra (Semelidae / Cardiida / Bivalvia / Mollusca), Art: Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta" \
         "$(slb_genus_report_of 27)" "Bericht Stamm"
 }
 
@@ -339,6 +363,7 @@ discere:sealifebase_species:28,Abra orba,abra orba,valid,1" \
 test_sealifebase_export_reports_each_genus_check_once() {
     run_genus_check_export
     assert_eq "genus_by_name	26	Solus novus
+genus_kept_family_differs	30	Tellina nova
 genus_kept_family_differs	20	Tellina tenuis
 genus_kept_order_differs	21	Venus verrucosa
 genus_rejected	28	Abra orba
@@ -346,6 +371,7 @@ genus_rejected	27	Abra rara
 genus_rejected	25	Ambix dubius
 genus_rejected	22	Gattya humilis
 genus_rejected	23	Murex brandaris
+genus_rejected	31	Placo incertus
 genus_rejected	24	Stephanomia amphytridis" "$(cut -f 1-3 "$TEST_TMP/export/genus_report.tsv")" "Bericht"
 }
 

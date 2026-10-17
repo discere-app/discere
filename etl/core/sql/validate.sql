@@ -109,6 +109,24 @@ SELECT 'species (preferred name)',
     (SELECT COUNT(*) FROM species WHERE status = 'active' AND genus IS NOT NULL),
     'always'
 UNION ALL
+-- Eine Art ohne Gattung: Ihr bevorzugter Name endet auf ihr Epitheton. Ob
+-- sie einen hat, prüft der Export der Quelle; höchstens einen je Quelle die
+-- Zeile danach.
+SELECT 'species without genus (preferred name)',
+    (SELECT COUNT(*) FROM species s
+     WHERE s.status = 'active' AND s.genus IS NULL
+       AND EXISTS (SELECT 1 FROM species_scientific_names ssn
+                   WHERE ssn.species_id = s.id AND ssn.is_preferred = 1)
+       AND NOT EXISTS (SELECT 1 FROM species_scientific_names ssn
+                       WHERE ssn.species_id = s.id AND ssn.is_preferred = 1
+                         AND substr(ssn.normalized_name, -length(' ' || lower(trim(s.name))))
+                             != ' ' || lower(trim(s.name)))),
+    (SELECT COUNT(*) FROM species s
+     WHERE s.status = 'active' AND s.genus IS NULL
+       AND EXISTS (SELECT 1 FROM species_scientific_names ssn
+                   WHERE ssn.species_id = s.id AND ssn.is_preferred = 1)),
+    'always'
+UNION ALL
 SELECT 'preferred names (per source)',
     (SELECT COUNT(*) FROM (SELECT DISTINCT species_id, source FROM species_scientific_names
                            WHERE is_preferred = 1)),

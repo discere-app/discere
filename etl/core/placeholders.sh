@@ -9,7 +9,8 @@
 # Identitäts-Stage: Die Regel gilt für jede Quelle gleich, auch für Taxa, die
 # aus dem Vorgänger übernommen wurden, und der Bericht nennt die endgültigen
 # IDs. Setzt is_placeholder in classes, orders, families und genera nach der
-# Namensregel in core/sql/placeholders.sql.
+# Namensregel in core/sql/placeholders.sql (Muster in
+# core/data/placeholder_patterns.csv).
 #
 # Build-Bericht (Quelle „placeholders“): je Platzhalter eine Zeile mit dem
 # Rang als Kategorie, der ID als Schlüssel, dem Namen und als Detail Quelle
@@ -40,7 +41,8 @@ done
 plugin_require_command sqlite3
 plugin_require_db_path "$DB_PATH"
 
-report="$(sqlite3 -bail "$DB_PATH" < "$CORE_DIR/sql/placeholders.sql")" \
+report="$(sed -e "s|\${PLACEHOLDER_PATTERNS}|$CORE_DIR/data/placeholder_patterns.csv|g" \
+              "$CORE_DIR/sql/placeholders.sql" | sqlite3 -bail "$DB_PATH")" \
     || plugin_fail "Markieren der Rang-Platzhalter fehlgeschlagen."
 plugin_report <<< "$report"
 plugin_log "Rang-Platzhalter markiert: $(grep -c . <<< "$report" || true)"

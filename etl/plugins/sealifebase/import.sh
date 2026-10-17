@@ -195,6 +195,7 @@ export_to_csv() {
     sql=$(sed \
         -e "s|\${SLB_DIR}|${SLB_DIR}|g" \
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
+        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g" \
         "$SQL_DIR/export.sql")
 
     duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
