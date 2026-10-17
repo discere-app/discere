@@ -156,6 +156,31 @@ test_validate_fails_on_active_species_with_genus_without_preferred_name() {
     assert_contains "$ERR" "FEHLER: species (preferred name) — 1 (erwartet >= 2)"
 }
 
+# Der bevorzugte Name einer Art ist ihr eigener: Eine Art Cytherea albus mit
+# dem bevorzugten Namen Callista niger, Synonym von Callista chione, zöge
+# diesen Namen im Lookup auf sich.
+test_validate_fails_on_preferred_name_other_than_own_binomial() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO genera (id, external_id, external_source, name) VALUES
+            ('discere:genus:5001', '5001', 'fishbase', 'Cytherea'),
+            ('discere:genus:5002', '5002', 'fishbase', ' Callista');
+        UPDATE species SET genus = 'discere:genus:5001', name = 'albus' WHERE id = 'discere:species:1';
+        UPDATE species SET genus = 'discere:genus:5002', name = 'chione ' WHERE id = 'discere:species:2';
+        INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
+            ('discere:species:1', 'Callista niger', 'callista niger', 'valid', 'fishbase', 1),
+            ('discere:species:2', 'Callista chione', 'callista chione', 'valid', 'fishbase', 1),
+            ('discere:species:2', 'Callista niger', 'callista niger', 'synonym', 'fishbase', 0);"
+    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    assert_eq "discere:species:1" \
+        "$(sqlite3 "$DB" "SELECT species_id FROM species_name_lookup WHERE normalized_name = 'callista niger';")" \
+        "Lookup callista niger"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species (preferred name) — 1 (erwartet >= 2)"
+}
+
 # Eine Quelle führt je Art höchstens einen bevorzugten Namen.
 test_validate_fails_on_two_preferred_names_of_one_species_in_one_source() {
     create_validatable_db

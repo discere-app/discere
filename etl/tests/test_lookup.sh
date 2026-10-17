@@ -13,6 +13,10 @@
 #   amphiprion communis    S bei 2, ambiguous synonym bei 3
 #   amphiprion melanopus   S bei 1, M bei 2
 #   amphiprion vetus       M bei 1
+#   amphiprion akallopisos S bei 1, laut fishbase Synonym zweier Arten
+#                          (ambiguous_scientific_names; die zweite Zeile steht
+#                          auf einer anderen Ebene und fehlt hier)
+# Auch amphiprion ocellaris führt fishbase als Synonym zweier Arten.
 create_lookup_db() {
     DB="$TEST_TMP/ref.db"
     "$ETL_DIR/core/create_db.sh" --output "$DB" > /dev/null 2>&1
@@ -35,7 +39,11 @@ INSERT INTO species_scientific_names (species_id, name, normalized_name, name_st
     ('discere:species:3', 'Amphiprion communis', 'amphiprion communis', 'ambiguous synonym', 'fishbase', 0),
     ('discere:species:1', 'Amphiprion melanopus', 'amphiprion melanopus', 'synonym', 'fishbase', 0),
     ('discere:species:2', 'Amphiprion melanopus', 'amphiprion melanopus', 'misapplied name', 'fishbase', 0),
-    ('discere:species:1', 'Amphiprion vetus', 'amphiprion vetus', 'misapplied name', 'fishbase', 0);
+    ('discere:species:1', 'Amphiprion vetus', 'amphiprion vetus', 'misapplied name', 'fishbase', 0),
+    ('discere:species:1', 'Amphiprion akallopisos', 'amphiprion akallopisos', 'synonym', 'fishbase', 0);
+INSERT INTO ambiguous_scientific_names (normalized_name, source, species_count) VALUES
+    ('amphiprion akallopisos', 'fishbase', 2),
+    ('amphiprion ocellaris', 'fishbase', 2);
 SQL
 }
 
@@ -49,10 +57,11 @@ lookup_rows() {
     sqlite3 -separator ' → ' "$DB" "SELECT normalized_name, species_id FROM species_name_lookup ORDER BY 1;"
 }
 
-# Bevorzugt bei genau einer Art schlägt Synonyme anderer Arten; ein Synonym
-# genau einer aktiven Art löst auf, auch neben einem falsch angewandten
-# Namen einer anderen. Mehrdeutige und nur falsch angewandte Namen bleiben
-# ohne Eintrag.
+# Bevorzugt bei genau einer Art schlägt Synonyme anderer Arten, auch wenn
+# die Quelle den Namen mehrdeutig führt; ein Synonym genau einer aktiven Art
+# löst auf, auch neben einem falsch angewandten Namen einer anderen.
+# Mehrdeutige — auch laut ambiguous_scientific_names — und nur falsch
+# angewandte Namen bleiben ohne Eintrag.
 test_lookup_resolves_only_names_that_mean_exactly_one_species() {
     create_lookup_db
     run_lookup
@@ -68,10 +77,11 @@ test_lookup_reports_names_without_entry() {
     create_lookup_db
     run_lookup
     assert_status 0
-    assert_eq "lookup	ambiguous	amphiprion clarkii	Amphiprion clarkii	discere:species:3 preferred, discere:species:4 preferred
+    assert_eq "lookup	ambiguous	amphiprion akallopisos	Amphiprion akallopisos	discere:species:1 synonym; fishbase: Synonym von 2 Arten
+lookup	ambiguous	amphiprion clarkii	Amphiprion clarkii	discere:species:3 preferred, discere:species:4 preferred
 lookup	ambiguous	amphiprion communis	Amphiprion communis	discere:species:2 synonym, discere:species:3 ambiguous synonym
 lookup	misapplied	amphiprion vetus	Amphiprion vetus	discere:species:1" "$REPORT" "Bericht"
-    assert_contains "$ERR" "ohne Eintrag: 2 mehrdeutig, 1 nur falsch angewandt"
+    assert_contains "$ERR" "ohne Eintrag: 3 mehrdeutig, 1 nur falsch angewandt"
 }
 
 # Die Validierung verlangt genau die eindeutig auflösbaren Namen, jeden auf

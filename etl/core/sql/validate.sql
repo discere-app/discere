@@ -22,8 +22,10 @@
 
 -- Namen, die species_name_lookup auflösen muss (core/sql/rebuild_lookup.sql),
 -- unabhängig davon formuliert: je Name aktiver Arten ohne falsch angewandte
--- die einzige Art, bei der er bevorzugt ist, oder — bevorzugt nirgends — die
--- einzige, die ihn führt. Jeder andere Name hat keinen Eintrag.
+-- die einzige Art, bei der er bevorzugt ist, oder — bevorzugt nirgends und
+-- keiner Quelle als Synonym mehrerer Arten bekannt
+-- (ambiguous_scientific_names) — die einzige, die ihn führt. Jeder andere
+-- Name hat keinen Eintrag.
 CREATE TEMP VIEW validate_lookup_expected AS
 SELECT normalized_name,
        CASE WHEN SUM(is_preferred) = 1
@@ -38,7 +40,9 @@ FROM (
     GROUP BY ssn.normalized_name, ssn.species_id
 )
 GROUP BY normalized_name
-HAVING SUM(is_preferred) = 1 OR (SUM(is_preferred) = 0 AND COUNT(*) = 1);
+HAVING SUM(is_preferred) = 1
+    OR (SUM(is_preferred) = 0 AND COUNT(*) = 1
+        AND normalized_name NOT IN (SELECT normalized_name FROM ambiguous_scientific_names));
 
 -- Mindest-Zeilenzahlen
 SELECT
@@ -86,16 +90,21 @@ SELECT 'entity_source_keys (Arten)',
 UNION ALL
 
 -- Bevorzugter wissenschaftlicher Name: Jede aktive Art mit Gattung hat einen,
--- und keine Art hat mehr als einen je Quelle (eine Art aus zwei Quellen trägt
--- je Quelle ihren). Ohne ihn verweist der eigene Name der Art im
--- species_name_lookup womöglich auf eine andere Art, die ihn als Synonym
--- führt. Eine Art ohne Gattung hat keinen kanonischen Namen in ihrer Quelle;
+-- und er ist ihr eigener Name — Gattung und Epitheton, normalisiert wie im
+-- Export der Quellen (trim, lower; SQLite senkt nur ASCII, ein Name mit
+-- großem Nicht-ASCII-Buchstaben fiele hier laut auf). Keine Art hat mehr
+-- als einen je Quelle (eine Art aus zwei Quellen trägt je Quelle ihren, der
+-- der anderen Quelle darf deshalb abweichen). Ohne ihn, oder mit einem
+-- fremden, verweist ein Name im species_name_lookup womöglich auf die falsche
+-- Art. Eine Art ohne Gattung hat keinen kanonischen Namen in ihrer Quelle;
 -- übernommene Arten tragen die Namen ihres Vorgängers.
 SELECT 'species (preferred name)',
     (SELECT COUNT(*) FROM species s
-     WHERE s.status = 'active' AND s.genus IS NOT NULL
+     JOIN genera g ON g.id = s.genus
+     WHERE s.status = 'active'
        AND EXISTS (SELECT 1 FROM species_scientific_names ssn
-                   WHERE ssn.species_id = s.id AND ssn.is_preferred = 1)),
+                   WHERE ssn.species_id = s.id AND ssn.is_preferred = 1
+                     AND ssn.normalized_name = lower(trim(g.name) || ' ' || trim(s.name)))),
     (SELECT COUNT(*) FROM species WHERE status = 'active' AND genus IS NOT NULL),
     'always'
 UNION ALL

@@ -297,6 +297,38 @@ COPY (
 TO '${EXPORT_DIR}/species_scientific_names.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
+-- Mehrdeutige Namen (ambiguous_scientific_names)
+-- Namen, die die Quelle als Synonym mehr als einer Art führt, über alle
+-- Ebenen (TaxonLevel): Ein Name kann bei einer Art auf der Ebene Species und
+-- bei einer anderen auf einer anderen Ebene stehen, und nur die erste Zeile
+-- kommt in species_scientific_names. Gezählt werden Binome (Gattung und
+-- Epitheton je ein Wort) an Arten dieses Exports, ohne angenommene und falsch
+-- angewandte Namen — wie bei den Namen oben.
+-- ---------------------------------------------------------------------------
+COPY (
+    SELECT
+        LOWER(CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies)))    AS normalized_name,
+        'sealifebase'                                                    AS source,
+        COUNT(DISTINCT syn.SpecCode)                                     AS species_count
+    FROM read_parquet('${SLB_DIR}/synonyms.parquet') syn
+    JOIN t_species sp
+      ON sp.external_id = CAST(syn.SpecCode AS VARCHAR)
+    WHERE NULLIF(TRIM(syn.SynGenus), '') IS NOT NULL
+      AND NULLIF(TRIM(syn.SynSpecies), '') IS NOT NULL
+      AND TRIM(syn.SynGenus) NOT LIKE '% %'
+      AND TRIM(syn.SynSpecies) NOT LIKE '% %'
+      AND COALESCE(TRIM(syn.Status), '') NOT IN (
+          'accepted name',
+          'provisionally accepted name',
+          'misapplied name'
+      )
+    GROUP BY 1
+    HAVING COUNT(DISTINCT syn.SpecCode) > 1
+    ORDER BY 1
+)
+TO '${EXPORT_DIR}/ambiguous_scientific_names.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
 -- Common Names
 -- Trivialnamen für alle Entitäten (Species + Taxonomie).
 -- Für Species: aus comnames.parquet mit vollem Ranking-Metadaten.

@@ -198,6 +198,25 @@ CREATE INDEX IF NOT EXISTS idx_species_scientific_names_species
     ON species_scientific_names(species_id);
 
 -- ---------------------------------------------------------------------------
+-- Namen, die eine Quelle als Synonym mehr als einer Art fuehrt, ueber alle
+-- Ebenen ihrer Synonymtabelle — auch ueber Zeilen, die nicht in
+-- species_scientific_names stehen (dort nur Synonyme der Ebene Species).
+-- species_name_lookup loest einen solchen Namen nicht ueber ein Synonym auf
+-- (core/sql/rebuild_lookup.sql).
+--
+-- normalized_name  — wie species_scientific_names.normalized_name
+-- source           — Quelle, die den Namen mehrdeutig fuehrt
+-- species_count    — Zahl ihrer Arten mit diesem Namen als Synonym
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS ambiguous_scientific_names (
+    normalized_name  TEXT    NOT NULL,
+    source           TEXT    NOT NULL,
+    species_count    INTEGER NOT NULL CHECK (species_count > 1),
+    PRIMARY KEY (normalized_name, source)
+) WITHOUT ROWID;
+
+-- ---------------------------------------------------------------------------
 -- Materialisierte Lookup-Tabelle fuer schnelle Name->Species-Aufloesung.
 -- Pro normalized_name genau ein Eintrag, bereits disambiguiert nach:
 --   1. is_preferred DESC

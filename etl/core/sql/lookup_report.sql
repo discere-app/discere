@@ -2,7 +2,8 @@
 -- core/sql/rebuild_lookup.sql in derselben Sitzung.
 -- Kategorie ambiguous: ein Name aktiver Arten ohne Eintrag, weil er keine
 -- Art eindeutig meint. Schlüssel ist der normalisierte Name, Detail jede
--- Art mit ihrem Status (preferred bzw. die Status ihrer Zeilen).
+-- Art mit ihrem Status (preferred bzw. die Status ihrer Zeilen), dazu jede
+-- Quelle, die ihn als Synonym mehrerer Arten führt (ambiguous_scientific_names).
 -- Kategorie misapplied: ein Name, den aktive Arten nur als falsch angewandten
 -- führen; Detail die Arten.
 -- Zeilenumbrüche und Tabs in Namen (FishBase führt einzelne) werden zu
@@ -24,6 +25,8 @@ SELECT 'ambiguous',
             FROM lookup_candidates c
             WHERE c.normalized_name = n.normalized_name
             ORDER BY c.species_id))
+       || COALESCE((SELECT '; ' || GROUP_CONCAT(a.source || ': Synonym von ' || a.species_count || ' Arten', '; ')
+                    FROM ambiguous_scientific_names a WHERE a.normalized_name = n.normalized_name), '')
 FROM lookup_names n
 WHERE NOT EXISTS (SELECT 1 FROM species_name_lookup l WHERE l.normalized_name = n.normalized_name)
 UNION ALL

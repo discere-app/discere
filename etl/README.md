@@ -105,8 +105,8 @@ Arten) oder nur als falsch angewandter Name vorkommt (`misapplied`; siehe
 Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
 
 - `always` — Invariante, gilt für jeden Build: ID-Format, ID-Register, je
-  aktiver Art mit Gattung ein bevorzugter wissenschaftlicher Name und je Art
-  und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
+  aktiver Art mit Gattung ein bevorzugter wissenschaftlicher Name, der ihr
+  eigener ist (Gattung und Epitheton), und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
   auflösbaren Namen, jeder auf seine Art;
 - `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
 - `<plugin>[,<plugin>]` — alle genannten Plugins. Eine Mindestzahl nennt die

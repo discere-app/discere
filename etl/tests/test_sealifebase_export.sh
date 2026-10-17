@@ -199,3 +199,46 @@ abra ovata,synonym,11,0"
             "wissenschaftliche Namen ($order)"
     done
 }
+
+# Ersetzt synonyms.parquet durch Synonyme von Abra alba (10) und Abra tenuis
+# (11) auf verschiedenen Ebenen:
+#   abra prima    ambiguous synonym bei 10 (Species) und 11 (Other)
+#   abra secunda  Synonym bei 11 auf Species und Other — dieselbe Art
+#   abra tertia   Synonym bei 10 und beim Platzhalter 14, der keine Art ist
+#   abra quarta   falsch angewandt bei 10, Synonym bei 11
+#   abra quinta   bei 11 nur als Varietät (kein Binom), Synonym bei 10
+write_sealifebase_synonyms_across_levels() {
+    duckdb << SQL
+COPY (
+    SELECT SpecCode, SynGenus, SynSpecies, 1 AS SynonymsRef, TaxonLevel, Status,
+           NULL::VARCHAR AS Synonymy, NULL::VARCHAR AS Combination, 0 AS Misspelling
+    FROM (VALUES
+        (10, 'Abra', 'prima',          'Species', 'ambiguous synonym'),
+        (11, 'Abra', 'prima',          'Other',   'ambiguous synonym'),
+        (11, 'Abra', 'secunda',        'Species', 'synonym'),
+        (11, 'Abra', 'secunda',        'Other',   'synonym'),
+        (10, 'Abra', 'tertia',         'Species', 'synonym'),
+        (14, 'Abra', 'tertia',         'Species', 'synonym'),
+        (10, 'Abra', 'quarta',         'Species', 'misapplied name'),
+        (11, 'Abra', 'quarta',         'Species', 'synonym'),
+        (10, 'Abra', 'quinta',         'Species', 'synonym'),
+        (11, 'Abra', 'quinta var. x',  'Variety', 'synonym')
+    ) AS t(SpecCode, SynGenus, SynSpecies, TaxonLevel, Status)
+) TO '$TEST_TMP/sealifebase/synonyms.parquet' (FORMAT parquet);
+SQL
+}
+
+# Ein Name, den die Quelle als Synonym zweier Arten führt, ist mehrdeutig,
+# auch wenn eine der Zeilen auf einer anderen Ebene als Species steht und
+# deshalb nicht in species_scientific_names kommt. Dieselbe Art auf zwei
+# Ebenen, ein Platzhalter, ein falsch angewandter Name und ein Name, der kein
+# Binom ist, machen keinen Namen mehrdeutig.
+test_sealifebase_export_lists_names_that_are_synonyms_of_several_species() {
+    create_sealifebase_parquets
+    write_sealifebase_synonyms_across_levels
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "abra prima,sealifebase,2" "$(slb_csv_columns ambiguous_scientific_names 1-3)" "mehrdeutige Namen"
+    assert_eq "discere:sealifebase_species:10,abra prima" \
+        "$(slb_csv_columns species_scientific_names 1,3 | grep 'abra prima')" "Name nur auf der Ebene Species"
+}

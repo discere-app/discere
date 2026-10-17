@@ -140,6 +140,9 @@ DELETE FROM classes  WHERE id NOT IN (SELECT id FROM _fixture_class_ids);
 
 DELETE FROM species_scientific_names
   WHERE species_id NOT IN (SELECT id FROM _fixture_species_ids);
+-- Ambiguity marks matter only for names the fixture still carries.
+DELETE FROM ambiguous_scientific_names
+  WHERE normalized_name NOT IN (SELECT normalized_name FROM species_scientific_names);
 DELETE FROM common_names
   WHERE entity_id NOT IN (SELECT id FROM _fixture_entity_ids);
 DELETE FROM taxonomy_traits

@@ -177,15 +177,25 @@ name`, und manche Synonyme mehrfach. Der Export ihrer Plugins
 
 Der Import schreibt ohne `OR REPLACE`: Eine doppelte Zeile wäre ein Fehler im
 Export und bricht den Build ab. Jede aktive Art mit Gattung hat so genau einen
-bevorzugten Namen je Quelle, die Validierung prüft das (`etl/README.md`,
-Validierung). Eine Art ohne Gattung hat in ihrer Quelle keinen kanonischen
-Namen.
+bevorzugten Namen je Quelle, und er ist ihr eigener (Gattung und Epitheton);
+die Validierung prüft beides (`etl/README.md`, Validierung). Eine Art ohne
+Gattung hat in ihrer Quelle keinen kanonischen Namen.
+
+In `species_scientific_names` kommen nur Synonyme der Ebene `Species`
+(`TaxonLevel`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
+auf einer anderen Ebene stehen (SeaLifeBase v26.06: *Aphroceras
+primigenium*, *Dyssycus primigenius*, *Lipostomella primigenia*). Ob ein Name
+mehrdeutig ist, zählt der Export deshalb über alle Ebenen: Jeder Name, den die
+Quelle als Synonym mehr als einer ihrer Arten führt — als Binom, ohne
+angenommene und falsch angewandte Namen —, steht in
+`ambiguous_scientific_names`.
 
 Die App löst Namen über `species_name_lookup` auf (Import, Online-Decks).
 Dort steht ein Name nur, wenn er genau eine aktive Art meint
 (`core/sql/rebuild_lookup.sql`): die einzige, bei der er bevorzugt ist, oder,
-bevorzugt nirgends, die einzige, die ihn führt; falsch angewandte Namen
-zählen nicht. Einen Namen mehrerer Arten — Synonym zweier Arten oder bei
+bevorzugt nirgends und in keiner Quelle mehrdeutig
+(`ambiguous_scientific_names`), die einzige, die ihn führt; falsch
+angewandte Namen zählen nicht. Einen Namen mehrerer Arten — Synonym zweier Arten oder bei
 zweien bevorzugt — löst sie nicht auf, statt eine zu raten. Der Build-Bericht
 nennt jeden solchen Namen mit allen Arten (Quelle `lookup`, Kategorie
 `ambiguous`) und jeden, den aktive Arten nur als falsch angewandten führen
