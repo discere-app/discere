@@ -2,11 +2,93 @@
 # Tests für plugins/inaturalist/import.sh gegen die Mini-DB aus lib.sh und
 # eine kleine taxa.csv.gz (ohne Download)
 
+# Jede taxa.csv.gz enthält Reiche und Stämme, über deren IDs die Taxa der
+# Fälle ihre Ahnenkette angeben:
+#   Animalia 1 › Chordata 2, Arthropoda 3, Mollusca 4, Entoprocta 5,
+#                Acanthocephala 6
+#   Plantae 10 › Tracheophyta 11
+#   Chromista 20 › Ciliophora 21
+CHORDATA='1/2'
+ARTHROPODA='1/3'
+MOLLUSCA='1/4'
+ENTOPROCTA='1/5'
+ACANTHOCEPHALA='1/6'
+TRACHEOPHYTA='10/11'
+CILIOPHORA='20/21'
+
 write_taxa_file() {
     {
         printf 'taxon_id\tancestry\trank_level\trank\tname\tactive\n'
+        printf '%s\n' \
+            $'1\t\t70\tkingdom\tAnimalia\ttrue' \
+            $'2\t1\t60\tphylum\tChordata\ttrue' \
+            $'3\t1\t60\tphylum\tArthropoda\ttrue' \
+            $'4\t1\t60\tphylum\tMollusca\ttrue' \
+            $'5\t1\t60\tphylum\tEntoprocta\ttrue' \
+            $'6\t1\t60\tphylum\tAcanthocephala\ttrue' \
+            $'10\t\t70\tkingdom\tPlantae\ttrue' \
+            $'11\t10\t60\tphylum\tTracheophyta\ttrue' \
+            $'20\t\t70\tkingdom\tChromista\ttrue' \
+            $'21\t20\t60\tphylum\tCiliophora\ttrue'
         printf '%s\n' "$@"
     } | gzip > "$TEST_TMP/taxa.csv.gz"
+}
+
+# Ergänzt die Mini-DB um SeaLifeBase-Ketten für die Stammprüfung:
+#   Mollusca › Gastropoda › Littorinimorpha › Triphoridae › Triphora
+#     sealifebase_species:1  Triphora pusilla
+#     sealifebase_species:2  Ebalia ambiguus  Synonym Paratenuisentis ambiguus
+#                            (Gattung Triphora, nur für die Kette)
+#   Kamptozoa › Entoprocta › Loxosomatida › Loxosomatidae › Loxosomella
+#     sealifebase_species:3  Loxosomella vivipara
+#   Arthropoda › Branchiopoda › Notostraca › Triopsidae › Apus
+#     (dazu die FishBase-Gattung Apus unter Pomacentridae, Chordata)
+#   Not Assigned (Plantae) › Not assigned › Not assigned › Not assigned
+#   › Tintinnopsis
+#     sealifebase_species:4  Tintinnopsis baltica
+#   ohne Gattung
+#     sealifebase_species:5  Alsidium pusillum
+add_sealifebase_chains() {
+    sqlite3 "$DB" << 'SQL'
+INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
+    ('discere:sealifebase_class:1', '1', 'sealifebase', 'Gastropoda',   'Mollusca'),
+    ('discere:sealifebase_class:2', '2', 'sealifebase', 'Entoprocta',   'Kamptozoa'),
+    ('discere:sealifebase_class:3', '3', 'sealifebase', 'Branchiopoda', 'Arthropoda'),
+    ('discere:sealifebase_class:4', '4', 'sealifebase', 'Not assigned', 'Not Assigned (Plantae)');
+INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+    ('discere:sealifebase_order:1', '1', 'sealifebase', 'Littorinimorpha', 'discere:sealifebase_class:1'),
+    ('discere:sealifebase_order:2', '2', 'sealifebase', 'Loxosomatida',    'discere:sealifebase_class:2'),
+    ('discere:sealifebase_order:3', '3', 'sealifebase', 'Notostraca',      'discere:sealifebase_class:3'),
+    ('discere:sealifebase_order:4', '4', 'sealifebase', 'Not assigned',    'discere:sealifebase_class:4');
+INSERT INTO families (id, external_id, external_source, name, "order") VALUES
+    ('discere:sealifebase_family:1', '1', 'sealifebase', 'Triphoridae',   'discere:sealifebase_order:1'),
+    ('discere:sealifebase_family:2', '2', 'sealifebase', 'Loxosomatidae', 'discere:sealifebase_order:2'),
+    ('discere:sealifebase_family:3', '3', 'sealifebase', 'Triopsidae',    'discere:sealifebase_order:3'),
+    ('discere:sealifebase_family:4', '4', 'sealifebase', 'Not assigned',  'discere:sealifebase_order:4');
+INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+    ('discere:sealifebase_genus:1', '1', 'sealifebase', 'Triphora',     'discere:sealifebase_family:1'),
+    ('discere:sealifebase_genus:2', '2', 'sealifebase', 'Loxosomella',  'discere:sealifebase_family:2'),
+    ('discere:sealifebase_genus:3', '3', 'sealifebase', 'Apus',         'discere:sealifebase_family:3'),
+    ('discere:sealifebase_genus:4', '4', 'sealifebase', 'Tintinnopsis', 'discere:sealifebase_family:4'),
+    ('discere:fishbase_genus:9',    '9', 'fishbase',    'Apus',         'discere:fishbase_family:1');
+INSERT INTO species (id, external_id, external_source, name, genus, status) VALUES
+    ('discere:sealifebase_species:1', '1', 'sealifebase', 'pusilla',  'discere:sealifebase_genus:1', 'active'),
+    ('discere:sealifebase_species:2', '2', 'sealifebase', 'ambiguus', 'discere:sealifebase_genus:1', 'active'),
+    ('discere:sealifebase_species:3', '3', 'sealifebase', 'vivipara', 'discere:sealifebase_genus:2', 'active'),
+    ('discere:sealifebase_species:4', '4', 'sealifebase', 'baltica',  'discere:sealifebase_genus:4', 'active'),
+    ('discere:sealifebase_species:5', '5', 'sealifebase', 'pusillum', NULL,                          'active');
+INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
+    ('discere:sealifebase_species:1', 'Triphora pusilla',         'triphora pusilla',         'valid',   'sealifebase', 1),
+    ('discere:sealifebase_species:2', 'Ebalia ambiguus',          'ebalia ambiguus',          'valid',   'sealifebase', 1),
+    ('discere:sealifebase_species:2', 'Paratenuisentis ambiguus', 'paratenuisentis ambiguus', 'synonym', 'sealifebase', 0),
+    ('discere:sealifebase_species:3', 'Loxosomella vivipara',     'loxosomella vivipara',     'valid',   'sealifebase', 1),
+    ('discere:sealifebase_species:4', 'Tintinnopsis baltica',     'tintinnopsis baltica',     'valid',   'sealifebase', 1),
+    ('discere:sealifebase_species:5', 'Alsidium pusillum',        'alsidium pusillum',        'valid',   'sealifebase', 1);
+SQL
+}
+
+inaturalist_report() {
+    tail -n +2 "$TEST_TMP/report/inaturalist.tsv" 2> /dev/null | LC_ALL=C sort || true
 }
 
 run_inaturalist_import() {
@@ -23,17 +105,17 @@ inaturalist_mappings() {
 test_inaturalist_maps_unambiguous_taxa_and_reports_the_rest() {
     create_mini_reference_db
     write_taxa_file \
-        $'100\t1\t10\tspecies\tAmphiprion ocellaris\ttrue' \
-        $'101\t1\t10\tspecies\tAmphiprion bicolor\ttrue' \
-        $'102\t1\t10\tspecies\tAmphiprion percula\ttrue' \
-        $'103\t1\t10\tspecies\tAmphiprion communis\ttrue' \
-        $'104\t1\t20\tgenus\tAmphiprion\ttrue' \
-        $'105\t2\t20\tgenus\tAmphiprion\ttrue' \
-        $'106\t1\t30\tfamily\tPomacentridae\ttrue' \
-        $'107\t1\t50\tclass\tTeleostei\ttrue' \
-        $'108\t1\t10\tspecies\tAmphiprion clarkii\tfalse' \
-        $'109\t1\t10\tspecies\tHomo sapiens\ttrue' \
-        $'110\t1\t40\torder\tOvalentaria\ttrue'
+        $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue' \
+        $'101\t1/2\t10\tspecies\tAmphiprion bicolor\ttrue' \
+        $'102\t1/2\t10\tspecies\tAmphiprion percula\ttrue' \
+        $'103\t1/2\t10\tspecies\tAmphiprion communis\ttrue' \
+        $'104\t1/2\t20\tgenus\tAmphiprion\ttrue' \
+        $'105\t1/2\t20\tgenus\tAmphiprion\ttrue' \
+        $'106\t1/2\t30\tfamily\tPomacentridae\ttrue' \
+        $'107\t1/2\t50\tclass\tTeleostei\ttrue' \
+        $'108\t1/2\t10\tspecies\tAmphiprion clarkii\tfalse' \
+        $'109\t1/2\t10\tspecies\tHomo sapiens\ttrue' \
+        $'110\t1/2\t40\torder\tOvalentaria\ttrue'
     run_inaturalist_import
     assert_status 0
     assert_eq "" "$OUT" "stdout"
@@ -45,7 +127,7 @@ family:pomacentridae families 106
 order:ovalentaria orders 110" "$(inaturalist_mappings)" "Zuordnungen"
     assert_eq "inaturalist	ambiguous	101	Amphiprion bicolor	weitere Datensätze treffen discere:fishbase_species:1: 100
 inaturalist	ambiguous	103	Amphiprion communis	mehrere Entitäten: discere:fishbase_species:2, discere:fishbase_species:3
-inaturalist	ambiguous	104, 105	Amphiprion	mehrere aktive iNaturalist-Taxa auf Rang genus" \
+inaturalist	ambiguous	104, 105	Amphiprion	mehrere aktive iNaturalist-Taxa mit passendem Stamm auf Rang genus" \
         "$(tail -n +2 "$TEST_TMP/report/inaturalist.tsv" | LC_ALL=C sort)" "Build-Bericht"
     assert_eq "inaturalist|CC BY / CC0|https://www.inaturalist.org/taxa/{external_id}" \
         "$(sqlite3 "$DB" "SELECT id, license_key, species_url_template FROM sources WHERE id = 'inaturalist';")" \
@@ -54,10 +136,10 @@ inaturalist	ambiguous	104, 105	Amphiprion	mehrere aktive iNaturalist-Taxa auf Ra
 
 test_inaturalist_reimport_replaces_its_mappings() {
     create_mini_reference_db
-    write_taxa_file $'100\t1\t10\tspecies\tAmphiprion ocellaris\ttrue'
+    write_taxa_file $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue'
     run_inaturalist_import
     assert_status 0
-    write_taxa_file $'102\t1\t10\tspecies\tAmphiprion percula\ttrue'
+    write_taxa_file $'102\t1/2\t10\tspecies\tAmphiprion percula\ttrue'
     run_inaturalist_import
     assert_status 0
     assert_eq "discere:fishbase_species:2 species 102" "$(inaturalist_mappings)" "Zuordnungen nach Reimport"
@@ -75,7 +157,7 @@ test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
     sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
         ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1'),
         ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', NULL);"
-    write_taxa_file $'200\t1\t20\tgenus\tPremnas\ttrue'
+    write_taxa_file $'200\t1/2\t20\tgenus\tPremnas\ttrue'
     run_inaturalist_import
     assert_status 0
     assert_eq "genus:premnas genera 200" "$(inaturalist_mappings)" "Zuordnungen"
@@ -87,8 +169,8 @@ test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
 # iNaturalist-Taxa deshalb auch nicht ein und landen nicht als none im Bericht.
 test_inaturalist_ignores_names_of_deprecated_species() {
     create_mini_reference_db
-    write_taxa_file $'100\t1\t10\tspecies\tAmphiprion ocellaris\ttrue' \
-                    $'300\t1\t10\tspecies\tAmphiprion vetus\ttrue'
+    write_taxa_file $'100\t1/2\t10\tspecies\tAmphiprion ocellaris\ttrue' \
+                    $'300\t1/2\t10\tspecies\tAmphiprion vetus\ttrue'
     run_inaturalist_import
     assert_status 0
     assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
