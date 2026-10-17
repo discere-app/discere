@@ -23,7 +23,9 @@
 #      external_id) zuordnen: bekannter Schlüssel → registrierte ID; Art mit
 #      unbekanntem Schlüssel → Abgleich gegen die Arten anderer Quellen, je
 #      Quelle nach placement_priority; sonst neue ID (identity_assign.sql,
-#      identity_match.sql, identity_number.sql).
+#      identity_match.sql, identity_number.sql). Trägt ein bekannter
+#      Schlüssel eines höheren Taxons einen anderen Namen als im Vorgänger,
+#      Abbruch (identity_key_names.sql).
 #   3. Umschreiben: jede Spalte, die auf eine Entität verweist, bekommt die
 #      endgültige ID. Gehen zwei Zeilen in einer Art auf, bleibt die der
 #      gewichtigeren Quelle; Beiträge der anderen werden umgehängt.
@@ -70,7 +72,7 @@ while [[ $# -gt 0 ]]; do
         --initial)          INITIAL=true ;;
         --accept-species-loss) ACCEPTED_LOSS="$ACCEPTED_LOSS$2 "; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 46
+            plugin_print_help_from_header "$0" 2 48
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -339,6 +341,9 @@ LEFT JOIN prev.genera g ON g.id = s.genus;
 SQL
     fi
     echo ".read \"$SQL_DIR/identity_assign.sql\""
+    if [[ "$INITIAL" == false ]]; then
+        echo ".read \"$SQL_DIR/identity_key_names.sql\""
+    fi
     loss_limits_sql
     echo ".read \"$SQL_DIR/identity_source_loss.sql\""
 
