@@ -373,6 +373,8 @@ ETL-Build:
   taxa.csv (iNaturalist AWS Open Data)
     → JOIN auf genus + species (Binomialname)
     → JOIN auf genus/family/order/class Namen
+    → nur Taxa, deren Stamm zur eigenen Kette jeder gleichnamigen Entität passt
+      (docs/datenquellen.md, Stamm bei der iNaturalist-Zuordnung)
     → entity_external_ids befüllen
 
 App:

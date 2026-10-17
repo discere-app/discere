@@ -351,6 +351,61 @@ Prüfung sitzt im Export, der Build-Bericht hält jeden Fall fest. Die
 Validierung prüft nur, dass der bevorzugte Name einer Art ohne Gattung auf
 ihr Epitheton endet.
 
+### Stamm bei der iNaturalist-Zuordnung
+
+Der Abgleich über den Namen trennt keine Homonyme über Reiche und Stämme
+hinweg: Die Schnecke *Triphora pusilla* trägt denselben Namen wie eine
+Orchidee, die Muschel *Callista eucymata* führt bei SeaLifeBase das Synonym
+*Cytherea eucymata*, unter dem iNaturalist eine Fliege führt. Kennt
+iNaturalist nur das fremde Taxon, träfe der Name es eindeutig. Das Plugin
+`inaturalist` prüft deshalb vor dem Abgleich den Stamm
+(`plugins/inaturalist/sql/export.sql`):
+
+- **Stamm des iNaturalist-Taxons** — aus seiner Ahnenkette in `taxa.csv`
+  (Spalte `ancestry`), über die eigenen Zeilen der Datei, ohne API.
+- **Stamm der eigenen Kette** — Art › Gattung › Familie › Ordnung › Klasse,
+  dort `super_class` (`plugins/inaturalist/sql/reference_names.sql`).
+  FishBase führt in dieser Spalte die Überklasse (Osteichthyes, Agnatha, …);
+  ihre Taxa gelten als Chordata.
+- **Passt**, wenn beide gleich sind oder das Paar in
+  `plugins/inaturalist/data/phylum_equivalents.csv` steht: Stamm der Kette,
+  iNaturalist-Stamm, Begründung. Die Liste fängt ab, dass SeaLifeBase und
+  iNaturalist Stämme verschieden fassen oder benennen (Bacillariophyta →
+  Ochrophyta, Kamptozoa → Entoprocta, Myzozoa → Miozoa, …). Ein Paar gehört
+  hinein, wenn es dieselbe Gruppe meint und unter den Namensgleichen
+  tatsächlich vorkommt — beide Stämme stehen dann unter demselben
+  Nomenklatur-Code, der gleiche Namen innerhalb seines Reichs ausschließt.
+- **Platzhalter-Stamm** („Not Assigned (Plantae)“, Muster aus
+  `core/data/placeholder_patterns.csv`): Nennt er ein Reich, das iNaturalist
+  führt, wird das Reich verglichen — nur wenn die Entität den Namen allein
+  trägt; neben gleichnamigen Entitäten ließe das Reich offen, ob alle zum
+  selben Stamm gehören.
+- **Nicht prüfbar** ist eine Entität ohne Stamm (Kette bricht ab, etwa eine
+  Art ohne Gattung), mit einem Platzhalter ohne Reich, oder ein
+  iNaturalist-Taxon ohne Stamm in seiner Ahnenkette.
+
+Ein iNaturalist-Taxon geht nur in den Abgleich, wenn sein Stamm zu **jeder**
+Entität passt, die seinen Namen auf diesem Rang trägt — bei Arten auch als
+Synonym (ohne falsch angewandte Namen, wie im Abgleich). Für höhere Taxa
+heißt das: Der Namensschlüssel (`genus:megalomma`) steht für alle
+gleichnamigen Zeilen der Rangtabelle, und gehören die zu verschiedenen
+Stämmen, ist jedes Taxon für eine davon falsch. Lieber keine Zuordnung als
+eine falsche — auch dann, wenn im Einzelfall die eigene Kette falsch ist und
+iNaturalist recht hätte (*Phoronis* steht bei SeaLifeBase unter Aplacophora).
+
+Führt iNaturalist mehrere aktive Taxa desselben Namens und Rangs, zählen
+nur die mit passendem Stamm: Bleibt genau eines, geht es in den Abgleich
+(die Ruderfußkrebs-Gattung *Gaussia* neben der gleichnamigen Palme), bleiben
+mehrere, keines.
+
+Jedes abgelehnte Taxon steht im Build-Bericht mit Grund — `phylum_mixed`
+(passt zu einem Teil der Entitäten seines Namens, zu einem anderen nicht),
+`phylum_unknown` (für eine Entität nicht prüfbar) oder `phylum_mismatch`
+(zu keiner passend) — und dem Stamm jeder Entität. Den Stamm des
+iNaturalist-Taxons kennt die DB nicht; `validate.sql` prüft, was ohne ihn
+feststeht: Jede zugeordnete Art und jede Entität hinter einem zugeordneten
+Namensschlüssel hat eine Kette bis zur Klasse.
+
 ### Fehlende und mehrdeutige Zuordnungen
 
 Was mit einem Datensatz ohne eindeutige Entität geschieht, hängt davon ab, wem
@@ -769,7 +824,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
 | Aliase | ja — ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige) und App (`ReferenceIdMigration` beim Start, Schemaversion 2; Updates aus der Sitzung werden bereitgelegt und beim Start eingesetzt) |
 | `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
-| iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |
+| iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel; zugeordnet wird nur, wenn der Stamm des iNaturalist-Taxons zu jeder passt (siehe [Stamm bei der iNaturalist-Zuordnung](#stamm-bei-der-inaturalist-zuordnung)) |
 
 ---
 
@@ -896,6 +951,18 @@ installiert.
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein
   eigener Schritt eine davon zum Alias macht.
+
+- **Die Stammprüfung der iNaturalist-Zuordnung ist nur so gut wie die
+  eigene Kette.** Steht eine Art bei SeaLifeBase im falschen Stamm
+  (*Phoronis*, *Priapulus* unter den Schnecken, das Seegras *Halophila*
+  unter den Moostierchen, Ciliaten unter „Not Assigned (Plantae)“), lehnt
+  sie die richtige Zuordnung ab; eine Art ohne Gattung oder eine
+  gleichnamige Zeile ohne Kette (FishBase führt *Gobio* zusätzlich als
+  Gattung ohne Familie und Arten) verhindert sie ganz. Umgekehrt trennt sie
+  keine Homonyme innerhalb eines Stamms; dort hilft erst eine gemeinsame
+  externe ID oder der Vergleich von Gattung und Familie. Die App sucht ein
+  Taxon, für das die Referenz-DB keine ID hat, zur Laufzeit selbst über den
+  Namen und kann dabei das abgelehnte Taxon wieder finden.
 
 Unabhängig davon, *(umgesetzt)*: Die iNaturalist-Zuordnung ist eine Quelle
 mit `depends_on_sources: [fishbase, sealifebase]` und `optional: true`.
