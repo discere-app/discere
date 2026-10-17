@@ -247,6 +247,61 @@ Grund). Für höhere Ränge gibt es keine solche Regel: Fehlt einer Gattung die
 Familie oder einer Familie die Ordnung, nennt die Quelle keinen Namen, über
 den sie sich auflösen ließe (siehe [Bekannte Grenzen](#bekannte-grenzen)).
 
+### Doppelte Codes in der Quelle
+
+Der Code einer Zeile (ClassNum, Ordnum, FamCode, GenCode, SpecCode) ist ihr
+Quellenschlüssel. SeaLifeBase vergibt drei Ordnum doppelt (v26.06): 10385
+an *Phymosomatoida* (Echinoidea) und „Not assigned“ (Chromista), 10670 an
+*Globigerinida* (Foraminifera) und *Tetractinellida* (Porifera), 10688 an
+*Araneae* (Arachnida) und *Seguenziida* (Gastropoda). FishBase führt keinen
+doppelten Code, auf keinem Rang. Ein doppelter Code nennt kein Taxon: Eine
+zufällig gewählte Zeile hinge Familien unter eine Ordnung aus einem anderen
+Stamm, und ihr Schlüssel könnte von Build zu Build das Taxon wechseln. Beide
+Exporte wenden deshalb dieselbe Regel an (`core/sql/source_codes.sql`):
+
+- **Ordnung einer Familie.** Bei eindeutigem Ordnum die Ordnung dieses
+  Codes. Bei doppeltem die Zeile, deren Name gleich dem Ordnungsnamen ist,
+  den die Familie selbst nennt (ohne Leerzeichen am Rand und Groß- und
+  Kleinschreibung), und deren ClassNum gleich der ClassNum der Familie ist.
+  Trifft das nicht genau eine Zeile, hat die Familie keine Ordnung.
+- **Entität unter einem doppelten Ordnum** wird höchstens eine Zeile: die
+  einzige, an deren Familien Arten hängen, über den FamCode der Art oder
+  über ihre Gattung. Halten keine oder mehrere Zeilen Arten, wird keine
+  exportiert. Die übrigen Zeilen bekommen keinen eigenen Schlüssel, denn
+  der Code nennt schon das Taxon, das Arten hält; ihre Familien bleiben
+  ohne Ordnung.
+- **Übrige Ränge.** Für einen doppelten ClassNum, FamCode, GenCode oder
+  SpecCode nennt die Quelle keinen Namen, über den sich eine Zeile wählen
+  ließe. Keine wird exportiert; was auf den Code zeigt, bleibt ohne diese
+  Stufe.
+
+Jede Zeile eines doppelten Codes steht im Build-Bericht (`code_duplicate`,
+mit Ausgang), ebenso jede Familie unter einem doppelten Ordnum
+(`family_order_resolved` mit ihrer Ordnung, `family_order_rejected` mit
+Grund). Für v26.06:
+
+| Ordnum | Entität | Familien |
+|---|---|---|
+| 10670 | *Tetractinellida* | alle 8 nennen *Tetractinellida*; *Globigerinida* hat keine Familie |
+| 10688 | *Seguenziida* | 8 nennen *Seguenziida*; *Desidae* (Spinnen, ohne Arten) nennt *Araneae* und bleibt ohne Ordnung |
+| 10385 | keine | die Chromista-Familie „Not assigned“ (FamCode 4430, ohne Arten) nennt „Not assigned“ und bleibt ohne Ordnung; *Phymosomatoida* hat keine Familie |
+
+Unter 10385 hält keine Zeile Arten, also wird keine exportiert. Der
+Schlüssel bleibt inaktiv auf *Phymosomatoida*, das der Vorgänger dort führt,
+und die Identitäts-Stage übernimmt die Ordnung wie jede Entität ohne aktiven
+Schlüssel, nun ohne Familie. „Not assigned“ unter diesen Schlüssel zu legen
+hieße, ihn auf ein anderes Taxon zu legen.
+
+Dass der Schlüssel einer gewählten Zeile dasselbe Taxon nennt wie im
+Vorgänger, kann der Export nicht wissen; er kennt den Vorgänger nicht. Das
+prüft die Identitäts-Stage für jeden bekannten Schlüssel eines höheren
+Taxons (siehe [Das Register vergibt IDs stabil](#das-register-vergibt-ids-stabil)).
+
+Weil jeder Code nur einmal exportiert wird, steht jede Klasse, Ordnung,
+Familie, Gattung und Art genau einmal im Export. Klassen, Ordnungen und
+Familien importieren die Plugins ohne `OR IGNORE`; eine Kollision bricht den
+Import ab, statt still eine Zeile zu behalten.
+
 ### Gattung und Familie einer Art widersprechen sich
 
 Eine SeaLifeBase-Art nennt ihre Familie zweimal: über die Gattung (GenCode)
@@ -255,26 +310,28 @@ teils bis hinauf zum Stamm (Hydrozoen der Gattung *Gattya* hängen an einer
 gleichnamigen Rotalgen-Gattung). Welche Angabe stimmt, sagt die Quelle
 nicht. Der Export behält die Gattung — über GenCode oder über den Namen
 gefunden — nur, wenn sie zur Art passt, und vergleicht dazu die Kette, die
-die DB zeigt: Familie → Ordnung (Ordnum) → Klasse → Stamm. Die eigenen
-Felder `ClassNum` und `Phylum` der Familien zählen nicht; sie widersprechen
-der Kette bei Hunderten Familien.
+die DB zeigt: Familie → Ordnung → Klasse → Stamm, mit der Ordnung nach
+[Doppelte Codes in der Quelle](#doppelte-codes-in-der-quelle). Die eigenen
+Felder `ClassNum` und `Phylum` der Familien zählen sonst nicht; sie
+widersprechen der Kette bei Hunderten Familien.
 
 - **Gleiche Familie und gleicher Name** (Gattungsname gleich `Genus` der
   Art, ohne Rücksicht auf Leerzeichen und Groß- und Kleinschreibung): Die
   Gattung bleibt.
 - **Anderer Name, anderer Stamm, andere Klasse, oder die Ordnung einer Seite
-  ist unklar** (Ordnum mehrdeutig, Familie ohne Ordnung, Gattung ohne
+  ist unklar** (Familie ohne Ordnung, auch unter einem doppelten Ordnum,
+  der sich nicht auflösen lässt, Gattung ohne
   Familie, Klasse oder Stamm ein Rang-Platzhalter wie „Not assigned“ —
   zwei Familien unter derselben Platzhalter-Klasse können in verschiedenen
   echten Klassen stehen): Die Gattung bleibt leer (`genus_rejected`, Grund
-  `Name`, `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 71 Arten). Lieber
+  `Name`, `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 51 Arten). Lieber
   keine Einordnung als eine falsche, auch wenn im Einzelfall die Gattung
   recht hätte und der FamCode der Art falsch ist. Platzhalter erkennt der
   Export nach denselben Mustern wie Stage 02d
   (`core/data/placeholder_patterns.csv`).
 - **Nur Familie oder Ordnung anders, Klasse und Stamm gleich:** Die Gattung
   bleibt (`genus_kept_family_differs`, `genus_kept_order_differs`, mit
-  beiden Ketten; v26.06: 639 bzw. 145). Meist ist eine der beiden Angaben
+  beiden Ketten; v26.06: 639 bzw. 165). Meist ist eine der beiden Angaben
   nach einer Umstellung veraltet.
 
 Eine Art ohne Gattung behält ihren wissenschaftlichen Namen: Bevorzugt ist
@@ -375,6 +432,15 @@ Referenz-DB durch die endgültigen:
   zusammen (siehe [Einordnung](#einordnung)). Kein oder ein mehrdeutiger
   Treffer ergibt eine neue Entität, ein mehrdeutiger dazu einen Eintrag im
   Build-Bericht (Quelle `identity`).
+- **Höheres Taxon mit bekanntem Schlüssel und anderem Namen** — Abbruch
+  (`core/sql/identity_key_names.sql`). Höhere Taxa ordnet die Stage allein
+  über den Schlüssel zu; trägt er einen anderen Namen als seine Entität im
+  Vorgänger (ohne Leerzeichen am Rand und Groß- und Kleinschreibung), bekäme
+  deren ID ein anderes Taxon, und Register, Aliase und Nutzerdaten zeigten
+  auf etwas anderes. Ob es dasselbe Taxon in neuer Schreibweise ist, kann
+  der Build nicht entscheiden. Arten sind ausgenommen: Ihr Name in `species`
+  ist das Epitheton, dessen Schreibweise die Quellen unter gleichem
+  Schlüssel korrigieren.
 - **Höheres Taxon mit unbekanntem Schlüssel** — eine neue Entität. Siehe
   [Bekannte Grenzen](#bekannte-grenzen).
 - **Neue IDs** zählen je Typ ab der größten Nummer, die Register, Aliase oder
@@ -799,6 +865,24 @@ installiert.
   Eine Stichprobe gegen WoRMS fand darunter etwa so viele veraltete wie
   aktuelle Familien der Gattung. Entscheiden ließe sich das nur mit einer
   Referenz von außen ([#337](https://github.com/discere-app/discere/issues/337)).
+- **Doppelte Codes lösen sich nur über die Angaben der Quelle auf.** Unter
+  einem doppelten Ordnum entscheiden Ordnungsname und ClassNum, die die
+  Familie selbst nennt, und welche Zeile Arten hält (siehe
+  [Doppelte Codes in der Quelle](#doppelte-codes-in-der-quelle)). Eine
+  Familie, deren ClassNum veraltet ist — bei eindeutigem Ordnum weicht sie
+  in v26.06 bei 329 Familien von der Klasse ihrer Ordnung ab —, bliebe unter
+  einem doppelten Ordnum ohne Ordnung. Eine Invariante über die eigene
+  Klasse der Familie gibt es deshalb weder im Export noch in
+  `validate.sql`: Die DB kennt diese Angabe nicht, und über alle Familien
+  gälte sie nicht. Die Regel prüfen Bericht und Tests.
+- **Ein neuer Name unter bekanntem Schlüssel stoppt den Build.** Die
+  Identitäts-Stage erkennt einen Schlüsselwechsel nur am Namen (siehe
+  [Das Register vergibt IDs stabil](#das-register-vergibt-ids-stabil)).
+  Korrigiert eine Quelle die Schreibweise eines höheren Taxons unter
+  gleichem Code, bricht der Build ebenso ab, und es braucht eine
+  Entscheidung im Code; zwischen refdb-v2 und v26.06 kommt das auf keinem
+  Rang vor. Umgekehrt fällt ein Wechsel zwischen zwei gleichnamigen Taxa
+  (etwa zwei Ordnungen „Not assigned“) nicht auf.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein
