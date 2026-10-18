@@ -415,10 +415,12 @@ inaturalist	phylum_unknown	410	Tintinnopsis	iNaturalist: Tracheophyta / - / - / 
 }
 
 # Über ein Synonym nur bei gleicher Familie: SeaLifeBase führt Synonyme, die
-# anderen Arten gehören.
+# anderen Arten gehören. Amphiprion frenata (Genusangleichung von frenatus)
+# ist dagegen ein Synonym derselben Art.
 test_inaturalist_maps_synonym_only_with_the_same_family() {
     create_mini_reference_db
-    write_taxa_file "501	$POMACENTRIDAE	10	species	Amphiprion melanopus	true" \
+    add_frenata_synonym
+    write_taxa_file "501	$POMACENTRIDAE	10	species	Amphiprion frenata	true" \
                     "502	$APODIDAE	10	species	Amphiprion bicolor	true"
     run_inaturalist_import
     assert_status 0
@@ -427,4 +429,83 @@ test_inaturalist_maps_synonym_only_with_the_same_family() {
         "$(inaturalist_report)" "Build-Bericht"
     assert_eq '{"phylum":"Chordata","class":"Actinopterygii","order":"Ovalentaria","family":"Pomacentridae","matched_by":"synonym","homonym":0}' \
         "$(sqlite3 "$DB" "SELECT metadata_json FROM entity_external_ids WHERE external_id = '501';")" "metadata_json"
+}
+
+# Auch in derselben Familie führt SeaLifeBase Synonyme anderer Arten (Mactra
+# mera mit dem Synonym Mactra antiquata): Das Epitheton des Synonyms muss in
+# den ersten vier Buchstaben dem der Art gleichen. Amphiprion melanopus ist
+# hier Synonym von Amphiprion frenatus.
+test_inaturalist_rejects_synonym_with_another_epithet() {
+    create_mini_reference_db
+    write_taxa_file "$OCELLARIS" "503	$POMACENTRIDAE	10	species	Amphiprion melanopus	true"
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "$OCELLARIS_MAPPING" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	synonym_epithet	503	Amphiprion melanopus	Epitheton von discere:fishbase_species:5: frenatus" \
+        "$(inaturalist_report)" "Build-Bericht"
+}
+
+# validate() prüft jede Zuordnung mit eigener SQL gegen taxa.csv und die
+# Kette. Eine Kopie des Plugins, deren Prüfung oder metadata_json kaputt
+# ist, muss deshalb scheitern, statt die falsche Zuordnung zu schreiben.
+run_broken_plugin() {
+    local file="$1" old="$2" new="$3"
+    mkdir -p "$TEST_TMP/etl/plugins"
+    cp -R "$ETL_DIR/core" "$TEST_TMP/etl/core"
+    cp -R "$ETL_DIR/plugins/inaturalist" "$TEST_TMP/etl/plugins/inaturalist"
+    OLD="$old" NEW="$new" python3 -c '
+import os, sys
+path = sys.argv[1]
+text = open(path).read()
+assert text.count(os.environ["OLD"]) == 1, os.environ["OLD"]
+open(path, "w").write(text.replace(os.environ["OLD"], os.environ["NEW"]))' \
+        "$TEST_TMP/etl/plugins/inaturalist/$file"
+    export DISCERE_REPORT_DIR="$TEST_TMP/report"
+    run_capture "$TEST_TMP/etl/plugins/inaturalist/import.sh" --db "$DB" --taxa-file "$TEST_TMP/taxa.csv.gz"
+}
+
+test_inaturalist_validation_fails_on_wrong_phylum() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file "$OCELLARIS" "401	$TRACHEOPHYTA	10	species	Triphora pusilla	true"
+    run_broken_plugin sql/export.sql "        ELSE l.phylum = c.chain_phylum" "        ELSE true"
+    assert_status 1
+    assert_contains "$ERR" "Zuordnungen passen nicht zur Kette (1):"
+    assert_contains "$ERR" "discere:sealifebase_species:1	401	stamm	discere:sealifebase_species:1"
+}
+
+test_inaturalist_validation_fails_on_wrong_class() {
+    create_mini_reference_db
+    sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+        ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1');"
+    write_taxa_file "$OCELLARIS" "201	$REPTILIA	20	genus	Premnas	true"
+    run_broken_plugin sql/export.sql "             AND NOT bool_and(k.rank_fits) THEN 'rank_mismatch'" \
+                                     "             AND false THEN 'rank_mismatch'"
+    assert_status 1
+    assert_contains "$ERR" "genus:premnas	201	rang	discere:fishbase_genus:2"
+}
+
+test_inaturalist_validation_fails_on_synonym_of_another_species() {
+    create_mini_reference_db
+    write_taxa_file "502	$APODIDAE	10	species	Amphiprion bicolor	true" \
+                    "503	$POMACENTRIDAE	10	species	Amphiprion melanopus	true"
+    run_broken_plugin import.sh "WHERE record_key NOT IN (SELECT record_key FROM tmp_rejected);" "WHERE 1;"
+    assert_status 1
+    assert_contains "$ERR" "Zuordnungen passen nicht zur Kette (2):"
+    assert_contains "$ERR" "discere:fishbase_species:1	502	synonym	discere:fishbase_species:1"
+    assert_contains "$ERR" "discere:fishbase_species:5	503	synonym	discere:fishbase_species:5"
+}
+
+test_inaturalist_validation_fails_on_wrong_metadata() {
+    create_mini_reference_db
+    write_taxa_file "$OCELLARIS"
+    run_broken_plugin import.sh "json_object('phylum', phylum," "json_object('phylum', 'Mollusca',"
+    assert_status 1
+    assert_contains "$ERR" "discere:fishbase_species:1	100	metadata"
+}
+
+add_frenata_synonym() {
+    sqlite3 "$DB" "INSERT INTO species_scientific_names
+        (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
+        ('discere:fishbase_species:5', 'Amphiprion frenata', 'amphiprion frenata', 'synonym', 'fishbase', 0);"
 }

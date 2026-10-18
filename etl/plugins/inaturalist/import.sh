@@ -148,10 +148,14 @@ export_records() {
 # die Namensschlüssel höherer Taxa sind die, die die App abfragt.
 #
 # Arten werden nur bei matched zugeordnet, über ein Synonym nur, wenn die
-# Familie des iNaturalist-Taxons gleich der eigenen ist: SeaLifeBase führt
-# Synonyme, die anderen Arten gehören (der Kappensäger trägt den Namen einer
-# Möwe), und der Stamm allein fängt das nicht ab. Abgelehnte stehen als
-# synonym_family im Build-Bericht.
+# Familie des iNaturalist-Taxons gleich der eigenen ist und das Epitheton
+# des Synonyms in den ersten vier Buchstaben dem der Art gleicht (ohne
+# Leerzeichen am Rand, klein geschrieben; so gehen Genusangleichungen wie
+# pulcher/pulchra und Schreibvarianten wie leeorum/leei durch): SeaLifeBase
+# führt Synonyme, die anderen Arten gehören — auch aus anderen Familien (der
+# Kappensäger trägt den Namen einer Möwe), auch aus derselben (Mactra mera
+# das Synonym Mactra antiquata). Abgelehnte stehen als synonym_family bzw.
+# synonym_epithet im Build-Bericht.
 #
 # Höhere Taxa adressiert die App über den Namensschlüssel, den alle
 # gleichnamigen Zeilen einer Rangtabelle teilen (FishBase führt etwa Gobio
@@ -189,20 +193,36 @@ SELECT r.*, NULLIF(l.phylum, '') AS phylum, NULLIF(l.class, '') AS class,
        (SELECT f.name FROM species s
         JOIN genera g ON g.id = s.genus
         JOIN families f ON f.id = g.family
-        WHERE s.id = r.entity_id) AS own_family
+        WHERE s.id = r.entity_id) AS own_family,
+       (SELECT LOWER(TRIM(s.name)) FROM species s WHERE s.id = r.entity_id) AS own_epithet,
+       LOWER(TRIM(substr(TRIM(r.name), instr(TRIM(r.name), ' ') + 1))) AS name_rest
 FROM tmp_match_result r
 JOIN tmp_lineage l ON l.record_key = r.record_key
 WHERE r.status = 'matched'
    OR (r.rank != 'species' AND r.status = 'ambiguous');
-.mode tabs
-.once "$WORK_DIR/synonym_report.tsv"
-SELECT 'synonym_family', record_key, name,
-       'iNaturalist-Familie: ' || COALESCE(family, '-') || '; Familie von ' || entity_id || ': '
-           || COALESCE(own_family, '-')
+CREATE TEMP TABLE tmp_rejected AS
+SELECT record_key, name, entity_id,
+       CASE
+           WHEN family IS NULL OR own_family IS NULL OR LOWER(TRIM(own_family)) != LOWER(family)
+           THEN 'synonym_family'
+           ELSE 'synonym_epithet'
+       END AS category,
+       CASE
+           WHEN family IS NULL OR own_family IS NULL OR LOWER(TRIM(own_family)) != LOWER(family)
+           THEN 'iNaturalist-Familie: ' || COALESCE(family, '-') || '; Familie von ' || entity_id
+                || ': ' || COALESCE(own_family, '-')
+           ELSE 'Epitheton von ' || entity_id || ': ' || COALESCE(own_epithet, '-')
+       END AS detail
 FROM tmp_accepted
 WHERE matched_by = 'synonym'
-  AND (family IS NULL OR own_family IS NULL OR LOWER(TRIM(own_family)) != LOWER(family))
-ORDER BY name, record_key;
+  AND (family IS NULL OR own_family IS NULL OR LOWER(TRIM(own_family)) != LOWER(family)
+       OR own_epithet IS NULL
+       OR substr(CASE WHEN instr(name_rest, ' ') > 0
+                      THEN substr(name_rest, 1, instr(name_rest, ' ') - 1)
+                      ELSE name_rest END, 1, 4) != substr(own_epithet, 1, 4));
+.mode tabs
+.once "$WORK_DIR/synonym_report.tsv"
+SELECT category, record_key, name, detail FROM tmp_rejected ORDER BY category, name, record_key;
 BEGIN;
 DELETE FROM entity_external_ids WHERE provider = '${PLUGIN_SOURCE}';
 INSERT INTO entity_external_ids (
@@ -220,12 +240,12 @@ INSERT INTO entity_external_ids (
     json_object('phylum', phylum, 'class', class, 'order', "order", 'family', family,
                 'matched_by', NULLIF(matched_by, ''), 'homonym', homonym)
 FROM tmp_accepted
-WHERE NOT (matched_by = 'synonym'
-           AND (family IS NULL OR own_family IS NULL OR LOWER(TRIM(own_family)) != LOWER(family)));
+WHERE record_key NOT IN (SELECT record_key FROM tmp_rejected);
 COMMIT;
 EOF
     plugin_report < "$WORK_DIR/synonym_report.tsv"
-    plugin_log "Synonym-Treffer mit anderer Familie: $(wc -l < "$WORK_DIR/synonym_report.tsv" | tr -d ' ')"
+    plugin_log "Synonym-Treffer abgelehnt, andere Familie: $(grep -c '^synonym_family' "$WORK_DIR/synonym_report.tsv" || true)," \
+        "anderes Epitheton: $(grep -c '^synonym_epithet' "$WORK_DIR/synonym_report.tsv" || true)"
 }
 
 # ---------------------------------------------------------------------------
@@ -240,9 +260,9 @@ write_source_metadata() {
 }
 
 # Prüft jede Zuordnung erneut gegen die Kette, mit eigener SQL
-# (sql/validate_mappings.sql) über metadata_json statt über export.sql: Ein
-# Fehler in der Prüfung des Exports ließe sonst falsche Zuordnungen still
-# durch.
+# (sql/validate_mappings.sql), die die iNaturalist-Kette selbst aus
+# taxa.csv ableitet statt export.sql zu vertrauen: Ein Fehler in der Prüfung
+# oder der Ableitung des Exports ließe sonst falsche Zuordnungen still durch.
 validate() {
     plugin_validate_min_count \
         "$DB_PATH" \
@@ -252,7 +272,9 @@ validate() {
         "iNaturalist-Zuordnungen"
     plugin_validate_source_entry_exists "$DB_PATH"
     local violations
+    gunzip -c "$TAXA_FILE" > "$WORK_DIR/taxa.tsv" || plugin_fail "taxa.csv.gz nicht lesbar."
     violations="$(sed \
+        -e "s|\${TAXA_TSV}|${WORK_DIR}/taxa.tsv|g" \
         -e "s|\${PHYLUM_EQUIVALENTS}|${PLUGIN_DIR}/data/phylum_equivalents.csv|g" \
         -e "s|\${CLASS_EQUIVALENTS}|${PLUGIN_DIR}/data/class_equivalents.csv|g" \
         -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g" \
