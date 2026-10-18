@@ -43,8 +43,17 @@
 -- unterscheiden, die erste in Sortierung („Native“ vor „native“). Das
 -- Ergebnis hängt so nicht von der Reihenfolge der Eingabe ab.
 --
+-- Ist das Ergebnis mehrerer Zeilen introduced und sagt eine von ihnen not
+-- established oder Präsenz absent, entsteht für den Schlüssel keine Zeile:
+-- Ob die Einführung gelang, bleibt offen, und eine Zeile mit leerer Präsenz
+-- läse die App als vorkommend, eine ohne Status als heimisch (Salmo trutta
+-- in Nepal: introduced/present neben not established/absent, „Introduction
+-- was unsuccessful“). Bei native gilt das nicht: Dort betrifft ein
+-- ausgestorbener oder fehlender Bestand eine Population, nicht die
+-- Heimat der Art.
+--
 -- Ergebnis:
---   t_distribution_regions  — je Schlüssel eine Zeile (SpecCode,
+--   t_distribution_regions  — je Schlüssel höchstens eine Zeile (SpecCode,
 --                             region_scope, region_key und die Spalten von
 --                             taxonomy_distribution_regions)
 --   distribution_report.tsv — Build-Bericht (Kategorie, Schlüssel, Name,
@@ -52,7 +61,8 @@
 --     distribution_status_merged  Zeilen mit verschiedenem Status
 --     distribution_rows_merged    Zeilen mit gleichem Status
 --     Detail: Anzahl Zeilen, Status der Zeilen mit Anzahl, gewählter Status
---     und die Spalten, die wegen Widerspruchs leer bleiben.
+--     und die Spalten, die wegen Widerspruchs leer bleiben, bzw.
+--     „ausgelassen: Einführung widersprüchlich“.
 -- =============================================================================
 
 CREATE TEMP TABLE t_distribution_rows AS
@@ -138,7 +148,7 @@ CREATE OR REPLACE MACRO distribution_disagrees(value) AS
 CREATE OR REPLACE MACRO distribution_common(value) AS
     CASE WHEN distribution_disagrees(value) THEN NULL ELSE MIN(value) END;
 
-CREATE TEMP TABLE t_distribution_regions AS
+CREATE TEMP TABLE t_distribution_merged AS
 SELECT
     speccode,
     region_scope,
@@ -155,9 +165,19 @@ SELECT
         CASE WHEN distribution_disagrees(threatened_flag) THEN 'threatened_flag' END,
         CASE WHEN distribution_disagrees(abundance)       THEN 'abundance' END,
         CASE WHEN distribution_disagrees(importance)      THEN 'importance' END,
-        CASE WHEN distribution_disagrees(comment)         THEN 'comment' END)  AS emptied_columns
+        CASE WHEN distribution_disagrees(comment)         THEN 'comment' END)  AS emptied_columns,
+    COUNT(*) > 1
+        AND BOOL_OR(LOWER(establishment_status) = 'introduced')
+        AND NOT BOOL_OR(LOWER(establishment_status) IN ('native', 'endemic'))
+        AND BOOL_OR(LOWER(establishment_status) = 'not established' OR LOWER(presence_status) = 'absent')
+                                                                        AS introduction_contradicted
 FROM t_distribution_rows
 GROUP BY speccode, region_scope, region_key;
+
+CREATE TEMP TABLE t_distribution_regions AS
+SELECT * EXCLUDE (emptied_columns, introduction_contradicted)
+FROM t_distribution_merged
+WHERE NOT introduction_contradicted;
 
 COPY (
     SELECT
@@ -170,10 +190,13 @@ COPY (
                       FROM t_distribution_rows r
                       WHERE r.speccode = k.speccode AND r.region_scope = k.region_scope AND r.region_key = k.region_key
                       GROUP BY 1))
-            || ') → ' || COALESCE(d.establishment_status, 'ohne Status')
-            || '; leer: ' || COALESCE(NULLIF(d.emptied_columns, ''), 'keine')
+            || ') → ' || CASE
+                   WHEN d.introduction_contradicted THEN 'ausgelassen: Einführung widersprüchlich'
+                   ELSE COALESCE(d.establishment_status, 'ohne Status')
+                        || '; leer: ' || COALESCE(NULLIF(d.emptied_columns, ''), 'keine')
+               END
     FROM t_distribution_keys k
-    JOIN t_distribution_regions d
+    JOIN t_distribution_merged d
       ON d.speccode = k.speccode AND d.region_scope = k.region_scope AND d.region_key = k.region_key
     LEFT JOIN src_species s ON s.SpecCode = k.speccode
     ORDER BY 1, k.speccode, k.region_scope, k.region_key

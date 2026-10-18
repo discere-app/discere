@@ -343,8 +343,7 @@ leer, und ein leerer Wert zählt dabei als eigener Wert. Was nur ein Teil der
 Zeilen sagt, gilt nicht für die Art als Ganzes, auch nicht, wenn es die
 Mehrheit ist: *Salmo trutta* steht in der Schweiz als `native` ohne Präsenz,
 weil eine zweite Zeile sie dort als ausgestorben führt („Considered locally
-extinct in 1990“), in Nepal als `introduced` ohne Präsenz, weil eine zweite
-Zeile die Einführung als gescheitert führt, und *Cobitis minamorii* in Japan
+extinct in 1990“), und *Cobitis minamorii* in Japan
 ohne threatened, obwohl drei von vier Zeilen „Endangered“ sagen. Der
 Kommentar folgt derselben Regel: Er beschreibt eine Population, und die App
 zeigt ihn nicht. Unterscheiden sich Zeilen gleichen Rangs nur in der
@@ -353,9 +352,19 @@ Schreibweise des Status, gilt die erste in Sortierung („Native“ vor
 und die Plugins importieren die Verbreitung ohne `OR IGNORE`: Eine Kollision
 bricht den Import ab.
 
+Ist das Ergebnis mehrerer Zeilen `introduced` und sagt eine von ihnen
+`not established` oder Präsenz `absent`, entsteht für den Schlüssel keine
+Zeile. Ob die Einführung gelang, bleibt offen; eine Zeile mit leerer Präsenz
+läse die App als vorkommend, eine ohne Status als heimisch. *Salmo trutta*
+in Nepal (`introduced`/`present` neben `not established`/`absent`,
+„Introduction was unsuccessful“) fehlt deshalb. Bei `native` gilt das nicht:
+Dort betrifft ein ausgestorbener oder fehlender Bestand eine Population,
+nicht die Heimat der Art.
+
 Jeder Schlüssel mit mehreren Zeilen steht im Build-Bericht, mit dem Status
 seiner Zeilen, dem Ergebnis und den Spalten, die wegen Widerspruchs leer
-bleiben: `distribution_status_merged` bei verschiedenem Status, sonst
+bleiben, oder mit „ausgelassen: Einführung widersprüchlich“:
+`distribution_status_merged` bei verschiedenem Status, sonst
 `distribution_rows_merged`. In v26.06:
 
 | Status der Zeilen | FishBase | SeaLifeBase | Ergebnis |
@@ -365,7 +374,7 @@ bleiben: `distribution_status_merged` bei verschiedenem Status, sonst
 | native, questionable | 4 | 1 | native |
 | extirpated, native | 2 | – | native |
 | endemic, introduced, native | 1 | – | native |
-| introduced, not established | 1 | – | introduced |
+| introduced, not established | 1 | – | ausgelassen |
 | native, stray | – | 1 | native |
 | gleicher Status | 140 | 145 | dieser |
 

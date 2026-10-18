@@ -174,6 +174,30 @@ subregion,276:1,present,native,,,," "Präsenz"
     done
 }
 
+# Ist das Ergebnis introduced und sagt eine Zeile not established oder
+# Präsenz absent, entsteht keine Zeile (Salmo trutta in Nepal): im Land 524
+# über den Status, im Land 525 über die Präsenz. Der Bericht nennt beide.
+test_distribution_omits_contradicted_introduction() {
+    local plugin name
+    for plugin in $DISTRIBUTION_PLUGINS; do
+        case "$plugin" in
+            fishbase)    name="Amphiprion ocellaris" ;;
+            sealifebase) name="Abra alba" ;;
+        esac
+        assert_country_export "$plugin" "
+            (1, '524', 'introduced',      'present', 0, NULL, NULL, NULL),
+            (2, '524', 'not established', 'absent',  0, NULL, NULL, 'Introduction was unsuccessful'),
+            (3, '525', 'introduced',      'present', 0, NULL, NULL, NULL),
+            (4, '525', 'introduced',      'absent',  0, NULL, NULL, NULL)" \
+            "subregion,276:1,present,native,,,," "Einführung widersprüchlich"
+        local speccode
+        speccode="$(distribution_speccode "$plugin")"
+        assert_eq "distribution_rows_merged	SpecCode $speccode, country 525	$name	2 Zeilen (introduced 2) → ausgelassen: Einführung widersprüchlich
+distribution_status_merged	SpecCode $speccode, country 524	$name	2 Zeilen (introduced 1, not established 1) → ausgelassen: Einführung widersprüchlich" \
+            "$(cat "$TEST_TMP/export/distribution_report.tsv")" "Bericht ($plugin)"
+    done
+}
+
 # threatened bleibt leer, sobald eine Zeile abweicht — auch wenn die
 # Mehrheit der Zeilen bedroht sagt.
 test_distribution_empties_disagreeing_threatened() {
