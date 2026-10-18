@@ -217,6 +217,55 @@ test_validate_fails_on_two_preferred_names_of_one_species_in_one_source() {
     assert_contains "$ERR" "FEHLER: preferred names (per source) — 3 (erwartet >= 4)"
 }
 
+# Eine iNaturalist-Zuordnung braucht die eigene Kette bis zur Klasse: bei
+# einer Art ihre, bei einem Namensschlüssel die jeder gleichnamigen Entität,
+# an der eine Art hängt (eine Gattung ohne Art zählt nicht).
+test_validate_fails_on_inaturalist_mapping_without_chain() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        UPDATE orders SET class = 'discere:class:1' WHERE id = 'discere:order:1';
+        UPDATE families SET \"order\" = 'discere:order:1' WHERE id = 'discere:family:1';
+        UPDATE genera SET family = 'discere:family:1' WHERE id = 'discere:genus:1';
+        UPDATE species SET genus = 'discere:genus:1' WHERE id = 'discere:species:1';
+        INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred)
+        VALUES ('discere:species:1', 'G1 s1', 'g1 s1', 'valid', 'fishbase', 1);
+        INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id) VALUES
+            ('discere:species:1', 'species', 'inaturalist', '1'),
+            ('genus:g1',          'genera',  'inaturalist', '2');"
+    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "
+        INSERT INTO genera (id, external_id, external_source, name)
+        VALUES ('discere:genus:5001', '5001', 'sealifebase', 'G1');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "
+        UPDATE species SET genus = 'discere:genus:5001' WHERE id = 'discere:species:3';
+        INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id)
+        VALUES ('discere:species:2', 'species', 'inaturalist', '3');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: inaturalist (species with chain) — 1 (erwartet >= 2)"
+    assert_contains "$ERR" "FEHLER: inaturalist (name keys with chain) — 0 (erwartet >= 1)"
+}
+
+# Eine Klasse ohne Stamm ist keine Kette, auch für ihren eigenen Schlüssel.
+test_validate_fails_on_inaturalist_class_key_without_phylum() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id)
+        VALUES ('class:c1', 'classes', 'inaturalist', '1');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "UPDATE classes SET super_class = ' ' WHERE id = 'discere:class:1';"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: inaturalist (name keys with chain) — 0 (erwartet >= 1)"
+}
+
 test_validate_aborts_on_unknown_requirement() {
     create_validatable_db
     copy_core

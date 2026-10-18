@@ -429,6 +429,123 @@ Prüfung sitzt im Export, der Build-Bericht hält jeden Fall fest. Die
 Validierung prüft nur, dass der bevorzugte Name einer Art ohne Gattung auf
 ihr Epitheton endet.
 
+### Stamm und Kette bei der iNaturalist-Zuordnung
+
+Der Abgleich über den Namen trennt keine Homonyme: Die Schnecke *Triphora
+pusilla* trägt denselben Namen wie eine Orchidee, die Flohkrebs-Gattung
+*Tara* denselben wie eine Springspinne, die Rochengattung *Batis* denselben
+wie eine Vogelgattung. Kennt iNaturalist nur das fremde Taxon, träfe der
+Name es eindeutig. Das Plugin `inaturalist` vergleicht deshalb vor dem
+Abgleich jedes iNaturalist-Taxon mit der eigenen Kette
+(`plugins/inaturalist/sql/export.sql`):
+
+- **iNaturalist-Seite** — Stamm, Klasse, Ordnung und Familie aus der
+  Ahnenkette in `taxa.csv` (Spalte `ancestry`), über die eigenen Zeilen der
+  Datei, ohne API.
+- **Eigene Kette** — Art › Gattung › Familie › Ordnung › Klasse, der Stamm
+  in `super_class` (`plugins/inaturalist/sql/reference_names.sql`). FishBase
+  führt in dieser Spalte die Überklasse (Osteichthyes, Agnatha, …); ihre
+  Taxa gelten als Chordata.
+
+Ein iNaturalist-Taxon geht nur in den Abgleich, wenn es zu **jeder** Entität
+passt, die seinen Namen auf diesem Rang trägt — bei Arten auch als Synonym
+(ohne falsch angewandte Namen, wie im Abgleich). Für höhere Taxa heißt das:
+Der Namensschlüssel (`genus:megalomma`) steht für alle gleichnamigen Zeilen
+der Rangtabelle, an denen eine Art hängt — aktiv oder veraltet, denn auch
+veraltete Arten stehen in Decks; bei Familien und Ordnungen eine Art
+darunter. Eine Zeile ohne jede Art zeigt die App unter keinem Schlüssel
+(Suche und Kinderlisten verlangen eine aktive Art darunter, eine Art zeigt
+ihre eigene Kette); FishBase und SeaLifeBase führen so etwa
+Synonymgattungen (*Gobio* zusätzlich ohne Familie, *Torpedo* unter
+Malapteruridae). Eine solche Zeile verhindert deshalb keine Zuordnung.
+
+1. **Stamm.** Gleich, oder das Paar steht in
+   `plugins/inaturalist/data/phylum_equivalents.csv` (Stamm der Kette,
+   iNaturalist-Stamm, Begründung): SeaLifeBase und iNaturalist fassen oder
+   benennen manche Stämme verschieden (Bacillariophyta → Ochrophyta,
+   Kamptozoa → Entoprocta, Myzozoa → Miozoa, …). Nicht prüfbar — und damit
+   keine Zuordnung — ist eine Kette ohne Stamm (etwa eine Art ohne
+   Gattung), ein Platzhalter-Stamm („Not Assigned (Plantae)“, Muster aus
+   `core/data/placeholder_patterns.csv`) und ein iNaturalist-Taxon ohne
+   Stamm in seiner Ahnenkette. Das Reich, das ein Platzhalter nennt, taugt
+   nicht als Ersatz: SeaLifeBase ordnet darunter Wimpertierchen und
+   Kieselalgen den Pflanzen zu, und gleichnamige Korb- und Lippenblütler
+   bestünden die Prüfung.
+2. **Eine Klasse.** Liegen die Entitäten eines Namens in verschiedenen
+   Klassen (Platzhalter zählen nicht), ist jedes iNaturalist-Taxon für eine
+   davon falsch: keine Zuordnung, wie bei verschiedenen Stämmen.
+3. **Klasse, Ordnung oder Familie.** Bei Gattungen, Familien und Ordnungen
+   — und bei Arten, deren Name bei iNaturalist mehrere aktive Taxa trägt,
+   also nachweislich anfällig ist — genügt der Stamm nicht: Innerhalb eines
+   Stamms wiederholen sich Namen (ein Krebs bei uns, ein Insekt bei
+   iNaturalist; ein Fisch, eine Echse). Mindestens einer der Ränge über dem
+   eigenen muss zu jeder Entität passen: die Klasse gleich oder gleichwertig
+   laut `plugins/inaturalist/data/class_equivalents.csv` (FishBase teilt
+   die Strahlenflosser in Unterklassen, iNaturalist führt
+   Actinopterygii; SeaLifeBase führt Octocorallia, iNaturalist Anthozoa;
+   …), oder die Ordnung bzw. die Familie gleich. Klassen selbst prüft nur
+   der Stamm.
+4. **Synonym-Treffer bei Arten.** Trifft eine Art nur über ein Synonym,
+   muss die Familie des iNaturalist-Taxons gleich der eigenen sein, und das
+   Epitheton des Synonyms muss in den ersten vier Buchstaben dem der Art
+   gleichen (klein geschrieben, ohne Leerzeichen am Rand;
+   `plugins/inaturalist/import.sh`). SeaLifeBase führt Synonyme, die
+   anderen Arten gehören — aus anderen Familien (der Kappensäger
+   *Lophodytes cucullatus* als Synonym einer Möwe) wie aus derselben
+   (*Mactra mera* mit dem Synonym *Mactra antiquata*). Ein echtes Synonym
+   behält meist das Epitheton und wechselt nur die Gattung; vier
+   Buchstaben lassen Genusangleichungen (*pulcher*/*pulchra*) und die
+   häufigen Schreibvarianten durch. Gemessen an den 1.008 Synonym-Treffern
+   eines Builds aus v26.06 gegen WoRMS fangen drei, vier und fünf Buchstaben dieselben
+   12 von 23 Widersprüchen; vier kosten 52 von WoRMS bestätigte Treffer,
+   drei 48 (die vier zusätzlichen sind Schreibvarianten wie
+   *leeorum*/*leei*), fünf 60. Vier halbieren gegenüber drei die Rate, mit
+   der zwei verschiedene Epitheta derselben Gattung zufällig gleich
+   beginnen (0,15 statt 0,33 %).
+
+Beide Listen gleichwertiger Namen enthalten nur Paare, die dieselbe Gruppe
+meinen oder eine in der anderen enthalten, und die unter den gleichnamigen
+Kandidaten tatsächlich vorkommen. Klassen, die iNaturalist anders aufteilt
+als SeaLifeBase (Chlorophyceae, Prasinophyceae, Chrysophyceae), stehen
+nicht darin; ihre Gattungen passen nur über Ordnung oder Familie. Ein
+Paar macht zwei Namen nur vergleichbar, es schließt keine Homonyme aus:
+Gleiche Gattungsnamen kommen in verschiedenen Stämmen und auch innerhalb
+eines Stamms vor, zwischen den Nomenklatur-Codes ohnehin, innerhalb eines
+Codes als (meist ältere, noch nicht ersetzte) Homonyme.
+
+Führt iNaturalist mehrere aktive Taxa desselben Namens und Rangs, zählen
+nur die, die alle Prüfungen bestehen: Bleibt genau eines, geht es in den
+Abgleich (die Ruderfußkrebs-Gattung *Gaussia* neben der gleichnamigen
+Palme), bleiben mehrere, keines.
+
+Lieber keine Zuordnung als eine falsche — auch dann, wenn im Einzelfall die
+eigene Kette falsch ist und iNaturalist recht hätte (*Phoronis* steht bei
+SeaLifeBase unter Aplacophora) oder ein Synonym nur nach einer Umstellung
+der Familie anders eingeordnet ist.
+
+Jedes abgelehnte Taxon steht im Build-Bericht mit Grund und den Ketten
+beider Seiten: `phylum_mixed` (Stamm passt zu einem Teil der Entitäten),
+`phylum_unknown` (nicht prüfbar), `phylum_mismatch` (passt zu keiner),
+`class_mixed` (Entitäten in mehreren Klassen), `rank_mismatch` (weder
+Klasse noch Ordnung noch Familie passen), `synonym_family` bzw.
+`synonym_epithet` (Synonym-Treffer mit anderer Familie bzw. anderem
+Epitheton).
+
+Jede Zuordnung trägt in `entity_external_ids.metadata_json` Stamm, Klasse,
+Ordnung und Familie des iNaturalist-Taxons, `matched_by` (`name` oder
+`synonym`) und `homonym`. Nach dem Import prüft das Plugin jede Zuordnung
+erneut gegen Kette und Listen
+(`plugins/inaturalist/sql/validate_mappings.sql`), mit eigener SQL: Die
+iNaturalist-Kette, ob ein Name mehrere Taxa trägt und ob eine Art über ein
+Synonym zugeordnet ist, leitet es selbst aus `taxa.csv` und den Namen der
+DB ab, und `metadata_json` muss dazu passen. Ein Fehler in der Prüfung oder
+der Ableitung des Exports lässt den Build scheitern, statt falsche
+Zuordnungen still durchzulassen. Gemeinsam bleiben beiden nur die Kette in
+der DB und die Listen gleichwertiger Namen. `validate.sql`
+prüft zusätzlich, was ohne iNaturalist feststeht: Jede zugeordnete Art und
+jede Entität hinter einem zugeordneten Namensschlüssel hat eine Kette bis
+zu einer Klasse mit Stamm. Die App liest `metadata_json` nicht.
+
 ### Fehlende und mehrdeutige Zuordnungen
 
 Was mit einem Datensatz ohne eindeutige Entität geschieht, hängt davon ab, wem
@@ -847,7 +964,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
 | Aliase | ja — ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige) und App (`ReferenceIdMigration` beim Start, Schemaversion 2; Updates aus der Sitzung werden bereitgelegt und beim Start eingesetzt) |
 | `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
-| iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |
+| iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel; zugeordnet wird nur, wenn das iNaturalist-Taxon zur Kette jeder passt (siehe [Stamm und Kette bei der iNaturalist-Zuordnung](#stamm-und-kette-bei-der-inaturalist-zuordnung)) |
 
 ---
 
@@ -974,6 +1091,26 @@ installiert.
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein
   eigener Schritt eine davon zum Alias macht.
+
+- **Die Prüfung der iNaturalist-Zuordnung ist nur so gut wie die eigene
+  Kette.** Steht eine Art bei SeaLifeBase im falschen Stamm (*Phoronis*,
+  *Priapulus* unter den Schnecken, das Seegras *Halophila* unter den
+  Moostierchen, Ciliaten unter „Not Assigned (Plantae)“), lehnt sie die
+  richtige Zuordnung ab; eine Art ohne Gattung oder eine gleichnamige Zeile
+  mit Art, aber ohne Kette verhindert sie ganz. Nach einer Umstellung der Familie fallen
+  auch richtige Synonym-Treffer weg. Umgekehrt trennt sie kein Homonym in
+  derselben Klasse, solange der Artname bei iNaturalist nur ein Taxon trägt
+  (bei Gattungen: solange Klasse, Ordnung oder Familie gleich sind); dort
+  hilft erst eine gemeinsame externe ID. Ein Synonym mit gleichem
+  Epitheton, das in WoRMS eine andere Art ist (*Scissurella tabulata* →
+  *Satondella tabulata*, *Trichotropis insignis* → *Torellia insignis*,
+  *Volvarina hennequini* → *Dentimargo hennequini*), geht durch. Und die
+  Prüfung vertraut der Einordnung bei iNaturalist: Hängt iNaturalist ein
+  Taxon falsch ein (den Fangschreckenkrebs *Miyakea nepa* unter eine
+  Mottengattung), zeigt die Kette dort etwas anderes, als das Taxon ist.
+  Die App sucht ein Taxon, für das
+  die Referenz-DB keine ID hat, zur Laufzeit selbst über den Namen und kann
+  dabei das abgelehnte Taxon wieder finden.
 
 Unabhängig davon, *(umgesetzt)*: Die iNaturalist-Zuordnung ist eine Quelle
 mit `depends_on_sources: [fishbase, sealifebase]` und `optional: true`.

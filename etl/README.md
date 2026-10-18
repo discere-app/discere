@@ -115,7 +115,12 @@ und jede Art, deren Gattung nicht zu ihrer eigenen Familie passt: verworfen
 oder behalten, weil nur Familie bzw. Ordnung abweichen
 (`genus_kept_family_differs`, `genus_kept_order_differs`), je mit beiden
 Ketten (siehe
-[`docs/datenquellen.md`](docs/datenquellen.md#gattung-und-familie-einer-art-widersprechen-sich)).
+[`docs/datenquellen.md`](docs/datenquellen.md#gattung-und-familie-einer-art-widersprechen-sich)),
+iNaturalist unter `inaturalist` neben den nicht eindeutigen Abgleichen jedes
+Taxon, das die Prüfung gegen die eigene Kette ablehnt (`phylum_mismatch`,
+`phylum_mixed`, `phylum_unknown`, `class_mixed`, `rank_mismatch`,
+`synonym_family`, `synonym_epithet`), je mit den Ketten beider Seiten (siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#stamm-und-kette-bei-der-inaturalist-zuordnung)).
 
 ### Validierung
 
@@ -129,6 +134,10 @@ Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
   auf ihr Epitheton endet, und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
   auflösbaren Namen, jeder auf seine Art;
 - `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
+- `inaturalist` — Invariante der iNaturalist-Zuordnung: Jede zugeordnete Art
+  und jede Entität hinter einem zugeordneten Namensschlüssel hat eine Kette
+  bis zu einer Klasse mit Stamm (den Abgleich mit Stamm, Klasse, Ordnung und
+  Familie des iNaturalist-Taxons prüft das Plugin selbst nach dem Import);
 - `<plugin>[,<plugin>]` — alle genannten Plugins. Eine Mindestzahl nennt die
   Plugins, deren Zeilen sie allein erreichen (gemessen an refdb-v2): die
   meisten `fishbase`; deutsche Namen, Merkmale und Verbreitung brauchen
@@ -351,8 +360,8 @@ Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
 Erkennung der Rang-Platzhalter, die Exporte von FishBase und SeaLifeBase
 mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name, Gattung passend zur Familie der Art, eine Verbreitungszeile je Art und Region), die
 Namensauflösung über `species_name_lookup`,
-`plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
-Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
+`plugins/curated/import.sh` und `plugins/inaturalist/import.sh` (samt
+Prüfung gegen die eigene Kette) gegen eine Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
 Validierung mit ihren Voraussetzungen sowie das Laden des Vorgängers über
 `file://`-URLs. Eine Zeile je Fall, Exit-Code
 ungleich 0 bei einem Fehlschlag.

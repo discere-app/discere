@@ -1,0 +1,31 @@
+class,inat_class,reason
+Teleostei,Actinopterygii,iNaturalist führt die Strahlenflosser als eine Klasse; FishBase teilt sie in Unterklassen
+Holostei,Actinopterygii,iNaturalist führt die Strahlenflosser als eine Klasse; FishBase teilt sie in Unterklassen
+Chondrostei,Actinopterygii,iNaturalist führt die Strahlenflosser als eine Klasse; FishBase teilt sie in Unterklassen
+Cladistii,Actinopterygii,iNaturalist führt die Strahlenflosser als eine Klasse; FishBase teilt sie in Unterklassen
+Elasmobranchii,Chondrichthyes,iNaturalist führt Haie und Rochen unter der Klasse Chondrichthyes
+Holocephali,Chondrichthyes,iNaturalist führt die Seekatzen unter der Klasse Chondrichthyes
+Dipneusti,Sarcopterygii,iNaturalist führt die Lungenfische unter der Klasse Sarcopterygii
+Coelacanthi,Sarcopterygii,iNaturalist führt die Quastenflosser unter der Klasse Sarcopterygii
+Octocorallia,Anthozoa,iNaturalist führt Octocorallia als Unterklasse der Anthozoa
+Hexacorallia,Anthozoa,iNaturalist führt Hexacorallia als Unterklasse der Anthozoa
+Scyphozoa,Staurozoa,SeaLifeBase führt die Stauromedusen noch unter den Scyphozoa
+Coscinodiscophyceae,Bacillariophyceae,iNaturalist führt die Kieselalgen als eine Klasse
+Fragilariophyceae,Bacillariophyceae,iNaturalist führt die Kieselalgen als eine Klasse
+Prymnesiophyceae,Coccolithophyceae,zwei Namen derselben Klasse
+Thecostraca,Hexanauplia,iNaturalist führt die Rankenfußkrebse unter der Klasse Hexanauplia
+Copepoda,Hexanauplia,iNaturalist führt die Ruderfußkrebse unter der Klasse Hexanauplia
+Tantulocarida,Hexanauplia,iNaturalist führt die Tantulocarida unter der Klasse Hexanauplia
+Aplacophora,Solenogastres,iNaturalist teilt die Aplacophora in Solenogastres und Caudofoveata
+Aplacophora,Caudofoveata,iNaturalist teilt die Aplacophora in Solenogastres und Caudofoveata
+Secernentea,Chromadorea,iNaturalist führt die Secernentea innerhalb der Chromadorea
+Adenophorea,Chromadorea,iNaturalist teilt die Adenophorea in Chromadorea und Enoplea
+Adenophorea,Enoplea,iNaturalist teilt die Adenophorea in Chromadorea und Enoplea
+Inarticulata,Lingulata,iNaturalist führt die Lingulata als eigene Klasse der früheren Inarticulata
+Articulata,Rhynchonellata,iNaturalist führt die Rhynchonellata als eigene Klasse der früheren Articulata
+Polythalamea,Globothalamea,iNaturalist teilt die vielkammerigen Foraminiferen in Globothalamea und Tubothalamea
+Polythalamea,Tubothalamea,iNaturalist teilt die vielkammerigen Foraminiferen in Globothalamea und Tubothalamea
+Bicosoecophyceae,Bikosea,zwei Namen derselben Klasse
+Filicopsida,Polypodiopsida,zwei Namen derselben Klasse
+Equisetopsida,Polypodiopsida,iNaturalist führt die Schachtelhalme unter Polypodiopsida
+Magnoliopsida,Liliopsida,SeaLifeBase führt die Einkeimblättrigen (Seegräser) unter Magnoliopsida
