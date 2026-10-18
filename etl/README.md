@@ -113,7 +113,7 @@ Ketten (siehe
 iNaturalist unter `inaturalist` neben den nicht eindeutigen Abgleichen jedes
 Taxon, das die Prüfung gegen die eigene Kette ablehnt (`phylum_mismatch`,
 `phylum_mixed`, `phylum_unknown`, `class_mixed`, `rank_mismatch`,
-`synonym_family`), je mit den Ketten beider Seiten (siehe
+`synonym_family`, `synonym_epithet`), je mit den Ketten beider Seiten (siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#stamm-und-kette-bei-der-inaturalist-zuordnung)).
 
 ### Validierung

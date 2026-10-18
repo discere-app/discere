@@ -402,10 +402,22 @@ der Rangtabelle.
    …), oder die Ordnung bzw. die Familie gleich. Klassen selbst prüft nur
    der Stamm.
 4. **Synonym-Treffer bei Arten.** Trifft eine Art nur über ein Synonym,
-   muss die Familie des iNaturalist-Taxons gleich der eigenen sein
-   (`plugins/inaturalist/import.sh`): SeaLifeBase führt Synonyme, die
-   anderen Arten gehören (der Kappensäger *Lophodytes cucullatus* als
-   Synonym einer Möwe).
+   muss die Familie des iNaturalist-Taxons gleich der eigenen sein, und das
+   Epitheton des Synonyms muss in den ersten vier Buchstaben dem der Art
+   gleichen (klein geschrieben, ohne Leerzeichen am Rand;
+   `plugins/inaturalist/import.sh`). SeaLifeBase führt Synonyme, die
+   anderen Arten gehören — aus anderen Familien (der Kappensäger
+   *Lophodytes cucullatus* als Synonym einer Möwe) wie aus derselben
+   (*Mactra mera* mit dem Synonym *Mactra antiquata*). Ein echtes Synonym
+   behält meist das Epitheton und wechselt nur die Gattung; vier
+   Buchstaben lassen Genusangleichungen (*pulcher*/*pulchra*) und die
+   häufigen Schreibvarianten durch. Gemessen an den 1.008 Synonym-Treffern
+   eines Builds aus v26.06 gegen WoRMS fangen drei, vier und fünf Buchstaben dieselben
+   12 von 23 Widersprüchen; vier kosten 52 von WoRMS bestätigte Treffer,
+   drei 48 (die vier zusätzlichen sind Schreibvarianten wie
+   *leeorum*/*leei*), fünf 60. Vier halbieren gegenüber drei die Rate, mit
+   der zwei verschiedene Epitheta derselben Gattung zufällig gleich
+   beginnen (0,15 statt 0,33 %).
 
 Beide Listen gleichwertiger Namen enthalten nur Paare, die dieselbe Gruppe
 meinen oder eine in der anderen enthalten, und die unter den gleichnamigen
@@ -431,16 +443,21 @@ Jedes abgelehnte Taxon steht im Build-Bericht mit Grund und den Ketten
 beider Seiten: `phylum_mixed` (Stamm passt zu einem Teil der Entitäten),
 `phylum_unknown` (nicht prüfbar), `phylum_mismatch` (passt zu keiner),
 `class_mixed` (Entitäten in mehreren Klassen), `rank_mismatch` (weder
-Klasse noch Ordnung noch Familie passen), `synonym_family` (Synonym-Treffer
-mit anderer Familie).
+Klasse noch Ordnung noch Familie passen), `synonym_family` bzw.
+`synonym_epithet` (Synonym-Treffer mit anderer Familie bzw. anderem
+Epitheton).
 
 Jede Zuordnung trägt in `entity_external_ids.metadata_json` Stamm, Klasse,
 Ordnung und Familie des iNaturalist-Taxons, `matched_by` (`name` oder
-`synonym`) und `homonym`. Damit prüft das Plugin nach dem Import jede
-Zuordnung erneut gegen Kette und Listen
-(`plugins/inaturalist/sql/validate_mappings.sql`), mit eigener SQL statt
-über `export.sql`: Ein Fehler in der Prüfung des Exports lässt den Build
-scheitern, statt falsche Zuordnungen still durchzulassen. `validate.sql`
+`synonym`) und `homonym`. Nach dem Import prüft das Plugin jede Zuordnung
+erneut gegen Kette und Listen
+(`plugins/inaturalist/sql/validate_mappings.sql`), mit eigener SQL: Die
+iNaturalist-Kette, ob ein Name mehrere Taxa trägt und ob eine Art über ein
+Synonym zugeordnet ist, leitet es selbst aus `taxa.csv` und den Namen der
+DB ab, und `metadata_json` muss dazu passen. Ein Fehler in der Prüfung oder
+der Ableitung des Exports lässt den Build scheitern, statt falsche
+Zuordnungen still durchzulassen. Gemeinsam bleiben beiden nur die Kette in
+der DB und die Listen gleichwertiger Namen. `validate.sql`
 prüft zusätzlich, was ohne iNaturalist feststeht: Jede zugeordnete Art und
 jede Entität hinter einem zugeordneten Namensschlüssel hat eine Kette bis
 zu einer Klasse mit Stamm. Die App liest `metadata_json` nicht.
@@ -1001,7 +1018,14 @@ installiert.
   auch richtige Synonym-Treffer weg. Umgekehrt trennt sie kein Homonym in
   derselben Klasse, solange der Artname bei iNaturalist nur ein Taxon trägt
   (bei Gattungen: solange Klasse, Ordnung oder Familie gleich sind); dort
-  hilft erst eine gemeinsame externe ID. Die App sucht ein Taxon, für das
+  hilft erst eine gemeinsame externe ID. Ein Synonym mit gleichem
+  Epitheton, das in WoRMS eine andere Art ist (*Scissurella tabulata* →
+  *Satondella tabulata*, *Trichotropis insignis* → *Torellia insignis*,
+  *Volvarina hennequini* → *Dentimargo hennequini*), geht durch. Und die
+  Prüfung vertraut der Einordnung bei iNaturalist: Hängt iNaturalist ein
+  Taxon falsch ein (den Fangschreckenkrebs *Miyakea nepa* unter eine
+  Mottengattung), zeigt die Kette dort etwas anderes, als das Taxon ist.
+  Die App sucht ein Taxon, für das
   die Referenz-DB keine ID hat, zur Laufzeit selbst über den Namen und kann
   dabei das abgelehnte Taxon wieder finden.
 
