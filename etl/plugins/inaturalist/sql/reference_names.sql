@@ -10,8 +10,12 @@
 -- Die Namen sind die Kandidaten aus core/sql/match.sql: bei Arten alle Namen
 -- aktiver Arten außer falsch angewandten, bei höheren Taxa der Name in der
 -- Tabelle ihres Rangs — alle gleichnamigen Zeilen, denn sie teilen sich den
--- Namensschlüssel (genus:barbus), unter dem die Zuordnung liegt. Normalisiert
--- wie species_scientific_names.normalized_name.
+-- Namensschlüssel (genus:barbus), unter dem die Zuordnung liegt, soweit an
+-- ihnen eine Art hängt (aktiv oder veraltet; bei Familie und Ordnung eine
+-- Art darunter). Eine Zeile ohne jede Art zeigt die App unter keinem
+-- Schlüssel; FishBase und SeaLifeBase führen so etwa Synonymgattungen, und
+-- eine solche Zeile soll keine Zuordnung verhindern. Normalisiert wie
+-- species_scientific_names.normalized_name.
 --
 -- chain_phylum ist der Stamm über die eigene Kette (Art › Gattung › Familie
 -- › Ordnung › Klasse), wie die Quelle ihn nennt; leer, wenn die Kette vorher
@@ -55,12 +59,15 @@ carriers AS (
     UNION ALL
     SELECT 'genus', LOWER(TRIM(t.name)), t.id, p.phylum, p.class, p."order", p.family
     FROM genera t JOIN genus_chain p ON p.id = t.id
+    WHERE EXISTS (SELECT 1 FROM species s2 WHERE s2.genus = t.id)
     UNION ALL
     SELECT 'family', LOWER(TRIM(t.name)), t.id, p.phylum, p.class, p."order", NULL
     FROM families t JOIN family_chain p ON p.id = t.id
+    WHERE EXISTS (SELECT 1 FROM genera g2 JOIN species s2 ON s2.genus = g2.id WHERE g2.family = t.id)
     UNION ALL
     SELECT 'order', LOWER(TRIM(t.name)), t.id, p.phylum, p.class, NULL, NULL
     FROM orders t JOIN order_chain p ON p.id = t.id
+    WHERE EXISTS (SELECT 1 FROM families f2 JOIN genera g2 ON g2.family = f2.id JOIN species s2 ON s2.genus = g2.id WHERE f2."order" = t.id)
     UNION ALL
     SELECT 'class', LOWER(TRIM(t.name)), t.id, p.phylum, NULL, NULL, NULL
     FROM classes t JOIN class_chain p ON p.id = t.id

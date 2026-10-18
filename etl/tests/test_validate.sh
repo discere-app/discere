@@ -218,7 +218,8 @@ test_validate_fails_on_two_preferred_names_of_one_species_in_one_source() {
 }
 
 # Eine iNaturalist-Zuordnung braucht die eigene Kette bis zur Klasse: bei
-# einer Art ihre, bei einem Namensschlüssel die jeder gleichnamigen Entität.
+# einer Art ihre, bei einem Namensschlüssel die jeder gleichnamigen Entität,
+# an der eine Art hängt (eine Gattung ohne Art zählt nicht).
 test_validate_fails_on_inaturalist_mapping_without_chain() {
     create_validatable_db
     seed_locale_place_mappings 70
@@ -237,7 +238,11 @@ test_validate_fails_on_inaturalist_mapping_without_chain() {
     assert_status 0
     sqlite3 "$DB" "
         INSERT INTO genera (id, external_id, external_source, name)
-        VALUES ('discere:genus:5001', '5001', 'sealifebase', 'G1');
+        VALUES ('discere:genus:5001', '5001', 'sealifebase', 'G1');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "
+        UPDATE species SET genus = 'discere:genus:5001' WHERE id = 'discere:species:3';
         INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id)
         VALUES ('discere:species:2', 'species', 'inaturalist', '3');"
     validate "${COMPLETE_RAN[@]}"

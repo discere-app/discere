@@ -73,6 +73,8 @@ write_taxa_file() {
 #     (dazu die FishBase-Gattung Apus unter Pomacentridae, Chordata)
 #   Chordata › Aves › Apodiformes › Apodidae › Batis
 #     (dazu die FishBase-Gattung Batis unter Pomacentridae, Teleostei)
+#   An jeder Gattung Apus und Batis hängt eine Art, bei FishBase eine
+#   veraltete: Auch sie macht die Zeile zum Träger des Schlüssels.
 #   Not Assigned (Plantae) › Not assigned › Not assigned › Not assigned
 #   › Tintinnopsis
 #     sealifebase_species:4  Tintinnopsis baltica
@@ -111,7 +113,11 @@ INSERT INTO species (id, external_id, external_source, name, genus, status) VALU
     ('discere:sealifebase_species:2', '2', 'sealifebase', 'ambiguus', 'discere:sealifebase_genus:1', 'active'),
     ('discere:sealifebase_species:3', '3', 'sealifebase', 'vivipara', 'discere:sealifebase_genus:2', 'active'),
     ('discere:sealifebase_species:4', '4', 'sealifebase', 'baltica',  'discere:sealifebase_genus:4', 'active'),
-    ('discere:sealifebase_species:5', '5', 'sealifebase', 'pusillum', NULL,                          'active');
+    ('discere:sealifebase_species:5', '5', 'sealifebase', 'pusillum', NULL,                          'active'),
+    ('discere:sealifebase_species:6', '6', 'sealifebase', 'cancriformis', 'discere:sealifebase_genus:3', 'active'),
+    ('discere:sealifebase_species:7', '7', 'sealifebase', 'dimidiata',    'discere:sealifebase_genus:5', 'active'),
+    ('discere:fishbase_species:9',    '9', 'fishbase',    'apus',         'discere:fishbase_genus:9',    'deprecated'),
+    ('discere:fishbase_species:10',  '10', 'fishbase',    'batis',        'discere:fishbase_genus:10',   'deprecated');
 INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
     ('discere:sealifebase_species:1', 'Triphora pusilla',         'triphora pusilla',         'valid',   'sealifebase', 1),
     ('discere:sealifebase_species:2', 'Ebalia ambiguus',          'ebalia ambiguus',          'valid',   'sealifebase', 1),
@@ -120,6 +126,16 @@ INSERT INTO species_scientific_names (species_id, name, normalized_name, name_st
     ('discere:sealifebase_species:4', 'Tintinnopsis baltica',     'tintinnopsis baltica',     'valid',   'sealifebase', 1),
     ('discere:sealifebase_species:5', 'Alsidium pusillum',        'alsidium pusillum',        'valid',   'sealifebase', 1);
 SQL
+}
+
+# Hängt an jede genannte Gattung eine Art: Als Träger eines
+# Namensschlüssels zählt nur eine Gattung mit Art.
+give_species_to() {
+    local genus
+    for genus in "$@"; do
+        sqlite3 "$DB" "INSERT INTO species (id, external_id, external_source, name, genus, status)
+                       VALUES ('$genus:species', '$genus', 'test', 's', '$genus', 'active');"
+    done
 }
 
 # Fälle, die ablehnen, ordnen zusätzlich Amphiprion ocellaris zu: Ohne jede
@@ -215,6 +231,7 @@ test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
     sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
         ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1'),
         ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', 'discere:fishbase_family:1');"
+    give_species_to discere:fishbase_genus:2 discere:fishbase_genus:3
     write_taxa_file "200	$POMACENTRIDAE	20	genus	Premnas	true"
     run_inaturalist_import
     assert_status 0
@@ -327,13 +344,14 @@ test_inaturalist_gives_no_key_to_genus_name_across_classes() {
         "$(inaturalist_report)" "Build-Bericht"
 }
 
-# FishBase führt Gobio mehrfach, eine Zeile ohne Familie: Für sie ist der
-# Stamm nicht prüfbar, und genus:gobio stünde auch für sie.
+# Eine gleichnamige Zeile ohne Kette, an der eine Art hängt: Für sie ist der
+# Stamm nicht prüfbar, und genus:premnas stünde auch für sie.
 test_inaturalist_gives_no_key_to_name_with_a_row_without_chain() {
     create_mini_reference_db
     sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
         ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1'),
         ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', NULL);"
+    give_species_to discere:fishbase_genus:2 discere:fishbase_genus:3
     write_taxa_file "200	$POMACENTRIDAE	20	genus	Premnas	true" "$OCELLARIS"
     run_inaturalist_import
     assert_status 0
@@ -342,12 +360,39 @@ test_inaturalist_gives_no_key_to_name_with_a_row_without_chain() {
         "$(inaturalist_report)" "Build-Bericht"
 }
 
+# Eine Zeile ohne jede Art (FishBase und SeaLifeBase führen so etwa
+# Synonymgattungen) zeigt die App unter keinem Schlüssel; sie verhindert
+# deshalb keine Zuordnung, auch ohne Kette oder in einem anderen Stamm.
+# Hängt an ihr eine Art, zählt sie.
+test_inaturalist_ignores_name_rows_without_species() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+        ('discere:fishbase_genus:2',    '2', 'fishbase',    'Premnas', 'discere:fishbase_family:1'),
+        ('discere:fishbase_genus:3',    '3', 'fishbase',    'Premnas', NULL),
+        ('discere:sealifebase_genus:9', '9', 'sealifebase', 'Premnas', 'discere:sealifebase_family:1');"
+    give_species_to discere:fishbase_genus:2
+    write_taxa_file "200	$POMACENTRIDAE	20	genus	Premnas	true" "$OCELLARIS"
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "$OCELLARIS_MAPPING
+genus:premnas genera 200" "$(inaturalist_mappings)" "Zuordnungen ohne Art an den übrigen Zeilen"
+    give_species_to discere:sealifebase_genus:9
+    rm -rf "$TEST_TMP/report"
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "$OCELLARIS_MAPPING" "$(inaturalist_mappings)" "Zuordnungen mit Art an der Schnecken-Zeile"
+    assert_eq "inaturalist	phylum_mixed	200	Premnas	iNaturalist: Chordata / Actinopterygii / Ovalentaria / Pomacentridae; Kette: discere:fishbase_genus:2 Chordata / Teleostei / Ovalentaria / Pomacentridae, discere:sealifebase_genus:9 Mollusca / Gastropoda / Littorinimorpha / Triphoridae" \
+        "$(inaturalist_report | grep Premnas)" "Build-Bericht"
+}
+
 # Eine Gattung braucht über den Stamm hinaus Klasse, Ordnung oder Familie:
 # Fisch bei uns, Echse bei iNaturalist, beide Chordata.
 test_inaturalist_rejects_higher_taxon_whose_class_order_and_family_differ() {
     create_mini_reference_db
     sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
         ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1');"
+    give_species_to discere:fishbase_genus:2
     write_taxa_file "$OCELLARIS" "201	$REPTILIA	20	genus	Premnas	true"
     run_inaturalist_import
     assert_status 0
@@ -478,6 +523,7 @@ test_inaturalist_validation_fails_on_wrong_class() {
     create_mini_reference_db
     sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
         ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1');"
+    give_species_to discere:fishbase_genus:2
     write_taxa_file "$OCELLARIS" "201	$REPTILIA	20	genus	Premnas	true"
     run_broken_plugin sql/export.sql "             AND NOT bool_and(k.rank_fits) THEN 'rank_mismatch'" \
                                      "             AND false THEN 'rank_mismatch'"

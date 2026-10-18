@@ -46,22 +46,27 @@ HAVING SUM(is_preferred) = 1
 
 -- Höhere Taxa mit ihrem Namensschlüssel (genus:barbus, wie die
 -- iNaturalist-Zuordnung ihn ablegt) und ob ihre Kette bis zu einer Klasse
--- mit Stamm reicht.
+-- mit Stamm reicht. Gattungen, Familien und Ordnungen nur, wenn an ihnen
+-- bzw. darunter eine Art hängt (aktiv oder veraltet): Eine Zeile ohne Art
+-- zeigt die App unter keinem Schlüssel.
 CREATE TEMP VIEW validate_taxon_chain AS
 SELECT 'genus:' || LOWER(TRIM(g.name)) AS name_key, TRIM(COALESCE(c.super_class, '')) != '' AS has_chain
 FROM genera g
 LEFT JOIN families f ON f.id = g.family
 LEFT JOIN orders o ON o.id = f."order"
 LEFT JOIN classes c ON c.id = o.class
+WHERE EXISTS (SELECT 1 FROM species s2 WHERE s2.genus = g.id)
 UNION ALL
 SELECT 'family:' || LOWER(TRIM(f.name)), TRIM(COALESCE(c.super_class, '')) != ''
 FROM families f
 LEFT JOIN orders o ON o.id = f."order"
 LEFT JOIN classes c ON c.id = o.class
+WHERE EXISTS (SELECT 1 FROM genera g2 JOIN species s2 ON s2.genus = g2.id WHERE g2.family = f.id)
 UNION ALL
 SELECT 'order:' || LOWER(TRIM(o.name)), TRIM(COALESCE(c.super_class, '')) != ''
 FROM orders o
 LEFT JOIN classes c ON c.id = o.class
+WHERE EXISTS (SELECT 1 FROM families f2 JOIN genera g2 ON g2.family = f2.id JOIN species s2 ON s2.genus = g2.id WHERE f2."order" = o.id)
 UNION ALL
 SELECT 'class:' || LOWER(TRIM(name)), TRIM(super_class) != '' FROM classes;
 

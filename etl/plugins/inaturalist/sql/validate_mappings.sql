@@ -68,7 +68,9 @@ LEFT JOIN v_taxa t ON CAST(t.taxon_id AS INTEGER) = CAST(e.external_id AS INTEGE
 WHERE e.provider = 'inaturalist';
 
 -- Jede Entität mit dem Schlüssel, unter dem eine Zuordnung für sie stünde,
--- und ihrer Kette (nur die Ränge über dem eigenen).
+-- und ihrer Kette (nur die Ränge über dem eigenen). Gattungen, Familien und
+-- Ordnungen ohne jede Art (aktiv oder veraltet) darunter tragen keinen
+-- Schlüssel; die App zeigt sie unter keinem.
 CREATE TEMP TABLE v_chain AS
 WITH cls AS (
     SELECT id, name AS class,
@@ -88,15 +90,18 @@ FROM genera g
 LEFT JOIN families f ON f.id = g.family
 LEFT JOIN orders o ON o.id = f."order"
 LEFT JOIN cls c ON c.id = o.class
+WHERE EXISTS (SELECT 1 FROM species s2 WHERE s2.genus = g.id)
 UNION ALL
 SELECT 'family:' || LOWER(TRIM(f.name)), f.id, c.phylum, c.class, o.name, NULL, NULL
 FROM families f
 LEFT JOIN orders o ON o.id = f."order"
 LEFT JOIN cls c ON c.id = o.class
+WHERE EXISTS (SELECT 1 FROM genera g2 JOIN species s2 ON s2.genus = g2.id WHERE g2.family = f.id)
 UNION ALL
 SELECT 'order:' || LOWER(TRIM(o.name)), o.id, c.phylum, c.class, NULL, NULL, NULL
 FROM orders o
 LEFT JOIN cls c ON c.id = o.class
+WHERE EXISTS (SELECT 1 FROM families f2 JOIN genera g2 ON g2.family = f2.id JOIN species s2 ON s2.genus = g2.id WHERE f2."order" = o.id)
 UNION ALL
 SELECT 'class:' || LOWER(TRIM(c.class)), c.id, c.phylum, NULL, NULL, NULL, NULL
 FROM cls c;
