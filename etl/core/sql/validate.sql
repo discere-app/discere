@@ -115,6 +115,22 @@ SELECT 'entity_source_keys (Arten)',
     'always'
 UNION ALL
 
+-- Elternstufe gegen den Code der Quelle: Jede Familie in
+-- source_parent_overrides hängt in der DB unter der Ordnung, die dort steht.
+-- Sonst ließe die Identitäts-Stage einen Wechsel zu, der gar nicht gebaut
+-- wurde.
+SELECT 'source_parent_overrides',
+    (SELECT COUNT(*) FROM source_parent_overrides po
+     JOIN entity_source_keys kf
+       ON kf.source = po.source AND kf.entity_type = 'family' AND kf.external_id = po.external_id AND kf.active = 1
+     JOIN families f ON f.id = kf.entity_id
+     JOIN entity_source_keys ko
+       ON ko.source = po.source AND ko.entity_type = 'order' AND ko.entity_id = f."order"
+      AND ko.external_id = po.parent_external_id),
+    (SELECT COUNT(*) FROM source_parent_overrides),
+    'always'
+UNION ALL
+
 -- Bevorzugter wissenschaftlicher Name: Jede aktive Art mit Gattung hat einen,
 -- und er ist ihr eigener Name — Gattung und Epitheton, normalisiert wie im
 -- Export der Quellen (trim, lower; SQLite senkt nur ASCII, ein Name mit

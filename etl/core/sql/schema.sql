@@ -283,6 +283,29 @@ CREATE INDEX IF NOT EXISTS idx_entity_source_keys_entity
     ON entity_source_keys (entity_id);
 
 -- ---------------------------------------------------------------------------
+-- Elternstufen gegen den Code der Quelle (docs/datenquellen.md, Stamm einer
+-- Familie gegen ihren Ordnungscode)
+-- Ein Export, der eine Entität nach einer Regel unter eine andere
+-- Elternstufe hängt, als ihr Code nennt, hält das hier fest. Die
+-- Identitäts-Stage lässt einen Wechsel des Elternschlüssels gegen den
+-- Vorgänger nur zu, wenn er hier steht (core/sql/identity_key_names.sql).
+--
+-- source              — Quelle der Entität
+-- entity_type         — family
+-- external_id         — Schlüssel der Entität in dieser Quelle
+-- parent_external_id  — Schlüssel der Elternstufe in dieser Quelle, unter
+--                       der die Entität hängt
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS source_parent_overrides (
+    source              TEXT NOT NULL,
+    entity_type         TEXT NOT NULL CHECK (entity_type IN ('family')),
+    external_id         TEXT NOT NULL,
+    parent_external_id  TEXT NOT NULL,
+    PRIMARY KEY (source, entity_type, external_id)
+) WITHOUT ROWID;
+
+-- ---------------------------------------------------------------------------
 -- Aliase (docs/datenquellen.md, Aliase führen Entitäten zusammen)
 -- Jede ID eines früheren Releases, die keine Entität mehr bezeichnet, zeigt
 -- hier direkt auf die gültige. Die App schreibt Verweise der Nutzer-DB beim

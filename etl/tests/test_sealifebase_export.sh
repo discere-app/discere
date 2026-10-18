@@ -27,9 +27,9 @@ CREATE TABLE orders (Ordnum INTEGER, "Order" VARCHAR, SisterOrder VARCHAR, Class
 INSERT INTO orders VALUES (1, 'Cardiida', NULL, 1, NULL, NULL, NULL, NULL);
 
 CREATE TABLE families (FamCode INTEGER, Family VARCHAR, Division VARCHAR, Ordnum INTEGER, "Order" VARCHAR,
-    ClassNum INTEGER, CommonName VARCHAR, CommonName_German VARCHAR, CommonName_French VARCHAR,
+    ClassNum INTEGER, Phylum VARCHAR, CommonName VARCHAR, CommonName_German VARCHAR, CommonName_French VARCHAR,
     CommonName_Spanish VARCHAR);
-INSERT INTO families VALUES (1, 'Semelidae', NULL, 1, 'Cardiida', 1, NULL, NULL, NULL, NULL);
+INSERT INTO families VALUES (1, 'Semelidae', NULL, 1, 'Cardiida', 1, 'Mollusca', NULL, NULL, NULL, NULL);
 
 CREATE TABLE genera (GenCode INTEGER, GenName VARCHAR, Subfamily VARCHAR, FamCode INTEGER, CommonName VARCHAR);
 INSERT INTO genera VALUES (1, 'Abra',  NULL, 1, NULL),
@@ -102,7 +102,8 @@ run_sealifebase_export() {
         -e "s|\${SLB_DIR}|$TEST_TMP/sealifebase|g" \
         -e "s|\${PARQUET_DIR}|$TEST_TMP/sealifebase|g" \
         -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g" \
-        -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g")"
+        -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g" \
+        -e "s|\${FAMILY_PHYLUM_EQUIVALENTS}|$ETL_DIR/plugins/sealifebase/data/family_phylum_equivalents.csv|g")"
     run_capture duckdb "$TEST_TMP/export/tmp.duckdb" -c "$sql"
 }
 
@@ -227,17 +228,19 @@ COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARC
                    (6, 'Not assigned', 5)
       ) AS t(Ordnum, "Order", ClassNum)) TO '$dir/orders.parquet' (FORMAT parquet);
 
-COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassNum, NULL::VARCHAR AS CommonName,
-             NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
-             NULL::VARCHAR AS CommonName_Spanish
-      FROM (VALUES (1, 'Semelidae', 1, 'Cardiida', 1), (2, 'Tellinidae', 1, 'Cardiida', 1),
-                   (3, 'Veneridae', 2, 'Venerida', 1), (7, 'Ambigidae', 7, 'Ostreida', 1),
-                   (11, 'Desidae', 7, 'Araneae', 6), (12, 'Mixtidae', 7, ' ostreida', 2),
-                   (13, 'Chromidae', 8, 'Not assigned', 5),
-                   (6, 'Muricidae', 5, 'Neogastropoda', 2), (4, 'Halopterididae', 3, 'Leptothecata', 3),
-                   (5, 'Ceramiaceae', 4, 'Ceramiales', 4), (8, 'Orphanidae', 99, 'Unknownida', 1),
-                   (9, 'Fooidae', 6, 'Not assigned', 5), (10, 'Barridae', 6, 'Not assigned', 5)
-      ) AS t(FamCode, Family, Ordnum, "Order", ClassNum)) TO '$dir/families.parquet' (FORMAT parquet);
+COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassNum, Phylum,
+             NULL::VARCHAR AS CommonName, NULL::VARCHAR AS CommonName_German,
+             NULL::VARCHAR AS CommonName_French, NULL::VARCHAR AS CommonName_Spanish
+      FROM (VALUES (1, 'Semelidae', 1, 'Cardiida', 1, 'Mollusca'), (2, 'Tellinidae', 1, 'Cardiida', 1, 'Mollusca'),
+                   (3, 'Veneridae', 2, 'Venerida', 1, 'Mollusca'), (7, 'Ambigidae', 7, 'Ostreida', 1, 'Mollusca'),
+                   (11, 'Desidae', 7, 'Araneae', 6, 'Arthropoda'), (12, 'Mixtidae', 7, ' ostreida', 2, 'Mollusca'),
+                   (13, 'Chromidae', 8, 'Not assigned', 5, 'Mollusca'),
+                   (6, 'Muricidae', 5, 'Neogastropoda', 2, 'Mollusca'),
+                   (4, 'Halopterididae', 3, 'Leptothecata', 3, 'Cnidaria'),
+                   (5, 'Ceramiaceae', 4, 'Ceramiales', 4, 'Rhodophyta'),
+                   (8, 'Orphanidae', 99, 'Unknownida', 1, 'Mollusca'),
+                   (9, 'Fooidae', 6, 'Not assigned', 5, 'Mollusca'), (10, 'Barridae', 6, 'Not assigned', 5, 'Mollusca')
+      ) AS t(FamCode, Family, Ordnum, "Order", ClassNum, Phylum)) TO '$dir/families.parquet' (FORMAT parquet);
 
 COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
       FROM (VALUES (1, 'Abra', 1), (2, 'Tellina', 2), (3, 'Venus', 3), (4, 'Gattya', 5),
@@ -497,7 +500,7 @@ add_family_naming_order_in_other_spelling() {
     local dir="$TEST_TMP/sealifebase"
     duckdb << SQL
 CREATE TABLE families AS SELECT * FROM '$dir/families.parquet';
-INSERT INTO families (FamCode, Family, Ordnum, "Order", ClassNum) VALUES (14, 'Ostreidae', 7, ' ostreida ', 1);
+INSERT INTO families (FamCode, Family, Ordnum, "Order", ClassNum, Phylum) VALUES (14, 'Ostreidae', 7, ' ostreida ', 1, 'Mollusca');
 COPY families TO '$dir/families.parquet' (FORMAT parquet);
 SQL
 }
@@ -548,6 +551,157 @@ family_order_rejected	12	Mixtidae	Ordnum 7 doppelt, Familie nennt ostreida (Clas
 family_order_rejected	13	Chromidae	Ordnum 8 doppelt, Familie nennt Not assigned (ClassNum 5): Ordnung Not assigned nicht exportiert
 family_order_resolved	7	Ambigidae	Ordnum 7 doppelt, Familie nennt Ostreida (ClassNum 1): Ordnung Ostreida" \
         "$(cat "$TEST_TMP/export/code_report.tsv")" "Bericht"
+}
+
+# Ersetzt die Taxonomie durch Familien, deren eigener Stamm (families.Phylum)
+# und Stamm der Kette über ihren Ordnungscode sich unterscheiden:
+#
+#   Familie             nennt                     Ordnum zeigt auf
+#   1  Priapulidae      Priapulida, Not assigned  1 Cocculiniformia (Mollusca);
+#                       in Klasse 2               genau eine Zeile Not assigned
+#                                                 in Klasse 2 (Priapulida)
+#   2  Ceratiaceae      Dinophyta                 3 Peridiniales (Myzozoa)
+#   3  Maccabeidae      Priapulida, Not assigned  1; zwei Zeilen Not assigned in
+#                       in Klasse 4               Klasse 4
+#   4  Psamminidae      Foraminifera, Not         1; keine Ordnung in Klasse 9
+#                       assigned in Klasse 9
+#   5  Phoronidae       Phoronida, Not assigned   1; genau eine Zeile Not
+#                       in Klasse 7               assigned in Klasse 7, aber
+#                                                 in Annelida
+#   6  Trochosiraceae   Not Assigned (Plantae)    4 Not assigned (Not Assigned
+#                                                 (Plantae))
+#   7  Strombidiidae    Ciliophora                4
+#   8  Cocculinidae     Mollusca                  1
+#   10 Halicryptidae    Priapulida                2 Not assigned (Priapulida)
+#
+# Gattung 1 Priapulus gehört zu Priapulidae. Arten: 10 Priapulus caudatus
+# (FamCode 1), 11 Priapulus spinulosus (FamCode 10), 12 Priapulus cocculinus
+# (FamCode 8).
+write_family_phylum_parquets() {
+    local dir="$TEST_TMP/sealifebase"
+    duckdb << SQL
+COPY (SELECT ClassNum, Class, Phylum, NULL::VARCHAR AS CommonName FROM (VALUES
+    (1, 'Gastropoda', 'Mollusca'), (2, 'Priapulomorpha', 'Priapulida'),
+    (3, 'Dinophyceae', 'Myzozoa'), (4, 'Seticoronaria', 'Priapulida'),
+    (5, 'Not assigned', 'Not Assigned (Plantae)'), (7, 'Polychaeta', 'Annelida'),
+    (9, 'Monothalamea', 'Foraminifera')
+) AS t(ClassNum, Class, Phylum)) TO '$dir/classes.parquet' (FORMAT parquet);
+
+COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARCHAR AS CommonName,
+             NULL::VARCHAR AS CommonName_German, NULL::VARCHAR AS CommonName_French,
+             NULL::VARCHAR AS CommonName_Spanish
+      FROM (VALUES (1, 'Cocculiniformia', 1), (2, 'Not assigned', 2), (3, 'Peridiniales', 3),
+                   (4, 'Not assigned', 5), (5, 'Not assigned', 4), (6, 'Not assigned', 4),
+                   (7, 'Not assigned', 7)
+      ) AS t(Ordnum, "Order", ClassNum)) TO '$dir/orders.parquet' (FORMAT parquet);
+
+COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassNum, Phylum,
+             NULL::VARCHAR AS CommonName, NULL::VARCHAR AS CommonName_German,
+             NULL::VARCHAR AS CommonName_French, NULL::VARCHAR AS CommonName_Spanish
+      FROM (VALUES (1, 'Priapulidae', 1, 'Not assigned', 2, 'Priapulida'),
+                   (2, 'Ceratiaceae', 3, 'Peridiniales', 3, 'Dinophyta'),
+                   (3, 'Maccabeidae', 1, 'Not assigned', 4, 'Priapulida'),
+                   (4, 'Psamminidae', 1, 'Not assigned', 9, 'Foraminifera'),
+                   (5, 'Phoronidae', 1, ' not ASSIGNED', 7, 'Phoronida'),
+                   (6, 'Trochosiraceae', 4, 'Not assigned', 5, 'Not Assigned (Plantae)'),
+                   (7, 'Strombidiidae', 4, 'Not assigned', 5, 'Ciliophora'),
+                   (8, 'Cocculinidae', 1, 'Cocculiniformia', 1, 'Mollusca'),
+                   (10, 'Halicryptidae', 2, 'Not assigned', 2, 'Priapulida')
+      ) AS t(FamCode, Family, Ordnum, "Order", ClassNum, Phylum)) TO '$dir/families.parquet' (FORMAT parquet);
+
+COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
+      FROM (VALUES (1, 'Priapulus', 1)) AS t(GenCode, GenName, FamCode)) TO '$dir/genera.parquet' (FORMAT parquet);
+
+COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
+             NULL::INTEGER AS DepthRangeShallow, NULL::INTEGER AS DepthRangeComShallow,
+             NULL::INTEGER AS DepthRangeDeep, NULL::INTEGER AS DepthRangeComDeep,
+             NULL::VARCHAR AS DemersPelag, NULL::DOUBLE AS Vulnerability, NULL::VARCHAR AS Dangerous,
+             NULL::VARCHAR AS Importance, NULL::FLOAT AS LongevityWild, NULL::VARCHAR AS BodyShapeI
+      FROM (VALUES (10, 'Priapulus', 'caudatus', 1, 1), (11, 'Priapulus', 'spinulosus', 1, 10),
+                   (12, 'Priapulus', 'cocculinus', 1, 8)
+      ) AS t(SpecCode, Genus, Species, GenCode, FamCode)) TO '$dir/species.parquet' (FORMAT parquet);
+SQL
+}
+
+run_family_phylum_export() {
+    create_sealifebase_parquets
+    write_family_phylum_parquets
+    run_sealifebase_export
+    assert_status 0
+}
+
+# Vorläufige Ordnungs-ID der Familie <famcode> in families.csv, leer ohne
+# Ordnung.
+slb_order_of() {
+    slb_csv_columns families 1,7 | sed -n "s/^discere:sealifebase_family:$1,//p"
+}
+
+# Zeile der Familie <famcode> in family_phylum_report.tsv, ohne den Namen.
+slb_family_phylum_report_of() {
+    awk -F '\t' -v key="$1" '$2 == key { print $1 "\t" $4 }' "$TEST_TMP/export/family_phylum_report.tsv"
+}
+
+# Nennt die Familie einen anderen Namen desselben Stamms (laut
+# plugins/sealifebase/data/family_phylum_equivalents.csv), bleibt die
+# Ordnung ihres Codes, ohne Eintrag im Bericht.
+test_sealifebase_export_keeps_order_when_family_names_equivalent_phylum() {
+    run_family_phylum_export
+    assert_eq "discere:sealifebase_order:3" "$(slb_order_of 2)" "Ceratiaceae"
+    assert_eq "discere:sealifebase_order:1" "$(slb_order_of 8)" "Cocculinidae"
+    assert_eq "" "$(slb_family_phylum_report_of 2)$(slb_family_phylum_report_of 8)" "Bericht"
+}
+
+# Zeigt der Ordnungscode in einen anderen Stamm, hängt die Familie unter der
+# einzigen Ordnungszeile mit ihrem Ordnungsnamen und ihrer ClassNum, wenn
+# deren Stamm passt. Die Identitäts-Stage erfährt den Wechsel aus
+# parent_overrides.csv.
+test_sealifebase_export_moves_family_to_order_of_its_own_phylum() {
+    run_family_phylum_export
+    assert_eq "discere:sealifebase_order:2" "$(slb_order_of 1)" "Priapulidae"
+    assert_eq "family_phylum_resolved	Familie nennt Priapulida, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: Ordnung Not assigned / Priapulomorpha / Priapulida (Ordnum 2)" \
+        "$(slb_family_phylum_report_of 1)" "Bericht"
+    assert_eq "source,entity_type,external_id,parent_external_id
+sealifebase,family,1,2" "$(cat "$TEST_TMP/export/parent_overrides.csv")" "parent_overrides.csv"
+}
+
+# Ohne genau eine passende Ordnungszeile — keine, mehrere, oder eine in einem
+# anderen Stamm als dem der Familie — bekommt sie keine Ordnung.
+test_sealifebase_export_drops_order_when_family_phylum_has_no_unique_order() {
+    run_family_phylum_export
+    assert_eq "" "$(slb_order_of 3)$(slb_order_of 4)$(slb_order_of 5)" "Maccabeidae, Psamminidae, Phoronidae"
+    assert_eq "family_phylum_rejected	Familie nennt Priapulida, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: keine Ordnung, 2 Ordnungszeilen Not assigned mit ClassNum 4" \
+        "$(slb_family_phylum_report_of 3)" "Bericht mehrere"
+    assert_eq "family_phylum_rejected	Familie nennt Foraminifera, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: keine Ordnung, keine Ordnungszeile Not assigned mit ClassNum 9" \
+        "$(slb_family_phylum_report_of 4)" "Bericht keine"
+    assert_eq "family_phylum_rejected	Familie nennt Phoronida, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: keine Ordnung, Ordnung Not assigned / Polychaeta / Annelida (Ordnum 7) in anderem Stamm" \
+        "$(slb_family_phylum_report_of 5)" "Bericht anderer Stamm"
+    assert_not_contains "$(cat "$TEST_TMP/export/parent_overrides.csv")" "family,5,"
+}
+
+# Ein Platzhalter-Stamm auf einer Seite lässt sich nicht vergleichen: Die
+# Ordnung bleibt, der Bericht nennt den Fall.
+test_sealifebase_export_keeps_order_when_phylum_is_placeholder() {
+    run_family_phylum_export
+    assert_eq "discere:sealifebase_order:4" "$(slb_order_of 6)" "Trochosiraceae"
+    assert_eq "discere:sealifebase_order:4" "$(slb_order_of 7)" "Strombidiidae"
+    assert_eq "family_phylum_unclear	Familie nennt Not Assigned (Plantae), Ordnum 4 zeigt auf Not assigned / Not assigned / Not Assigned (Plantae): nicht vergleichbar, Ordnung bleibt" \
+        "$(slb_family_phylum_report_of 6)" "Bericht Familie"
+    assert_eq "family_phylum_unclear	Familie nennt Ciliophora, Ordnum 4 zeigt auf Not assigned / Not assigned / Not Assigned (Plantae): nicht vergleichbar, Ordnung bleibt" \
+        "$(slb_family_phylum_report_of 7)" "Bericht Kette"
+}
+
+# Der Gattungsvergleich (#333) sieht die berichtigte Kette: Priapulus
+# spinulosus (Familie in Priapulida) behält die Gattung aus Priapulidae, nur
+# die Familie weicht ab; Priapulus cocculinus (Familie unter den Schnecken)
+# verliert sie.
+test_sealifebase_export_compares_genus_through_family_moved_by_phylum() {
+    run_family_phylum_export
+    assert_eq "discere:sealifebase_genus:1" "$(slb_genus_of 11)" "Priapulus spinulosus"
+    assert_eq "genus_kept_family_differs	GenCode 1 Priapulus (Priapulidae / Not assigned / Priapulomorpha / Priapulida), Art: Halicryptidae / Not assigned / Priapulomorpha / Priapulida" \
+        "$(slb_genus_report_of 11)" "Bericht behalten"
+    assert_eq "" "$(slb_genus_of 12)" "Priapulus cocculinus"
+    assert_eq "genus_rejected	Stamm: GenCode 1 Priapulus (Priapulidae / Not assigned / Priapulomorpha / Priapulida), Art: Cocculinidae / Cocculiniformia / Gastropoda / Mollusca" \
+        "$(slb_genus_report_of 12)" "Bericht verworfen"
 }
 
 # Ersetzt synonyms.parquet durch Synonyme von Abra alba (Art 10), die mit

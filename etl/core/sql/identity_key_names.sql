@@ -27,6 +27,13 @@
 -- im Vorgänger, bricht der Build ebenso ab. Verglichen werden Schlüssel der
 -- Quelle, nicht IDs; fehlt die Elternstufe auf einer Seite, ist das kein
 -- Wechsel des Taxons.
+--
+-- Hängt ein Export eine Familie nach einer Regel gezielt unter eine andere
+-- Ordnung, als ihr Code nennt (SeaLifeBase: Stamm der Familie gegen die
+-- Kette über ihren Ordnungscode), steht das in source_parent_overrides. Ein
+-- Wechsel genau auf diesen Elternschlüssel ist kein Wechsel des Taxons: Der
+-- Name der Familie bleibt (Prüfung oben), nur ihre Einordnung wird
+-- berichtigt. Jeder andere Wechsel bricht weiter ab.
 -- =============================================================================
 
 INSERT INTO identity_failure (message)
@@ -79,6 +86,11 @@ FROM (
       ON pg.entity_id = ppi.entity_id AND pg.entity_type = ppi.entity_type AND pg.source = r.source
     WHERE r.assignment = 'known'
       AND cp.external_id <> pg.external_id
+      AND NOT EXISTS (
+          SELECT 1 FROM main.source_parent_overrides po
+          WHERE po.source = r.source AND po.entity_type = r.entity_type
+            AND po.external_id = r.external_id AND po.parent_external_id = cp.external_id
+      )
     ORDER BY r.entity_type, r.source, r.external_id
 )
 HAVING COUNT(*) > 0;
