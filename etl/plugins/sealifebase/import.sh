@@ -178,6 +178,7 @@ DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM species_scientific_names WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM ambiguous_scientific_names WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM source_parent_overrides WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
@@ -196,7 +197,9 @@ export_to_csv() {
         -e "s|\${SLB_DIR}|${SLB_DIR}|g" \
         -e "s|\${PARQUET_DIR}|${SLB_DIR}|g" \
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
-        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g") \
+        -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g" \
+        -e "s|\${FAMILY_PHYLUM_EQUIVALENTS}|${PLUGIN_DIR}/data/family_phylum_equivalents.csv|g" \
+        -e "s|\${FAMILY_ORDER_EXCEPTIONS}|${PLUGIN_DIR}/data/family_order_exceptions.csv|g") \
         || plugin_fail "export.sql nicht lesbar."
 
     duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
@@ -277,6 +280,12 @@ CREATE TEMP TABLE tmp_families (
     body_shape TEXT,
     division TEXT,
     "order" TEXT
+);
+CREATE TEMP TABLE tmp_parent_overrides (
+    source TEXT,
+    entity_type TEXT,
+    external_id TEXT,
+    parent_external_id TEXT
 );
 CREATE TEMP TABLE tmp_genera (
     id TEXT,
@@ -374,6 +383,7 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/classes.csv  tmp_classes
 .import --skip 1 ${EXPORT_DIR}/orders.csv   tmp_orders
 .import --skip 1 ${EXPORT_DIR}/families.csv tmp_families
+.import --skip 1 ${EXPORT_DIR}/parent_overrides.csv tmp_parent_overrides
 .import --skip 1 ${EXPORT_DIR}/genera.csv   tmp_genera
 .import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
 .import --skip 1 ${EXPORT_DIR}/common_names.csv tmp_common_names
@@ -401,6 +411,8 @@ INSERT INTO families (
 ) SELECT
     id, external_id, external_source, name, body_shape, division, "order"
 FROM tmp_families;
+INSERT INTO source_parent_overrides (source, entity_type, external_id, parent_external_id)
+SELECT source, entity_type, external_id, parent_external_id FROM tmp_parent_overrides;
 
 INSERT OR IGNORE INTO genera (
     id, external_id, external_source, name, subfamily, body_shape, family
@@ -558,6 +570,19 @@ report_genus_resolution() {
         "bzw. $(grep -c '^genus_kept_order_differs' "$report" || true)"
 }
 
+# Familien, deren Stamm der Kette über ihren Ordnungscode widerspricht
+# (family_phylum_resolved, family_phylum_rejected) oder sich nicht vergleichen
+# lässt (family_phylum_unclear), und die kuratierten Ausnahmen ohne Ordnung
+# (family_order_exception) in den Build-Bericht.
+report_family_phylum() {
+    local report="${EXPORT_DIR}/family_phylum_report.tsv"
+    plugin_report < "$report"
+    plugin_log "Stamm der Familie gegen ihren Ordnungscode: umgehängt $(grep -c '^family_phylum_resolved' "$report" || true)," \
+        "ohne Ordnung $(grep -c '^family_phylum_rejected' "$report" || true)," \
+        "nicht vergleichbar $(grep -c '^family_phylum_unclear' "$report" || true)," \
+        "Ausnahme ohne Ordnung $(grep -c '^family_order_exception' "$report" || true)"
+}
+
 write_source_metadata() {
     plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$SLB_VERSION"
 }
@@ -604,6 +629,7 @@ clear_existing_data
 export_to_csv
 import_to_sqlite
 plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
+report_family_phylum
 plugin_report_distribution "${EXPORT_DIR}/distribution_report.tsv"
 report_genus_resolution
 write_source_metadata

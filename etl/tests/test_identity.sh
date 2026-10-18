@@ -395,6 +395,60 @@ test_identity_aborts_when_known_key_moves_to_another_parent_key() {
     assert_eq "0" "$(sqlite3 "$TEST_TMP/build.db" "SELECT COUNT(*) FROM entity_source_keys;")" "nichts geschrieben"
 }
 
+# Hängt eine Familie unter einer anderen Ordnung als im Vorgänger, weil der
+# Export sie nach einer Regel gezielt umgehängt hat (source_parent_overrides),
+# ist das kein Wechsel des Taxons: Die Stage baut weiter.
+test_identity_accepts_parent_change_listed_by_export() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+            ('discere:sealifebase_order:7', '7', 'sealifebase', 'Achelata', 'discere:sealifebase_class:1');
+        UPDATE families SET \"order\" = 'discere:sealifebase_order:7' WHERE id = 'discere:sealifebase_family:3';
+        INSERT INTO source_parent_overrides (source, entity_type, external_id, parent_external_id) VALUES
+            ('sealifebase', 'family', '3', '7');"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 0
+    assert_eq "$(registered_id "$TEST_TMP/build.db" sealifebase order 7)" \
+        "$(sqlite3 "$TEST_TMP/build.db" "SELECT \"order\" FROM families WHERE id = '$(registered_id "$TEST_TMP/build.db" sealifebase family 3)';")" \
+        "Ordnung von Nephropidae"
+}
+
+# Zugelassen ist nur genau der Elternschlüssel, den der Export nennt, und nur
+# für seine Quelle: Ein anderer Wechsel bricht weiter ab.
+test_identity_aborts_on_parent_change_other_than_listed() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+            ('discere:sealifebase_order:7', '7', 'sealifebase', 'Achelata', 'discere:sealifebase_class:1'),
+            ('discere:fishbase_order:9', '9', 'fishbase', 'Gobiiformes', 'discere:fishbase_class:7');
+        UPDATE families SET \"order\" = 'discere:sealifebase_order:7' WHERE id = 'discere:sealifebase_family:3';
+        UPDATE families SET \"order\" = 'discere:fishbase_order:9' WHERE id = 'discere:fishbase_family:1';
+        INSERT INTO source_parent_overrides (source, entity_type, external_id, parent_external_id) VALUES
+            ('sealifebase', 'family', '3', '8'),
+            ('sealifebase', 'family', '1', '9');"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "Identität: 2 Schlüssel von Ordnungen bzw. Familien hängen unter einem anderen Elternschlüssel als im Vorgänger (Typ Quelle:Schlüssel Name, Eltern Vorgänger → jetzt): family fishbase:1 Pomacentridae, 1 → 9; family sealifebase:3 Nephropidae, 2 → 7"
+}
+
+# Ein Eintrag für eine andere Familie lässt den Wechsel nicht zu, auch wenn
+# er denselben Elternschlüssel nennt.
+test_identity_aborts_on_parent_change_listed_for_other_family() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "
+        INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+            ('discere:sealifebase_order:7', '7', 'sealifebase', 'Achelata', 'discere:sealifebase_class:1');
+        UPDATE families SET \"order\" = 'discere:sealifebase_order:7' WHERE id = 'discere:sealifebase_family:3';
+        INSERT INTO source_parent_overrides (source, entity_type, external_id, parent_external_id) VALUES
+            ('sealifebase', 'family', '4', '7');"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "family sealifebase:3 Nephropidae, 2 → 7"
+}
+
 # Leerzeichen am Rand und Groß- und Kleinschreibung ändern das Taxon nicht,
 # ebenso wenig ein anderes Epitheton einer Art unter gleichem Schlüssel oder
 # eine Familie, die ihre Ordnung verliert.

@@ -49,7 +49,9 @@ build.sh                       ← Orchestrator
 │   │   ├── import.sh          ← FishBase-Import
 │   │   └── sql/
 │   │       └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
-│   ├── sealifebase/           ← SeaLifeBase-Import, gleicher Aufbau
+│   ├── sealifebase/           ← SeaLifeBase-Import, gleicher Aufbau; data/ mit
+│   │                             gleichwertigen Stammnamen der Familien und
+│   │                             Familien ohne Ordnung (Ausnahmen)
 │   ├── inaturalist/           ← iNaturalist-Taxon-IDs (optional, Netzwerk)
 │   └── curated/
 │       ├── import.sh          ← Kuratierte Ergänzungen (nur sqlite3)
@@ -110,6 +112,15 @@ Arten) oder nur als falsch angewandter Name vorkommt (`misapplied`; siehe
 über den eindeutigen Gattungsnamen (`genus_by_name`) oder offen
 (`genus_unresolved`, mit Grund; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)),
+jede Familie, deren Ordnungscode in einen anderen Stamm zeigt, als sie selbst
+nennt: umgehängt unter die Ordnung ihres Namens, ihrer Klasse und ihres
+Stamms (`family_phylum_resolved`) oder ohne Ordnung
+(`family_phylum_rejected`, mit Grund), und jede, bei der ein Stamm ein
+Platzhalter ist (`family_phylum_unclear`), und jede Familie der kuratierten
+Ausnahmeliste, die deshalb keine Ordnung hat (`family_order_exception`), je
+mit der Kette über den Code
+(siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#stamm-einer-familie-gegen-ihren-ordnungscode)),
 und jede Art, deren Gattung nicht zu ihrer eigenen Familie passt: verworfen
 (`genus_rejected`, Grund `Name`, `Stamm`, `Klasse` oder `Ordnung unklar`)
 oder behalten, weil nur Familie bzw. Ordnung abweichen
@@ -132,7 +143,8 @@ Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
   aktiver Art mit Gattung ein bevorzugter wissenschaftlicher Name, der ihr
   eigener ist (Gattung und Epitheton), bei einer Art ohne Gattung einer, der
   auf ihr Epitheton endet, und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
-  auflösbaren Namen, jeder auf seine Art;
+  auflösbaren Namen, jeder auf seine Art, und jede Familie in
+  `source_parent_overrides` unter der Ordnung, die dort steht;
 - `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
 - `inaturalist` — Invariante der iNaturalist-Zuordnung: Jede zugeordnete Art
   und jede Entität hinter einem zugeordneten Namensschlüssel hat eine Kette

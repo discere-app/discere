@@ -266,6 +266,28 @@ test_validate_fails_on_inaturalist_class_key_without_phylum() {
     assert_contains "$ERR" "FEHLER: inaturalist (name keys with chain) — 0 (erwartet >= 1)"
 }
 
+# Jede Familie in source_parent_overrides hängt unter der Ordnung, die dort
+# steht; sonst ließe die Identitäts-Stage einen Wechsel zu, den der Build
+# gar nicht enthält.
+test_validate_fails_on_parent_override_the_build_does_not_contain() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO entity_source_keys (source, entity_type, external_id, entity_id, active) VALUES
+            ('fishbase', 'family', '1', 'discere:family:1', 1),
+            ('fishbase', 'order',  '2', 'discere:order:2',  1),
+            ('fishbase', 'order',  '3', 'discere:order:3',  1);
+        UPDATE families SET \"order\" = 'discere:order:2' WHERE id = 'discere:family:1';
+        INSERT INTO source_parent_overrides (source, entity_type, external_id, parent_external_id)
+        VALUES ('fishbase', 'family', '1', '2');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 0
+    sqlite3 "$DB" "UPDATE families SET \"order\" = 'discere:order:3' WHERE id = 'discere:family:1';"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: source_parent_overrides — 0 (erwartet >= 1)"
+}
+
 test_validate_aborts_on_unknown_requirement() {
     create_validatable_db
     copy_core

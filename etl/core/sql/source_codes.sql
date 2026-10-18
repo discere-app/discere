@@ -42,7 +42,9 @@
 --   src_classes, src_orders, src_families, src_genera, src_species
 --                    — die Zeilen der Parquets, die als Entität gelten
 --   t_family_order   — Ordnum der Ordnung jeder Familie aus src_families,
---                      NULL ohne Ordnung
+--                      NULL ohne Ordnung; SeaLifeBase prüft sie danach
+--                      noch gegen den Stamm der Familie
+--                      (plugins/sealifebase/sql/export.sql)
 --   code_report.tsv  — Build-Bericht (Kategorie, Schlüssel, Name, Detail):
 --     code_duplicate           jede Zeile eines doppelten Codes, mit Ausgang
 --     family_order_resolved    Familie unter doppeltem Ordnum, Ordnung über
