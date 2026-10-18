@@ -306,6 +306,95 @@ Familie, Gattung und Art genau einmal im Export. Klassen, Ordnungen und
 Familien importieren die Plugins ohne `OR IGNORE`; eine Kollision bricht den
 Import ab, statt still eine Zeile zu behalten.
 
+### Stamm einer Familie gegen ihren Ordnungscode
+
+Eine SeaLifeBase-Familie nennt ihren Stamm selbst (`families.Phylum`); die
+DB zeigt die Kette über ihren Ordnungscode: Familie → Ordnung → Klasse →
+Stamm. Bei 69 Familien mit eindeutigem Ordnum (v26.06) nennen beide einen
+anderen Stamm. Meist ist es derselbe Stamm unter anderem Namen, bei 11 ein
+echter Widerspruch: *Priapulidae* nennt Priapulida, ihr Code zeigt auf
+Cocculiniformia (Gastropoda), und *Priapulus caudatus* stünde unter den
+Schnecken. Der Ordnungscode liegt dort um eins neben dem richtigen (10652
+statt 10653). FishBase führt keinen Stamm an der Familie. Der Export prüft
+deshalb, nach der Auflösung doppelter Codes
+(`plugins/sealifebase/sql/export.sql`):
+
+1. **Derselbe Stamm** — gleich (ohne Leerzeichen am Rand und Groß- und
+   Kleinschreibung) oder als Paar in
+   `plugins/sealifebase/data/family_phylum_equivalents.csv` (Stamm der
+   Familie, Stamm der Kette, Begründung): Die Ordnung bleibt.
+2. **Widerspruch** — Die Familie bekommt die Ordnungszeile, deren Name
+   gleich dem Ordnungsnamen ist, den sie selbst nennt, und deren ClassNum
+   gleich ihrer eigenen ist, wenn es genau eine gibt, sie exportiert wird
+   und ihr Stamm nach 1. zu dem der Familie passt. Sonst hat die Familie
+   keine Ordnung.
+3. **Nicht vergleichbar** — Fehlt ein Stamm oder ist einer ein
+   Rang-Platzhalter („Not Assigned (Plantae)“, Muster aus
+   `core/data/placeholder_patterns.csv`), bleibt die Ordnung. Ein
+   Platzhalter nennt keinen Stamm, der gleich oder verschieden sein könnte.
+
+Die Liste gleichwertiger Namen enthält nur Paare, die in v26.06 vorkommen
+und dieselbe Gruppe meinen oder eine in der anderen enthalten:
+
+| Stamm der Familie | Stamm der Kette | Familien | Grund |
+|---|---|---|---|
+| Dinophyta | Myzozoa | 41 | Dinoflagellaten, Teil der Myzozoa |
+| Platyhelminthes | Xenacoelomorpha | 15 | Acoela, früher unter den Plattwürmern |
+| Chorophyta | Chlorophyta | 1 | Schreibfehler |
+| Ochrophyta | Bacillariophyta | 1 | Kieselalgen, Teil der Ochrophyta |
+
+Jedes Paar steht in der Richtung, in der es vorkommt. Bei allen 58 Familien
+nennen sie und ihr Code außerdem denselben Ordnungsnamen. Die Liste ist
+eine eigene, nicht die gleichwertigen Stämme der iNaturalist-Zuordnung
+(`plugins/inaturalist/data/phylum_equivalents.csv`): Jene übersetzt
+SeaLifeBase-Namen der Kette in iNaturalist-Namen (Myzozoa → Miozoa), diese
+Namen innerhalb von SeaLifeBase (Dinophyta → Myzozoa), und ein
+zusammengelegtes Paar wie der Schreibfehler „Chorophyta“ hätte in der
+anderen Prüfung nichts zu suchen.
+
+Ergebnis für v26.06:
+
+| Familie | nennt | Code zeigt auf | Ergebnis |
+|---|---|---|---|
+| *Priapulidae*, *Tubiluchidae* | Priapulida | Cocculiniformia / Gastropoda | Not assigned / Priapulomorpha / Priapulida |
+| *Phoronidae*, *Actinotrochidae* | Phoronida | Not assigned / Aplacophora | Not assigned / Not assigned / Phoronida |
+| *Xenoturbellidae* | Xenacoelomorpha | Not assigned / Aplacophora | Not assigned / Not assigned / Xenacoelomorpha |
+| *Palaeotropidae* | Echinodermata | Not assigned / Aplacophora | Spatangoida / Echinoidea / Echinodermata |
+| *Maccabeidae* | Priapulida | Didelphimorphia / Mammalia | keine Ordnung: keine Zeile „Not assigned“ in ihrer Klasse |
+| *Psamminidae*, *Stannomidae*, *Syringamminidae*, „Not assigned“ | Foraminifera | Lepetellida / Gastropoda | keine Ordnung: keine Zeile „Not assigned“ in ihrer Klasse |
+
+Nicht vergleichbar sind fünf Familien, deren Stamm auf beiden Seiten ein
+Platzhalter ist (*Jakobaceae*, *Trochosiraceae* und drei „Not assigned“).
+
+**Klasse.** Bei 329 Familien mit eindeutigem Ordnum weicht auch die eigene
+ClassNum von der Klasse der Ordnung ab, bei 302 davon im selben Stamm.
+Fast alle sind ältere oder andere Namen derselben Gruppe (Copepoda und
+Thecostraca gegen Hexanauplia, Articulata gegen Rhynchonellata, Staurozoa
+gegen Scyphozoa, Umstellungen innerhalb der Foraminiferen) oder eine
+Platzhalter-Klasse auf einer Seite (Reptilia, Turbellaria). Der einzige
+Fall, der wie ein Widerspruch aussieht, *Margaritidae* (FamCode 5025,
+ClassNum der Gastropoda, Ordnung Ostreida der Muscheln), ist ein Fehler der
+ClassNum: Die Familie hält die Perlmuscheln *Pinctada*, und ihr eigenes Feld
+`Class` nennt Bivalvia. Eine Regel über die ClassNum der Familie hinge sie
+falsch um. Für die Klasse gibt es deshalb keine eigene Prüfung; sie zählt nur
+als Teil der Suche in 2.
+
+Jeder Fall nach 2. und 3. steht im Build-Bericht:
+`family_phylum_resolved` mit der neuen Ordnung, `family_phylum_rejected`
+mit Grund, `family_phylum_unclear`, je mit der Kette über den Code.
+
+Eine Familie nach 2. hängt unter einem anderen Elternschlüssel, als ihr
+Code nennt, und meist auch als im Vorgänger. Das allein würde die
+Identitäts-Stage abbrechen lassen (siehe [Das Register vergibt IDs
+stabil](#das-register-vergibt-ids-stabil)). Der Export schreibt jede solche
+Familie mit ihrem neuen Elternschlüssel in `source_parent_overrides`, und die
+Stage lässt genau diesen Wechsel zu: Der Name der Familie und damit das
+Taxon hinter ihrem Schlüssel bleiben, nur die Einordnung wird berichtigt.
+Jeder andere Wechsel bricht weiter ab, und `validate.sql` prüft, dass jede
+Familie der Tabelle in der DB unter der genannten Ordnung hängt. Eine
+Familie ohne Ordnung braucht keinen Eintrag: Eine fehlende Elternstufe ist
+kein Wechsel.
+
 ### Mehrere Verbreitungszeilen einer Art und Region
 
 Die Verbreitung (`country`, `countrysub`) führt für eine Art in einem Land
@@ -393,9 +482,11 @@ gleichnamigen Rotalgen-Gattung). Welche Angabe stimmt, sagt die Quelle
 nicht. Der Export behält die Gattung — über GenCode oder über den Namen
 gefunden — nur, wenn sie zur Art passt, und vergleicht dazu die Kette, die
 die DB zeigt: Familie → Ordnung → Klasse → Stamm, mit der Ordnung nach
-[Doppelte Codes in der Quelle](#doppelte-codes-in-der-quelle). Die eigenen
-Felder `ClassNum` und `Phylum` der Familien zählen sonst nicht; sie
-widersprechen der Kette bei Hunderten Familien.
+[Doppelte Codes in der Quelle](#doppelte-codes-in-der-quelle) und
+[Stamm einer Familie gegen ihren Ordnungscode](#stamm-einer-familie-gegen-ihren-ordnungscode).
+Die eigenen Felder `ClassNum` und `Phylum` der Familien zählen sonst nicht;
+sie widersprechen der Kette bei Hunderten Familien, meist mit einem anderen
+Namen derselben Gruppe.
 
 - **Gleiche Familie und gleicher Name** (Gattungsname gleich `Genus` der
   Art, ohne Rücksicht auf Leerzeichen und Groß- und Kleinschreibung): Die
@@ -519,9 +610,9 @@ Abgleich (die Ruderfußkrebs-Gattung *Gaussia* neben der gleichnamigen
 Palme), bleiben mehrere, keines.
 
 Lieber keine Zuordnung als eine falsche — auch dann, wenn im Einzelfall die
-eigene Kette falsch ist und iNaturalist recht hätte (*Phoronis* steht bei
-SeaLifeBase unter Aplacophora) oder ein Synonym nur nach einer Umstellung
-der Familie anders eingeordnet ist.
+eigene Kette falsch ist und iNaturalist recht hätte (das Seegras
+*Halophila* steht bei SeaLifeBase unter einer Moostierchen-Familie) oder ein
+Synonym nur nach einer Umstellung der Familie anders eingeordnet ist.
 
 Jedes abgelehnte Taxon steht im Build-Bericht mit Grund und den Ketten
 beider Seiten: `phylum_mixed` (Stamm passt zu einem Teil der Entitäten),
@@ -643,7 +734,9 @@ Referenz-DB durch die endgültigen:
   bei Ordnungen und Familien bricht der Build deshalb auch ab, wenn sie
   unter dem Schlüssel einer anderen Klasse bzw. Ordnung hängen als im
   Vorgänger (Schlüssel der Quelle, nicht IDs). Fehlt die Elternstufe auf
-  einer Seite, ist das kein Wechsel.
+  einer Seite, ist das kein Wechsel, ebenso wenig ein Elternschlüssel, den
+  der Export für diese Familie in `source_parent_overrides` nennt (siehe
+  [Stamm einer Familie gegen ihren Ordnungscode](#stamm-einer-familie-gegen-ihren-ordnungscode)).
 - **Höheres Taxon mit unbekanntem Schlüssel** — eine neue Entität. Siehe
   [Bekannte Grenzen](#bekannte-grenzen).
 - **Neue IDs** zählen je Typ ab der größten Nummer, die Register, Aliase oder
@@ -1059,7 +1152,11 @@ installiert.
   Gattungen und von *Lernaeodiscidae* nennen selbst eine andere Familie und
   hängen deshalb an keiner Gattung (siehe
   [Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich));
-  unter *Mictocarididae* bleibt eine aktive Art. Die App lädt solche Arten
+  unter *Mictocarididae* bleibt eine aktive Art. Dazu kommen fünf Familien,
+  deren Ordnungscode in einen anderen Stamm zeigt und deren eigene Angaben
+  keine Ordnung finden (siehe
+  [Stamm einer Familie gegen ihren Ordnungscode](#stamm-einer-familie-gegen-ihren-ordnungscode)).
+  Die App lädt solche Arten
   trotzdem und zeigt die fehlenden Stufen als „nicht zugeordnet“; im
   Gattungs- bzw. Familienmodus bekommen sie ohne Antwort keine Karte.
 - **Die SeaLifeBase-Einordnung ist teils veraltet.** Weichen Gattung und
@@ -1078,6 +1175,15 @@ installiert.
   Klasse der Familie gibt es deshalb weder im Export noch in
   `validate.sql`: Die DB kennt diese Angabe nicht, und über alle Familien
   gälte sie nicht. Die Regel prüfen Bericht und Tests.
+- **Der Stamm einer Familie prüft nur, was die Quelle selbst nennt.** Ein
+  Ordnungscode, der in eine falsche Klasse desselben Stamms zeigt, fällt
+  nicht auf: Die eigene ClassNum der Familie ist dafür zu oft veraltet oder
+  falsch (siehe
+  [Stamm einer Familie gegen ihren Ordnungscode](#stamm-einer-familie-gegen-ihren-ordnungscode)).
+  Ebenso wenig eine Familie, deren eigener Stamm mit dem falschen Code
+  übereinstimmt, oder ein Paar der Liste gleichwertiger Stämme, unter dem
+  eine Familie tatsächlich falsch hängt (eine echte Plattwurm-Familie unter
+  einer Ordnung der Xenacoelomorpha bestünde die Prüfung).
 - **Ein neuer Name oder Elternschlüssel unter bekanntem Schlüssel stoppt
   den Build.** Die Identitäts-Stage erkennt einen Schlüsselwechsel am Namen
   und, bei Ordnungen und Familien, am Elternschlüssel (siehe
@@ -1085,7 +1191,9 @@ installiert.
   Korrigiert eine Quelle die Schreibweise eines höheren Taxons oder stellt
   sie eine Familie in eine andere Ordnung, unter gleichem Code, bricht der
   Build ebenso ab, und es braucht eine Entscheidung im Code; zwischen
-  refdb-v2 und v26.06 kommt beides nicht vor. Ein Wechsel zwischen zwei
+  refdb-v2 und v26.06 kommt beides nicht vor. Eine solche Entscheidung ist
+  die Regel zum Stamm einer Familie: Die Familien, die sie umhängt, stehen
+  in `source_parent_overrides`. Ein Wechsel zwischen zwei
   gleichnamigen Gattungen derselben Familie fiele nicht auf.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
@@ -1093,10 +1201,9 @@ installiert.
   eigener Schritt eine davon zum Alias macht.
 
 - **Die Prüfung der iNaturalist-Zuordnung ist nur so gut wie die eigene
-  Kette.** Steht eine Art bei SeaLifeBase im falschen Stamm (*Phoronis*,
-  *Priapulus* unter den Schnecken, das Seegras *Halophila* unter den
-  Moostierchen, Ciliaten unter „Not Assigned (Plantae)“), lehnt sie die
-  richtige Zuordnung ab; eine Art ohne Gattung oder eine gleichnamige Zeile
+  Kette.** Steht eine Art bei SeaLifeBase im falschen Stamm (das Seegras
+  *Halophila* unter den Moostierchen, Ciliaten unter „Not Assigned
+  (Plantae)“), lehnt sie die richtige Zuordnung ab; eine Art ohne Gattung oder eine gleichnamige Zeile
   mit Art, aber ohne Kette verhindert sie ganz. Nach einer Umstellung der Familie fallen
   auch richtige Synonym-Treffer weg. Umgekehrt trennt sie kein Homonym in
   derselben Klasse, solange der Artname bei iNaturalist nur ein Taxon trägt
