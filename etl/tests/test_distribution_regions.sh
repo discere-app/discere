@@ -82,7 +82,7 @@ test_distribution_native_wins_over_introduced() {
         assert_country_export "$plugin" "
             (1, '404', 'introduced', 'present', 0, NULL, NULL, 'Lake Victoria'),
             (2, '404', 'native',     'present', 0, NULL, NULL, 'Lake Turkana')" \
-            "country,404,present,native,0,,,Lake Turkana
+            "country,404,present,native,0,,,
 subregion,276:1,present,native,,,," "native + introduced"
     done
 }
@@ -95,7 +95,7 @@ test_distribution_native_wins_over_endemic() {
             (1, '404', 'endemic', 'present', 0, NULL, NULL, 'Lake Baringo'),
             (2, '404', 'native',  'present', 0, NULL, NULL, 'Lake Turkana'),
             (3, '404', 'endemic', 'present', 0, NULL, NULL, 'Suguta River')" \
-            "country,404,present,native,0,,,Lake Turkana
+            "country,404,present,native,0,,,
 subregion,276:1,present,native,,,," "endemic + native"
     done
 }
@@ -106,7 +106,7 @@ test_distribution_keeps_endemic_when_all_rows_say_endemic() {
         assert_country_export "$plugin" "
             (1, '404', 'endemic', 'present', 0, NULL, NULL, 'Suguta River'),
             (2, '404', 'endemic', 'present', 0, NULL, NULL, 'Lake Baringo')" \
-            "country,404,present,endemic,0,,,Lake Baringo
+            "country,404,present,endemic,0,,,
 subregion,276:1,present,native,,,," "nur endemic"
     done
 }
@@ -118,7 +118,7 @@ test_distribution_introduced_wins_over_questionable() {
         assert_country_export "$plugin" "
             (1, '524', 'questionable', 'possible', 0, NULL, NULL, 'Unconfirmed'),
             (2, '524', 'introduced',   'present',  0, NULL, NULL, 'Stocked')" \
-            "country,524,present,introduced,0,,,Stocked
+            "country,524,,introduced,0,,,
 subregion,276:1,present,native,,,," "introduced + questionable"
     done
 }
@@ -127,7 +127,8 @@ subregion,276:1,present,native,,,," "introduced + questionable"
 # questionable, error, misidentification, extirpated, stray, not established,
 # reintroduced, established, ohne Status — je Land ein Paar benachbarter
 # Ränge, der vordere jeweils an zweiter Position der Eingabe. Groß- und
-# Kleinschreibung zählen nicht, gewählt wird die Zeile in ihrer Schreibweise.
+# Kleinschreibung zählen nicht, der Status bleibt in seiner Schreibweise.
+# Die Präsenz bleibt leer, wo die beiden Zeilen darin abweichen.
 test_distribution_ranks_remaining_statuses() {
     local plugin
     for plugin in $DISTRIBUTION_PLUGINS; do
@@ -148,48 +149,69 @@ test_distribution_ranks_remaining_statuses() {
             (14, '107', 'reintroduced',      'present',  0, NULL, NULL, NULL),
             (15, '108', NULL,                'present',  0, NULL, NULL, NULL),
             (16, '108', 'established',       'present',  0, NULL, NULL, NULL)" \
-            "country,101,possible,questionable,0,,,
+            "country,101,,questionable,0,,,
 country,102,absent,error,0,,,
 country,103,absent,misidentification,0,,,
-country,104,absent,extirpated,0,,,
-country,105,present,Stray,0,,,
-country,106,absent,not established,0,,,
+country,104,,extirpated,0,,,
+country,105,,Stray,0,,,
+country,106,,not established,0,,,
 country,107,present,reintroduced,0,,,
 country,108,present,established,0,,,
 subregion,276:1,present,native,,,," "Rangfolge"
     done
 }
 
-# Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar kommen aus der
-# Zeile, die den Status liefert. Unter gleichrangigen Zeilen entscheiden
-# Präsenz, Status, threatened, Häufigkeit, Bedeutung und Kommentar, leere
-# Werte zuletzt: im Land 404 die native-Zeile mit threatened 0, im Land 405
-# bei gleichem threatened die mit Häufigkeit.
-test_distribution_takes_columns_from_chosen_row() {
+# Präsenz, die nur eine Zeile behauptet, gilt nicht für die Art: native
+# aus der einen Zeile, die Präsenz bleibt leer (Salmo trutta in der Schweiz).
+test_distribution_empties_disagreeing_presence() {
     local plugin
     for plugin in $DISTRIBUTION_PLUGINS; do
         assert_country_export "$plugin" "
-            (1, '404', 'introduced', 'present', 1, 'abundant', 'highly commercial', 'Lake Victoria'),
-            (2, '404', 'native',     'present', 1, NULL,       NULL,                'Endangered population'),
-            (3, '404', 'native',     'present', 0, 'scarce',   'commercial',        'Lake Turkana'),
-            (4, '405', 'native',     'present', 0, NULL,       'minor commercial',  'Coast'),
-            (5, '405', 'native',     'present', 0, 'common',   NULL,                'Rivers')" \
-            "country,404,present,native,0,scarce,commercial,Lake Turkana
-country,405,present,native,0,common,,Rivers
-subregion,276:1,present,native,,,," "Spalten"
+            (1, '756', 'extirpated', 'absent',  0, NULL, NULL, NULL),
+            (2, '756', 'native',     'present', 0, NULL, NULL, NULL)" \
+            "country,756,,native,0,,,
+subregion,276:1,present,native,,,," "Präsenz"
     done
 }
 
-# Zeilen gleichen Status, die sich nur im Kommentar unterscheiden: Welche
-# gewählt wird, hängt nicht von der Reihenfolge der Eingabe ab.
-test_distribution_choice_does_not_depend_on_input_order() {
+# threatened bleibt leer, sobald eine Zeile abweicht — auch wenn die
+# Mehrheit der Zeilen bedroht sagt.
+test_distribution_empties_disagreeing_threatened() {
+    local plugin
+    for plugin in $DISTRIBUTION_PLUGINS; do
+        assert_country_export "$plugin" "
+            (1, '392', 'native', 'present', 1, NULL, NULL, 'Endangered'),
+            (2, '392', 'native', 'present', 1, NULL, NULL, 'Endangered'),
+            (3, '392', 'native', 'present', 0, NULL, NULL, 'Endangered'),
+            (4, '392', 'endemic', 'present', 1, NULL, NULL, 'Endangered')" \
+            "country,392,present,native,,,,Endangered
+subregion,276:1,present,native,,,," "threatened"
+    done
+}
+
+# Teilen alle Zeilen einen Wert, bleibt er; nur die abweichende Spalte
+# (hier Häufigkeit) bleibt leer, auch wenn eine Zeile sie leer lässt.
+test_distribution_keeps_values_all_rows_share() {
+    local plugin
+    for plugin in $DISTRIBUTION_PLUGINS; do
+        assert_country_export "$plugin" "
+            (1, '404', 'introduced', 'present', 1, 'abundant', 'commercial', 'Lake'),
+            (2, '404', 'native',     'present', 1, NULL,       'commercial', 'Lake')" \
+            "country,404,present,native,1,,commercial,Lake
+subregion,276:1,present,native,,,," "gemeinsame Werte"
+    done
+}
+
+# Zeilen, die sich nur in der Schreibweise des Status und im Kommentar
+# unterscheiden: Das Ergebnis hängt nicht von der Reihenfolge der Eingabe ab.
+test_distribution_result_does_not_depend_on_input_order() {
     local plugin
     for plugin in $DISTRIBUTION_PLUGINS; do
         assert_country_export "$plugin" "
             (1, '392', 'native', 'present', 0, NULL, NULL, 'Hokkaido'),
-            (2, '392', 'native', 'present', 0, NULL, NULL, 'Honshu'),
+            (2, '392', 'Native', 'present', 0, NULL, NULL, 'Honshu'),
             (3, '392', 'native', 'present', 0, NULL, NULL, 'Biwa')" \
-            "country,392,present,native,0,,,Biwa
+            "country,392,present,Native,0,,,
 subregion,276:1,present,native,,,," "Reihenfolge"
     done
 }
@@ -206,13 +228,13 @@ test_distribution_merges_subregion_rows() {
             run_distribution_export "$plugin"
             assert_status 0
             assert_eq "country,276,present,native,0,,,
-subregion,276:1,present,native,,,,Danube" "$(distribution_rows "$plugin")" "Teilregion ($plugin, $order)"
+subregion,276:1,present,native,,,," "$(distribution_rows "$plugin")" "Teilregion ($plugin, $order)"
         done
     done
 }
 
 # Der Bericht nennt jeden Schlüssel mit mehreren Zeilen, den Status seiner
-# Zeilen, das Ergebnis und die Spalten, in denen die Zeilen abweichen;
+# Zeilen, das Ergebnis und die Spalten, die wegen Widerspruchs leer bleiben;
 # Schlüssel mit einer Zeile nicht.
 test_distribution_reports_merged_keys() {
     local plugin name
@@ -234,8 +256,8 @@ test_distribution_reports_merged_keys() {
         assert_status 0
         local speccode
         speccode="$(distribution_speccode "$plugin")"
-        assert_eq "distribution_rows_merged	SpecCode $speccode, country 392	$name	2 Zeilen (native 2) → native; abweichend: comment
-distribution_status_merged	SpecCode $speccode, country 404	$name	4 Zeilen (endemic 1, introduced 1, native 2) → native; abweichend: establishment_status, threatened_flag, comment" \
+        assert_eq "distribution_rows_merged	SpecCode $speccode, country 392	$name	2 Zeilen (native 2) → native; leer: comment
+distribution_status_merged	SpecCode $speccode, country 404	$name	4 Zeilen (endemic 1, introduced 1, native 2) → native; leer: threatened_flag, comment" \
             "$(cat "$TEST_TMP/export/distribution_report.tsv")" "Bericht ($plugin)"
     done
 }

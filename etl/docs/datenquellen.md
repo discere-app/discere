@@ -337,18 +337,25 @@ ohne Groß- und Kleinschreibung:
 sobald sie in einem Schlüssel mit mehreren Zeilen stehen: Keine Regel sagt,
 was dann für die Art gilt. In v26.06 kommt beides nicht vor.
 
-Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar kommen aus der
-Zeile, die den Status liefert, damit eine Zeile der DB nie Angaben
-verschiedener Populationen mischt. Unter gleichrangigen Zeilen entscheiden
-diese Spalten samt Status in der Schreibweise der Quelle, in der Reihenfolge
-Präsenz, Status, threatened, Häufigkeit, Bedeutung, Kommentar, je
-aufsteigend und leere Werte zuletzt. Die Wahl hängt so nicht von der
-Reihenfolge der Eingabe ab, und die Plugins importieren die Verbreitung ohne
-`OR IGNORE`: Eine Kollision bricht den Import ab.
+Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar behalten ihren
+Wert nur, wenn alle Zeilen des Schlüssels ihn teilen; sonst bleiben sie
+leer, und ein leerer Wert zählt dabei als eigener Wert. Was nur ein Teil der
+Zeilen sagt, gilt nicht für die Art als Ganzes, auch nicht, wenn es die
+Mehrheit ist: *Salmo trutta* steht in der Schweiz als `native` ohne Präsenz,
+weil eine zweite Zeile sie dort als ausgestorben führt („Considered locally
+extinct in 1990“), in Nepal als `introduced` ohne Präsenz, weil eine zweite
+Zeile die Einführung als gescheitert führt, und *Cobitis minamorii* in Japan
+ohne threatened, obwohl drei von vier Zeilen „Endangered“ sagen. Der
+Kommentar folgt derselben Regel: Er beschreibt eine Population, und die App
+zeigt ihn nicht. Unterscheiden sich Zeilen gleichen Rangs nur in der
+Schreibweise des Status, gilt die erste in Sortierung („Native“ vor
+„native“). Das Ergebnis hängt so nicht von der Reihenfolge der Eingabe ab,
+und die Plugins importieren die Verbreitung ohne `OR IGNORE`: Eine Kollision
+bricht den Import ab.
 
 Jeder Schlüssel mit mehreren Zeilen steht im Build-Bericht, mit dem Status
-seiner Zeilen, dem Ergebnis und den Spalten, in denen die Zeilen abweichen:
-`distribution_status_merged` bei verschiedenem Status, sonst
+seiner Zeilen, dem Ergebnis und den Spalten, die wegen Widerspruchs leer
+bleiben: `distribution_status_merged` bei verschiedenem Status, sonst
 `distribution_rows_merged`. In v26.06:
 
 | Status der Zeilen | FishBase | SeaLifeBase | Ergebnis |
@@ -363,15 +370,10 @@ seiner Zeilen, dem Ergebnis und den Spalten, in denen die Zeilen abweichen:
 | gleicher Status | 140 | 145 | dieser |
 
 Die Regel sieht die Art als Ganzes und verliert damit, was nur für eine
-Population gilt: *Salmo trutta* gilt in der Schweiz als `native`, obwohl
-eine zweite Zeile sie dort als ausgestorben führt („Considered locally
-extinct in 1990“), und in Nepal als `introduced` mit Präsenz `present`,
-obwohl eine zweite Zeile die Einführung als gescheitert führt. Ebenso hängt
-threatened an der gewählten Zeile, auch wo die Zeilen darin abweichen
-(v26.06: 12 Schlüssel). Sagen gleichrangige Zeilen mit gleicher Präsenz
-verschiedenes, gilt die mit 0 (*Clupea harengus* in Deutschland,
-*Cobitis minamorii* in Japan); liefert eine höherrangige Zeile den Status,
-gilt ihr Wert (*Salvelinus malma* in Japan: 1 aus der native-Zeile).
+Population gilt. Die App liest eine leere Präsenz wie jede andere außer
+`absent` als vorkommend (Regionsfilter, Häufigkeit) und einen leeren
+threatened-Wert als nicht bedroht. *Salmo trutta* zählt damit in der
+Schweiz weiter als heimisch und vorkommend.
 
 ### Gattung und Familie einer Art widersprechen sich
 

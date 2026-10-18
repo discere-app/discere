@@ -33,12 +33,15 @@
 -- Schlüssel mit mehreren Zeilen vorkommen: Keine der Regeln sagt, welcher
 -- Status dann für die Art gilt.
 --
--- Die übrigen Spalten kommen aus der Zeile, die den Status liefert. Unter
--- gleichrangigen Zeilen entscheiden Präsenz, Status (in der Schreibweise der
--- Quelle), threatened, Häufigkeit, Bedeutung und Kommentar in dieser
--- Reihenfolge, je aufsteigend, leere Werte zuletzt. Da die Zeilen nach
--- DISTINCT in mindestens einer dieser Spalten verschieden sind, ist die Wahl
--- vollständig und hängt nicht von der Reihenfolge der Eingabe ab.
+-- Die übrigen Spalten (Präsenz, threatened, Häufigkeit, Bedeutung,
+-- Kommentar) behalten ihren Wert nur, wenn alle Zeilen des Schlüssels ihn
+-- teilen; sonst bleiben sie leer, ein leerer Wert zählt dabei als eigener
+-- Wert. Was nur eine Teilmenge der Zeilen sagt, gilt nicht für die Art als
+-- Ganzes: Salmo trutta ist in der Schweiz native, und eine zweite Zeile
+-- führt sie dort als ausgestorben — ihre Präsenz bleibt leer. Den Status
+-- liefert bei Zeilen gleichen Rangs, die sich nur in der Schreibweise
+-- unterscheiden, die erste in Sortierung („Native“ vor „native“). Das
+-- Ergebnis hängt so nicht von der Reihenfolge der Eingabe ab.
 --
 -- Ergebnis:
 --   t_distribution_regions  — je Schlüssel eine Zeile (SpecCode,
@@ -49,7 +52,7 @@
 --     distribution_status_merged  Zeilen mit verschiedenem Status
 --     distribution_rows_merged    Zeilen mit gleichem Status
 --     Detail: Anzahl Zeilen, Status der Zeilen mit Anzahl, gewählter Status
---     und die Spalten, in denen die Zeilen voneinander abweichen.
+--     und die Spalten, die wegen Widerspruchs leer bleiben.
 -- =============================================================================
 
 CREATE TEMP TABLE t_distribution_rows AS
@@ -128,19 +131,33 @@ SELECT error(
 FROM t_distribution_keys
 WHERE has_unknown_status OR (has_endemic AND NOT has_native AND status_count > 1);
 
+-- Wert einer Spalte über die Zeilen eines Schlüssels: der gemeinsame, sonst
+-- NULL. distribution_disagrees sagt, ob die Zeilen darin abweichen.
+CREATE OR REPLACE MACRO distribution_disagrees(value) AS
+    COUNT(DISTINCT COALESCE(CAST(value AS VARCHAR), chr(0))) > 1;
+CREATE OR REPLACE MACRO distribution_common(value) AS
+    CASE WHEN distribution_disagrees(value) THEN NULL ELSE MIN(value) END;
+
 CREATE TEMP TABLE t_distribution_regions AS
-SELECT *
+SELECT
+    speccode,
+    region_scope,
+    region_key,
+    distribution_common(presence_status)                                AS presence_status,
+    ARG_MIN(establishment_status,
+            (distribution_status_rank(establishment_status), establishment_status)) AS establishment_status,
+    distribution_common(threatened_flag)                                AS threatened_flag,
+    distribution_common(abundance)                                      AS abundance,
+    distribution_common(importance)                                     AS importance,
+    distribution_common(comment)                                        AS comment,
+    CONCAT_WS(', ',
+        CASE WHEN distribution_disagrees(presence_status) THEN 'presence_status' END,
+        CASE WHEN distribution_disagrees(threatened_flag) THEN 'threatened_flag' END,
+        CASE WHEN distribution_disagrees(abundance)       THEN 'abundance' END,
+        CASE WHEN distribution_disagrees(importance)      THEN 'importance' END,
+        CASE WHEN distribution_disagrees(comment)         THEN 'comment' END)  AS emptied_columns
 FROM t_distribution_rows
-QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY speccode, region_scope, region_key
-    ORDER BY distribution_status_rank(establishment_status),
-             presence_status      ASC NULLS LAST,
-             establishment_status ASC NULLS LAST,
-             threatened_flag      ASC NULLS LAST,
-             abundance            ASC NULLS LAST,
-             importance           ASC NULLS LAST,
-             comment              ASC NULLS LAST
-) = 1;
+GROUP BY speccode, region_scope, region_key;
 
 COPY (
     SELECT
@@ -154,16 +171,7 @@ COPY (
                       WHERE r.speccode = k.speccode AND r.region_scope = k.region_scope AND r.region_key = k.region_key
                       GROUP BY 1))
             || ') → ' || COALESCE(d.establishment_status, 'ohne Status')
-            || '; abweichend: '
-            || (SELECT CONCAT_WS(', ',
-                    CASE WHEN COUNT(DISTINCT COALESCE(r.presence_status, '')) > 1 THEN 'presence_status' END,
-                    CASE WHEN COUNT(DISTINCT COALESCE(r.establishment_status, '')) > 1 THEN 'establishment_status' END,
-                    CASE WHEN COUNT(DISTINCT COALESCE(CAST(r.threatened_flag AS VARCHAR), '')) > 1 THEN 'threatened_flag' END,
-                    CASE WHEN COUNT(DISTINCT COALESCE(r.abundance, '')) > 1 THEN 'abundance' END,
-                    CASE WHEN COUNT(DISTINCT COALESCE(r.importance, '')) > 1 THEN 'importance' END,
-                    CASE WHEN COUNT(DISTINCT COALESCE(r.comment, '')) > 1 THEN 'comment' END)
-                FROM t_distribution_rows r
-                WHERE r.speccode = k.speccode AND r.region_scope = k.region_scope AND r.region_key = k.region_key)
+            || '; leer: ' || COALESCE(NULLIF(d.emptied_columns, ''), 'keine')
     FROM t_distribution_keys k
     JOIN t_distribution_regions d
       ON d.speccode = k.speccode AND d.region_scope = k.region_scope AND d.region_key = k.region_key
