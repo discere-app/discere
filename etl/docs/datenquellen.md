@@ -306,6 +306,84 @@ Familie, Gattung und Art genau einmal im Export. Klassen, Ordnungen und
 Familien importieren die Plugins ohne `OR IGNORE`; eine Kollision bricht den
 Import ab, statt still eine Zeile zu behalten.
 
+### Mehrere Verbreitungszeilen einer Art und Region
+
+Die Verbreitung (`country`, `countrysub`) führt für eine Art in einem Land
+bzw. einer Teilregion teils mehrere Zeilen, meist für verschiedene
+Populationen oder Unterarten. *Oreochromis niloticus* (FishBase 2) steht in
+Kenia fünfmal: `native` im Turkana-Becken (zweimal), `introduced` im
+Viktoriasee, `endemic` als Unterart im Baringo-See und im Suguta. Die DB hält
+je Art und Region eine Zeile (`taxonomy_distribution_regions`), und die App
+zeigt sie als Aussage über die Art: Mit `native` oder `endemic` gilt das
+Land als heimisch. Beide Exporte fassen die Zeilen deshalb nach derselben
+Regel zusammen (`core/sql/distribution_regions.sql`), den Status verglichen
+ohne Groß- und Kleinschreibung:
+
+1. **native**, sobald eine Zeile `native` sagt.
+2. **endemic** nur, wenn alle Zeilen `endemic` sagen. Endemisch im Land ist
+   die Art nicht, wenn es nur eine ihrer Unterarten ist; neben `native`
+   gilt `native`.
+3. **introduced**, wenn keine Zeile `native` oder `endemic` sagt.
+4. **Sonst** der erste Status der Rangfolge `questionable`, `error`,
+   `misidentification`, `extirpated`, `stray`, `not established`,
+   `reintroduced`, `established`, ohne Status. Vorn steht, was weniger über
+   die Präsenz der Art behauptet: ein Zweifel, dann ein als falsch erkannter
+   Nachweis, dann eine frühere Präsenz, dann eine gelegentliche oder
+   gescheiterte eingeführte, zuletzt eine dauerhafte. Ohne Status steht
+   hinten, weil die App eine Region ohne Status als heimisch zeigt.
+
+`endemic` neben einem anderen Status als `native` (etwa `endemic` und
+`introduced`) sowie ein Status außerhalb dieser Liste brechen den Export ab,
+sobald sie in einem Schlüssel mit mehreren Zeilen stehen: Keine Regel sagt,
+was dann für die Art gilt. In v26.06 kommt beides nicht vor.
+
+Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar behalten ihren
+Wert nur, wenn alle Zeilen des Schlüssels ihn teilen; sonst bleiben sie
+leer, und ein leerer Wert zählt dabei als eigener Wert. Was nur ein Teil der
+Zeilen sagt, gilt nicht für die Art als Ganzes, auch nicht, wenn es die
+Mehrheit ist: *Salmo trutta* steht in der Schweiz als `native` ohne Präsenz,
+weil eine zweite Zeile sie dort als ausgestorben führt („Considered locally
+extinct in 1990“), und *Cobitis minamorii* in Japan
+ohne threatened, obwohl drei von vier Zeilen „Endangered“ sagen. Der
+Kommentar folgt derselben Regel: Er beschreibt eine Population, und die App
+zeigt ihn nicht. Unterscheiden sich Zeilen gleichen Rangs nur in der
+Schreibweise des Status, gilt die erste in Sortierung („Native“ vor
+„native“). Das Ergebnis hängt so nicht von der Reihenfolge der Eingabe ab,
+und die Plugins importieren die Verbreitung ohne `OR IGNORE`: Eine Kollision
+bricht den Import ab.
+
+Ist das Ergebnis mehrerer Zeilen `introduced` und sagt eine von ihnen
+`not established` oder Präsenz `absent`, entsteht für den Schlüssel keine
+Zeile. Ob die Einführung gelang, bleibt offen; eine Zeile mit leerer Präsenz
+läse die App als vorkommend, eine ohne Status als heimisch. *Salmo trutta*
+in Nepal (`introduced`/`present` neben `not established`/`absent`,
+„Introduction was unsuccessful“) fehlt deshalb. Bei `native` gilt das nicht:
+Dort betrifft ein ausgestorbener oder fehlender Bestand eine Population,
+nicht die Heimat der Art.
+
+Jeder Schlüssel mit mehreren Zeilen steht im Build-Bericht, mit dem Status
+seiner Zeilen, dem Ergebnis und den Spalten, die wegen Widerspruchs leer
+bleiben, oder mit „ausgelassen: Einführung widersprüchlich“:
+`distribution_status_merged` bei verschiedenem Status, sonst
+`distribution_rows_merged`. In v26.06:
+
+| Status der Zeilen | FishBase | SeaLifeBase | Ergebnis |
+|---|---|---|---|
+| endemic, native | 19 | – | native |
+| introduced, native | 7 | 1 | native |
+| native, questionable | 4 | 1 | native |
+| extirpated, native | 2 | – | native |
+| endemic, introduced, native | 1 | – | native |
+| introduced, not established | 1 | – | ausgelassen |
+| native, stray | – | 1 | native |
+| gleicher Status | 140 | 145 | dieser |
+
+Die Regel sieht die Art als Ganzes und verliert damit, was nur für eine
+Population gilt. Die App liest eine leere Präsenz wie jede andere außer
+`absent` als vorkommend (Regionsfilter, Häufigkeit) und einen leeren
+threatened-Wert als nicht bedroht. *Salmo trutta* zählt damit in der
+Schweiz weiter als heimisch und vorkommend.
+
 ### Gattung und Familie einer Art widersprechen sich
 
 Eine SeaLifeBase-Art nennt ihre Familie zweimal: über die Gattung (GenCode)

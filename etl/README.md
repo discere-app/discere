@@ -39,6 +39,7 @@ build.sh                       ← Orchestrator
 │       ├── identity_*.sql     ← Schritte der Identitäts-Stage
 │       ├── source_codes.sql   ← DuckDB, in den FishBase- und SeaLifeBase-Export
 │       │                         eingebunden: doppelte Codes der Quelle
+│       ├── distribution_regions.sql ← ebenso: Verbreitung je Art und Region
 │       ├── rebuild_lookup.sql ← Regel für species_name_lookup (lookup_report.sql: Bericht)
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten
@@ -95,7 +96,12 @@ jede Zeile eines Codes, den die Quelle mehrfach vergibt (`code_duplicate`,
 mit Ausgang), und jede Familie unter einem doppelten Ordnum, mit der über
 Name und Klasse gefundenen Ordnung (`family_order_resolved`) oder ohne
 (`family_order_rejected`, mit Grund; siehe
-[`docs/datenquellen.md`](docs/datenquellen.md#doppelte-codes-in-der-quelle)), Stage 02d unter
+[`docs/datenquellen.md`](docs/datenquellen.md#doppelte-codes-in-der-quelle))
+sowie jede Art und Region mit mehreren Verbreitungszeilen, mit deren Status,
+dem gewählten und den wegen Widerspruchs leeren Spalten oder als ausgelassen
+bei widersprüchlicher Einführung (`distribution_status_merged` bei
+verschiedenem Status, sonst `distribution_rows_merged`; siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#mehrere-verbreitungszeilen-einer-art-und-region)), Stage 02d unter
 `placeholders` jeden Rang-Platzhalter mit Quelle und Anzahl aktiver Arten
 darunter, Stage 03 unter `lookup` jeden Namen aktiver Arten ohne Eintrag in
 `species_name_lookup`, weil er mehrere Arten meint (`ambiguous`, mit allen
@@ -343,7 +349,7 @@ Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
 Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
 Erkennung der Rang-Platzhalter, die Exporte von FishBase und SeaLifeBase
-mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name, Gattung passend zur Familie der Art), die
+mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name, Gattung passend zur Familie der Art, eine Verbreitungszeile je Art und Region), die
 Namensauflösung über `species_name_lookup`,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
 Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
