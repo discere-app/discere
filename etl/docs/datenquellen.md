@@ -373,7 +373,13 @@ Ein iNaturalist-Taxon geht nur in den Abgleich, wenn es zu **jeder** Entität
 passt, die seinen Namen auf diesem Rang trägt — bei Arten auch als Synonym
 (ohne falsch angewandte Namen, wie im Abgleich). Für höhere Taxa heißt das:
 Der Namensschlüssel (`genus:megalomma`) steht für alle gleichnamigen Zeilen
-der Rangtabelle.
+der Rangtabelle, an denen eine Art hängt — aktiv oder veraltet, denn auch
+veraltete Arten stehen in Decks; bei Familien und Ordnungen eine Art
+darunter. Eine Zeile ohne jede Art zeigt die App unter keinem Schlüssel
+(Suche und Kinderlisten verlangen eine aktive Art darunter, eine Art zeigt
+ihre eigene Kette); FishBase und SeaLifeBase führen so etwa
+Synonymgattungen (*Gobio* zusätzlich ohne Familie, *Torpedo* unter
+Malapteruridae). Eine solche Zeile verhindert deshalb keine Zuordnung.
 
 1. **Stamm.** Gleich, oder das Paar steht in
    `plugins/inaturalist/data/phylum_equivalents.csv` (Stamm der Kette,
@@ -1013,8 +1019,7 @@ installiert.
   *Priapulus* unter den Schnecken, das Seegras *Halophila* unter den
   Moostierchen, Ciliaten unter „Not Assigned (Plantae)“), lehnt sie die
   richtige Zuordnung ab; eine Art ohne Gattung oder eine gleichnamige Zeile
-  ohne Kette (FishBase führt *Gobio* zusätzlich als Gattung ohne Familie
-  und Arten) verhindert sie ganz. Nach einer Umstellung der Familie fallen
+  mit Art, aber ohne Kette verhindert sie ganz. Nach einer Umstellung der Familie fallen
   auch richtige Synonym-Treffer weg. Umgekehrt trennt sie kein Homonym in
   derselben Klasse, solange der Artname bei iNaturalist nur ein Taxon trägt
   (bei Gattungen: solange Klasse, Ordnung oder Familie gleich sind); dort

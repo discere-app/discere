@@ -273,7 +273,12 @@ Volksnamen von Gattung, Familie, Ordnung und Klasse holt
 liefert `HigherTaxonIdResolver`, in dieser Reihenfolge:
 
 1. **Referenz-DB** (`entity_external_ids`, z. B. `class:actinopterygii`) — wird
-   unverändert genommen.
+   unverändert genommen. Der ETL hat diese IDs gegen die eigene Kette
+   geprüft: Stamm, dazu Klasse, Ordnung oder Familie (siehe
+   [`etl/docs/datenquellen.md`](../etl/docs/datenquellen.md#stamm-und-kette-bei-der-inaturalist-zuordnung)).
+   Die Laufzeitsuche der App (3. und 4., ebenso `INatTaxonIdResolver.resolve`
+   für Arten) prüft das noch nicht
+   ([#342](https://github.com/discere-app/discere/issues/342)).
 2. **Cache** (`external_identifier_cache`, Schlüssel = Entity-Key) — eine
    früher über 3. oder 4. gefundene ID.
 3. **Vorfahrenketten der eigenen Arten:** Die Detail-Dokumente der Arten des
