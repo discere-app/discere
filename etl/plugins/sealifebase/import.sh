@@ -198,7 +198,8 @@ export_to_csv() {
         -e "s|\${PARQUET_DIR}|${SLB_DIR}|g" \
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
         -e "s|\${PLACEHOLDER_PATTERNS}|${PLUGIN_CORE_DIR}/data/placeholder_patterns.csv|g" \
-        -e "s|\${FAMILY_PHYLUM_EQUIVALENTS}|${PLUGIN_DIR}/data/family_phylum_equivalents.csv|g") \
+        -e "s|\${FAMILY_PHYLUM_EQUIVALENTS}|${PLUGIN_DIR}/data/family_phylum_equivalents.csv|g" \
+        -e "s|\${FAMILY_ORDER_EXCEPTIONS}|${PLUGIN_DIR}/data/family_order_exceptions.csv|g") \
         || plugin_fail "export.sql nicht lesbar."
 
     duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
@@ -571,13 +572,15 @@ report_genus_resolution() {
 
 # Familien, deren Stamm der Kette über ihren Ordnungscode widerspricht
 # (family_phylum_resolved, family_phylum_rejected) oder sich nicht vergleichen
-# lässt (family_phylum_unclear), in den Build-Bericht.
+# lässt (family_phylum_unclear), und die kuratierten Ausnahmen ohne Ordnung
+# (family_order_exception) in den Build-Bericht.
 report_family_phylum() {
     local report="${EXPORT_DIR}/family_phylum_report.tsv"
     plugin_report < "$report"
     plugin_log "Stamm der Familie gegen ihren Ordnungscode: umgehängt $(grep -c '^family_phylum_resolved' "$report" || true)," \
         "ohne Ordnung $(grep -c '^family_phylum_rejected' "$report" || true)," \
-        "nicht vergleichbar $(grep -c '^family_phylum_unclear' "$report" || true)"
+        "nicht vergleichbar $(grep -c '^family_phylum_unclear' "$report" || true)," \
+        "Ausnahme ohne Ordnung $(grep -c '^family_order_exception' "$report" || true)"
 }
 
 write_source_metadata() {

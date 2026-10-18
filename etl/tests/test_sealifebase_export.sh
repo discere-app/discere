@@ -94,16 +94,22 @@ SQL
 }
 
 # Führt export.sql aus wie export_to_csv in plugins/sealifebase/import.sh.
+# Die Ausnahmen ohne Ordnung kommen aus
+# $TEST_TMP/sealifebase/family_order_exceptions.csv, ohne diese Datei aus
+# einer leeren Liste: Die echte nennt FamCodes, die die Testdaten nicht
+# führen.
 run_sealifebase_export() {
-    local sql
+    local sql exceptions="$TEST_TMP/sealifebase/family_order_exceptions.csv"
     mkdir -p "$TEST_TMP/export"
+    [[ -f "$exceptions" ]] || echo "famcode,family,reason,evidence" > "$exceptions"
     sql="$(source "$ETL_DIR/core/plugin_api.sh"; PLUGIN_CORE_DIR="$ETL_DIR/core"
         plugin_render_sql "$ETL_DIR/plugins/sealifebase/sql/export.sql" | sed \
         -e "s|\${SLB_DIR}|$TEST_TMP/sealifebase|g" \
         -e "s|\${PARQUET_DIR}|$TEST_TMP/sealifebase|g" \
         -e "s|\${EXPORT_DIR}|$TEST_TMP/export|g" \
         -e "s|\${PLACEHOLDER_PATTERNS}|$ETL_DIR/core/data/placeholder_patterns.csv|g" \
-        -e "s|\${FAMILY_PHYLUM_EQUIVALENTS}|$ETL_DIR/plugins/sealifebase/data/family_phylum_equivalents.csv|g")"
+        -e "s|\${FAMILY_PHYLUM_EQUIVALENTS}|$ETL_DIR/plugins/sealifebase/data/family_phylum_equivalents.csv|g" \
+        -e "s|\${FAMILY_ORDER_EXCEPTIONS}|$exceptions|g")"
     run_capture duckdb "$TEST_TMP/export/tmp.duckdb" -c "$sql"
 }
 
@@ -573,10 +579,19 @@ family_order_resolved	7	Ambigidae	Ordnum 7 doppelt, Familie nennt Ostreida (Clas
 #   7  Strombidiidae    Ciliophora                4
 #   8  Cocculinidae     Mollusca                  1
 #   10 Halicryptidae    Priapulida                2 Not assigned (Priapulida)
+#   11 Seguenziidae     Mollusca, Seguenziida     8, doppelt: Seguenziida
+#                       in Klasse 1               (Klasse 1) und Araneae
+#                                                 (Klasse 10)
+#   12 Not assigned     Priapulida, Not assigned  1; genau eine Zeile Not
+#                       in Klasse 2               assigned in Klasse 2
+#   13 Desidae          Arthropoda, Araneae in    1; einzige Zeile Araneae in
+#                       Klasse 10                 Klasse 10 unter Ordnum 8,
+#                                                 nicht exportiert
 #
 # Gattung 1 Priapulus gehört zu Priapulidae. Arten: 10 Priapulus caudatus
 # (FamCode 1), 11 Priapulus spinulosus (FamCode 10), 12 Priapulus cocculinus
-# (FamCode 8).
+# (FamCode 8); dazu 13 Seguenza monocingulata ohne Gattung (FamCode 11), damit
+# unter Ordnum 8 die Zeile Seguenziida Arten hält.
 write_family_phylum_parquets() {
     local dir="$TEST_TMP/sealifebase"
     duckdb << SQL
@@ -584,7 +599,7 @@ COPY (SELECT ClassNum, Class, Phylum, NULL::VARCHAR AS CommonName FROM (VALUES
     (1, 'Gastropoda', 'Mollusca'), (2, 'Priapulomorpha', 'Priapulida'),
     (3, 'Dinophyceae', 'Myzozoa'), (4, 'Seticoronaria', 'Priapulida'),
     (5, 'Not assigned', 'Not Assigned (Plantae)'), (7, 'Polychaeta', 'Annelida'),
-    (9, 'Monothalamea', 'Foraminifera')
+    (9, 'Monothalamea', 'Foraminifera'), (10, 'Arachnida', 'Arthropoda')
 ) AS t(ClassNum, Class, Phylum)) TO '$dir/classes.parquet' (FORMAT parquet);
 
 COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARCHAR AS CommonName,
@@ -592,7 +607,7 @@ COPY (SELECT Ordnum, "Order", NULL::VARCHAR AS SisterOrder, ClassNum, NULL::VARC
              NULL::VARCHAR AS CommonName_Spanish
       FROM (VALUES (1, 'Cocculiniformia', 1), (2, 'Not assigned', 2), (3, 'Peridiniales', 3),
                    (4, 'Not assigned', 5), (5, 'Not assigned', 4), (6, 'Not assigned', 4),
-                   (7, 'Not assigned', 7)
+                   (7, 'Not assigned', 7), (8, 'Seguenziida', 1), (8, 'Araneae', 10)
       ) AS t(Ordnum, "Order", ClassNum)) TO '$dir/orders.parquet' (FORMAT parquet);
 
 COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassNum, Phylum,
@@ -606,7 +621,10 @@ COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassN
                    (6, 'Trochosiraceae', 4, 'Not assigned', 5, 'Not Assigned (Plantae)'),
                    (7, 'Strombidiidae', 4, 'Not assigned', 5, 'Ciliophora'),
                    (8, 'Cocculinidae', 1, 'Cocculiniformia', 1, 'Mollusca'),
-                   (10, 'Halicryptidae', 2, 'Not assigned', 2, 'Priapulida')
+                   (10, 'Halicryptidae', 2, 'Not assigned', 2, 'Priapulida'),
+                   (11, 'Seguenziidae', 8, 'Seguenziida', 1, 'Mollusca'),
+                   (12, 'Not assigned', 1, 'Not assigned', 2, 'Priapulida'),
+                   (13, 'Desidae', 1, 'Araneae', 10, 'Arthropoda')
       ) AS t(FamCode, Family, Ordnum, "Order", ClassNum, Phylum)) TO '$dir/families.parquet' (FORMAT parquet);
 
 COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
@@ -618,7 +636,7 @@ COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
              NULL::VARCHAR AS DemersPelag, NULL::DOUBLE AS Vulnerability, NULL::VARCHAR AS Dangerous,
              NULL::VARCHAR AS Importance, NULL::FLOAT AS LongevityWild, NULL::VARCHAR AS BodyShapeI
       FROM (VALUES (10, 'Priapulus', 'caudatus', 1, 1), (11, 'Priapulus', 'spinulosus', 1, 10),
-                   (12, 'Priapulus', 'cocculinus', 1, 8)
+                   (12, 'Priapulus', 'cocculinus', 1, 8), (13, 'Seguenza', 'monocingulata', NULL, 11)
       ) AS t(SpecCode, Genus, Species, GenCode, FamCode)) TO '$dir/species.parquet' (FORMAT parquet);
 SQL
 }
@@ -676,6 +694,58 @@ test_sealifebase_export_drops_order_when_family_phylum_has_no_unique_order() {
     assert_eq "family_phylum_rejected	Familie nennt Phoronida, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: keine Ordnung, Ordnung Not assigned / Polychaeta / Annelida (Ordnum 7) in anderem Stamm" \
         "$(slb_family_phylum_report_of 5)" "Bericht anderer Stamm"
     assert_not_contains "$(cat "$TEST_TMP/export/parent_overrides.csv")" "family,5,"
+}
+
+# Die einzige passende Ordnungszeile gehört zu einem doppelten Ordnum und
+# wird nicht exportiert (den Schlüssel hält Seguenziida): keine Ordnung.
+test_sealifebase_export_drops_order_when_matching_order_row_is_not_exported() {
+    run_family_phylum_export
+    assert_eq "discere:sealifebase_order:8" "$(slb_order_of 11)" "Seguenziidae"
+    assert_eq "" "$(slb_order_of 13)" "Desidae"
+    assert_eq "family_phylum_rejected	Familie nennt Arthropoda, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: keine Ordnung, Ordnung Araneae / Arachnida / Arthropoda (Ordnum 8) nicht exportiert" \
+        "$(slb_family_phylum_report_of 13)" "Bericht"
+}
+
+# Eine Platzhalter-Familie („Not assigned“) hängt die Regel nicht um, auch
+# wenn genau eine passende Ordnung da ist: Gleichnamige Platzhalter schützt
+# nur die Elternschlüssel-Prüfung der Identitäts-Stage, und die entfiele für
+# eine umgehängte Familie. Sie bekommt keine Ordnung.
+test_sealifebase_export_never_moves_placeholder_family() {
+    run_family_phylum_export
+    assert_eq "" "$(slb_order_of 12)" "Not assigned"
+    assert_eq "family_phylum_rejected	Familie nennt Priapulida, Ordnum 1 zeigt auf Cocculiniformia / Gastropoda / Mollusca: keine Ordnung, Platzhalter-Familie, nicht umgehängt" \
+        "$(slb_family_phylum_report_of 12)" "Bericht"
+    assert_not_contains "$(cat "$TEST_TMP/export/parent_overrides.csv")" "family,12,"
+}
+
+# Eine Familie der kuratierten Ausnahmeliste hat keine Ordnung, auch wenn ihr
+# Stamm passt oder die Regel sie umhängen würde; der Bericht nennt den Grund.
+test_sealifebase_export_drops_order_of_listed_exception() {
+    create_sealifebase_parquets
+    write_family_phylum_parquets
+    printf '%s\n' "famcode,family,reason,evidence" \
+        "2,Ceratiaceae,falsche Ordnung in der Quelle,Beleg" \
+        "1,Priapulidae,ebenso,Beleg" > "$TEST_TMP/sealifebase/family_order_exceptions.csv"
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "" "$(slb_order_of 2)$(slb_order_of 1)" "Ceratiaceae, Priapulidae"
+    assert_eq "family_order_exception	Familie nennt Dinophyta, Ordnum 3 zeigt auf Peridiniales / Dinophyceae / Myzozoa: keine Ordnung, Ausnahme: falsche Ordnung in der Quelle" \
+        "$(slb_family_phylum_report_of 2)" "Bericht"
+    assert_eq "source,entity_type,external_id,parent_external_id" \
+        "$(cat "$TEST_TMP/export/parent_overrides.csv")" "parent_overrides.csv"
+    assert_eq "discere:sealifebase_genus:1" "$(slb_genus_of 10)" "Priapulus caudatus behält die Gattung"
+}
+
+# Eine Ausnahme, die keine Familie dieses Namens mit Ordnung trifft, ist ein
+# Fehler in der eigenen Liste: Der Export bricht ab.
+test_sealifebase_export_fails_on_exception_without_family() {
+    create_sealifebase_parquets
+    write_family_phylum_parquets
+    printf '%s\n' "famcode,family,reason,evidence" "2,Peridiniaceae,Name passt nicht,Beleg" \
+        > "$TEST_TMP/sealifebase/family_order_exceptions.csv"
+    run_sealifebase_export
+    assert_status 1
+    assert_contains "$ERR" "family_order_exceptions: FamCode 2 Peridiniaceae trifft keine Familie dieses Namens mit Ordnung"
 }
 
 # Ein Platzhalter-Stamm auf einer Seite lässt sich nicht vergleichen: Die

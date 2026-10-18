@@ -55,11 +55,21 @@ CREATE OR REPLACE MACRO is_placeholder_species(code) AS
 --      families.Order (ohne Leerzeichen am Rand und Groß- und
 --      Kleinschreibung) und deren ClassNum gleich families.ClassNum ist,
 --      wenn es genau eine gibt, sie exportiert wird und ihr Stamm nach 1. zu
---      families.Phylum passt. Sonst hat die Familie keine Ordnung.
+--      families.Phylum passt, und die Familie selbst kein Rang-Platzhalter
+--      ist („Not assigned“). Sonst hat die Familie keine Ordnung. Einen
+--      Platzhalter hängt die Regel nicht um: Gleichnamige Platzhalter
+--      unterscheidet die Identitäts-Stage nur am Elternschlüssel, und den
+--      lässt sie für eine umgehängte Familie gegen den Vorgänger zu.
 --   3. Fehlt ein Stamm oder ist einer ein Rang-Platzhalter („Not Assigned
 --      (Plantae)“): nicht vergleichbar, die Ordnung bleibt.
 --
--- Jeder Fall nach 2. und 3. steht im Build-Bericht
+-- Eine Familie in ${FAMILY_ORDER_EXCEPTIONS} hat keine Ordnung, was immer
+-- die Regel ergäbe: SeaLifeBase nennt für sie selbst eine falsche Ordnung,
+-- und keine Regel aus der Quelle kann das erkennen (v26.06: Ectocotylidae,
+-- eine Plattwurm-Familie unter Acoela). Jeder Eintrag muss FamCode und Namen
+-- einer Familie der Quelle mit Ordnung treffen, sonst bricht der Export ab.
+--
+-- Jeder Fall nach 2. und 3. und jede Ausnahme steht im Build-Bericht
 -- (family_phylum_report.tsv). Eine Familie, die nach 2. unter einer anderen
 -- Ordnung hängt als ihr Code nennt, steht in parent_overrides.csv: Die
 -- Identitäts-Stage lässt genau diesen Elternschlüssel gegen den Vorgänger
@@ -76,6 +86,11 @@ CREATE OR REPLACE MACRO phylum_fits(named, chained) AS
     LOWER(TRIM(named)) = LOWER(TRIM(chained))
     OR EXISTS (SELECT 1 FROM t_family_phylum_equivalents e
                WHERE e.family_phylum = LOWER(TRIM(named)) AND e.chain_phylum = LOWER(TRIM(chained)));
+
+CREATE TEMP TABLE t_family_order_exceptions AS
+SELECT famcode, TRIM(family) AS family, reason
+FROM read_csv('${FAMILY_ORDER_EXCEPTIONS}', header = true, delim = ',', quote = '"',
+              columns = {'famcode': 'INTEGER', 'family': 'VARCHAR', 'reason': 'VARCHAR', 'evidence': 'VARCHAR'});
 
 CREATE TEMP TABLE t_family_phylum_check AS
 SELECT
@@ -96,6 +111,14 @@ FROM src_families f
 JOIN t_family_order fo ON fo.famcode = f.FamCode
 JOIN src_orders o ON o.Ordnum = fo.ordnum
 LEFT JOIN src_classes c ON c.ClassNum = o.ClassNum;
+
+-- Eine Ausnahme, die keine Familie dieses Namens mit Ordnung trifft, wirkt
+-- nicht und ist ein Fehler in der eigenen Liste.
+SELECT error('family_order_exceptions: FamCode ' || CAST(e.famcode AS VARCHAR) || ' ' || e.family
+             || ' trifft keine Familie dieses Namens mit Ordnung')
+FROM t_family_order_exceptions e
+LEFT JOIN t_family_phylum_check k ON k.famcode = e.famcode AND LOWER(k.family) = LOWER(e.family)
+WHERE k.famcode IS NULL;
 
 -- Ordnungszeilen mit Name und ClassNum einer widersprechenden Familie.
 CREATE TEMP TABLE t_family_phylum_candidates AS
@@ -121,17 +144,22 @@ SELECT
     ANY_VALUE(m.ordnum)               AS candidate,
     ANY_VALUE(m.chain)                AS candidate_chain,
     CASE WHEN COUNT(m.ordnum) = 1 AND BOOL_AND(m.phylum_fits) AND BOOL_AND(m.exported)
+              AND NOT is_rank_placeholder(k.family)
          THEN ANY_VALUE(m.ordnum) END AS ordnum,
     BOOL_AND(m.phylum_fits)           AS phylum_fits
 FROM t_family_phylum_check k
 LEFT JOIN t_family_phylum_candidates m ON m.famcode = k.famcode
 WHERE k.verdict = 'conflict'
-GROUP BY k.famcode;
+GROUP BY k.famcode, k.family;
 
 UPDATE t_family_order
 SET ordnum = r.ordnum
 FROM t_family_phylum_resolution r
 WHERE t_family_order.famcode = r.famcode;
+
+UPDATE t_family_order
+SET ordnum = NULL
+WHERE famcode IN (SELECT famcode FROM t_family_order_exceptions);
 
 COPY (
     SELECT
@@ -142,12 +170,14 @@ COPY (
     FROM t_family_phylum_resolution r
     JOIN t_family_phylum_check k ON k.famcode = r.famcode
     WHERE r.ordnum IS NOT NULL AND r.ordnum <> k.code_ordnum
+      AND r.famcode NOT IN (SELECT famcode FROM t_family_order_exceptions)
     ORDER BY r.famcode
 ) TO '${EXPORT_DIR}/parent_overrides.csv' (FORMAT csv, HEADER true);
 
 COPY (
     SELECT
         CASE
+            WHEN x.famcode IS NOT NULL    THEN 'family_order_exception'
             WHEN k.verdict = 'unclear'    THEN 'family_phylum_unclear'
             WHEN r.ordnum IS NOT NULL     THEN 'family_phylum_resolved'
             ELSE                               'family_phylum_rejected'
@@ -157,10 +187,12 @@ COPY (
         'Familie nennt ' || COALESCE(NULLIF(k.family_phylum, ''), '?') || ', Ordnum '
             || CAST(k.code_ordnum AS VARCHAR) || ' zeigt auf ' || k.code_chain || ': '
             || CASE
+                   WHEN x.famcode IS NOT NULL  THEN 'keine Ordnung, Ausnahme: ' || x.reason
                    WHEN k.verdict = 'unclear'  THEN 'nicht vergleichbar, Ordnung bleibt'
                    WHEN r.ordnum IS NOT NULL   THEN 'Ordnung ' || r.candidate_chain || ' (Ordnum '
                                                     || CAST(r.ordnum AS VARCHAR) || ')'
                    ELSE 'keine Ordnung, ' || CASE
+                            WHEN is_rank_placeholder(k.family) THEN 'Platzhalter-Familie, nicht umgehängt'
                             WHEN r.matches = 0 THEN 'keine Ordnungszeile '
                                  || COALESCE(k.family_order, '?') || ' mit ClassNum '
                                  || COALESCE(CAST(k.family_classnum AS VARCHAR), '?')
@@ -174,7 +206,8 @@ COPY (
                END
     FROM t_family_phylum_check k
     LEFT JOIN t_family_phylum_resolution r ON r.famcode = k.famcode
-    WHERE k.verdict <> 'fits'
+    LEFT JOIN t_family_order_exceptions x ON x.famcode = k.famcode
+    WHERE k.verdict <> 'fits' OR x.famcode IS NOT NULL
     ORDER BY 1, 3, 2
 )
 TO '${EXPORT_DIR}/family_phylum_report.tsv' (FORMAT csv, DELIMITER '\t', HEADER false, QUOTE '');
