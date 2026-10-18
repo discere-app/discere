@@ -326,8 +326,11 @@ deshalb, nach der Auflösung doppelter Codes
 2. **Widerspruch** — Die Familie bekommt die Ordnungszeile, deren Name
    gleich dem Ordnungsnamen ist, den sie selbst nennt, und deren ClassNum
    gleich ihrer eigenen ist, wenn es genau eine gibt, sie exportiert wird
-   und ihr Stamm nach 1. zu dem der Familie passt. Sonst hat die Familie
-   keine Ordnung.
+   und ihr Stamm nach 1. zu dem der Familie passt — außer die Familie ist
+   selbst ein Rang-Platzhalter („Not assigned“). Sonst hat die Familie
+   keine Ordnung. Einen Platzhalter hängt die Regel nie um: Gleichnamige
+   Platzhalter unterscheidet die Identitäts-Stage nur am Elternschlüssel,
+   und diese Prüfung entfällt für eine umgehängte Familie (siehe unten).
 3. **Nicht vergleichbar** — Fehlt ein Stamm oder ist einer ein
    Rang-Platzhalter („Not Assigned (Plantae)“, Muster aus
    `core/data/placeholder_patterns.csv`), bleibt die Ordnung. Ein
@@ -339,12 +342,23 @@ und dieselbe Gruppe meinen oder eine in der anderen enthalten:
 | Stamm der Familie | Stamm der Kette | Familien | Grund |
 |---|---|---|---|
 | Dinophyta | Myzozoa | 41 | Dinoflagellaten, Teil der Myzozoa |
-| Platyhelminthes | Xenacoelomorpha | 15 | Acoela, früher unter den Plattwürmern |
+| Platyhelminthes | Xenacoelomorpha | 15 | 14 Acoela, früher unter den Plattwürmern, und *Ectocotylidae* (Ausnahme, unten) |
 | Chorophyta | Chlorophyta | 1 | Schreibfehler |
 | Ochrophyta | Bacillariophyta | 1 | Kieselalgen, Teil der Ochrophyta |
 
 Jedes Paar steht in der Richtung, in der es vorkommt. Bei allen 58 Familien
-nennen sie und ihr Code außerdem denselben Ordnungsnamen. Die Liste ist
+nennen sie und ihr Code außerdem denselben Ordnungsnamen. Ein Paar sagt nur,
+dass die beiden Namen vergleichbar sind, nicht, dass jede Familie darunter
+richtig hängt: *Ectocotylidae* ist eine Plattwurm-Familie (WoRMS:
+*Ectocotyla* unter Proseriata), nennt aber selbst die Ordnung Acoela und
+besteht deshalb jede Regel aus der Quelle. Für solche Fälle gibt es eine
+kuratierte Ausnahmeliste,
+`plugins/sealifebase/data/family_order_exceptions.csv` (FamCode, Name,
+Grund, Beleg): Eine Familie darin hat keine Ordnung, was immer die Regel
+ergäbe. Jeder Eintrag muss FamCode und Namen einer Familie mit Ordnung
+treffen, sonst bricht der Export ab, wie bei jeder eigenen Datei. Die
+übrigen 57 Familien der Liste stimmen mit WoRMS überein, über die Familie
+oder ihre Gattungen. Die Liste ist
 eine eigene, nicht die gleichwertigen Stämme der iNaturalist-Zuordnung
 (`plugins/inaturalist/data/phylum_equivalents.csv`): Jene übersetzt
 SeaLifeBase-Namen der Kette in iNaturalist-Namen (Myzozoa → Miozoa), diese
@@ -362,6 +376,7 @@ Ergebnis für v26.06:
 | *Palaeotropidae* | Echinodermata | Not assigned / Aplacophora | Spatangoida / Echinoidea / Echinodermata |
 | *Maccabeidae* | Priapulida | Didelphimorphia / Mammalia | keine Ordnung: keine Zeile „Not assigned“ in ihrer Klasse |
 | *Psamminidae*, *Stannomidae*, *Syringamminidae*, „Not assigned“ | Foraminifera | Lepetellida / Gastropoda | keine Ordnung: keine Zeile „Not assigned“ in ihrer Klasse |
+| *Ectocotylidae* | Platyhelminthes | Acoela / Not assigned / Xenacoelomorpha | keine Ordnung: Ausnahme |
 
 Nicht vergleichbar sind fünf Familien, deren Stamm auf beiden Seiten ein
 Platzhalter ist (*Jakobaceae*, *Trochosiraceae* und drei „Not assigned“).
@@ -379,9 +394,10 @@ ClassNum: Die Familie hält die Perlmuscheln *Pinctada*, und ihr eigenes Feld
 falsch um. Für die Klasse gibt es deshalb keine eigene Prüfung; sie zählt nur
 als Teil der Suche in 2.
 
-Jeder Fall nach 2. und 3. steht im Build-Bericht:
+Jeder Fall nach 2. und 3. und jede Ausnahme steht im Build-Bericht:
 `family_phylum_resolved` mit der neuen Ordnung, `family_phylum_rejected`
-mit Grund, `family_phylum_unclear`, je mit der Kette über den Code.
+mit Grund, `family_phylum_unclear`, `family_order_exception` mit dem Grund
+aus der Liste, je mit der Kette über den Code.
 
 Eine Familie nach 2. hängt unter einem anderen Elternschlüssel, als ihr
 Code nennt, und meist auch als im Vorgänger. Das allein würde die
@@ -1154,7 +1170,7 @@ installiert.
   [Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich));
   unter *Mictocarididae* bleibt eine aktive Art. Dazu kommen fünf Familien,
   deren Ordnungscode in einen anderen Stamm zeigt und deren eigene Angaben
-  keine Ordnung finden (siehe
+  keine Ordnung finden, und *Ectocotylidae* aus der Ausnahmeliste (siehe
   [Stamm einer Familie gegen ihren Ordnungscode](#stamm-einer-familie-gegen-ihren-ordnungscode)).
   Die App lädt solche Arten
   trotzdem und zeigt die fehlenden Stufen als „nicht zugeordnet“; im
@@ -1183,7 +1199,9 @@ installiert.
   Ebenso wenig eine Familie, deren eigener Stamm mit dem falschen Code
   übereinstimmt, oder ein Paar der Liste gleichwertiger Stämme, unter dem
   eine Familie tatsächlich falsch hängt (eine echte Plattwurm-Familie unter
-  einer Ordnung der Xenacoelomorpha bestünde die Prüfung).
+  einer Ordnung der Xenacoelomorpha bestünde die Prüfung). Solche Fälle
+  fängt nur die kuratierte Ausnahmeliste, und nur die, die jemand gefunden
+  hat.
 - **Ein neuer Name oder Elternschlüssel unter bekanntem Schlüssel stoppt
   den Build.** Die Identitäts-Stage erkennt einen Schlüsselwechsel am Namen
   und, bei Ordnungen und Familien, am Elternschlüssel (siehe

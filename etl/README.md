@@ -50,7 +50,8 @@ build.sh                       ← Orchestrator
 │   │   └── sql/
 │   │       └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
 │   ├── sealifebase/           ← SeaLifeBase-Import, gleicher Aufbau; data/ mit
-│   │                             gleichwertigen Stammnamen der Familien
+│   │                             gleichwertigen Stammnamen der Familien und
+│   │                             Familien ohne Ordnung (Ausnahmen)
 │   ├── inaturalist/           ← iNaturalist-Taxon-IDs (optional, Netzwerk)
 │   └── curated/
 │       ├── import.sh          ← Kuratierte Ergänzungen (nur sqlite3)
@@ -115,7 +116,9 @@ jede Familie, deren Ordnungscode in einen anderen Stamm zeigt, als sie selbst
 nennt: umgehängt unter die Ordnung ihres Namens, ihrer Klasse und ihres
 Stamms (`family_phylum_resolved`) oder ohne Ordnung
 (`family_phylum_rejected`, mit Grund), und jede, bei der ein Stamm ein
-Platzhalter ist (`family_phylum_unclear`), je mit der Kette über den Code
+Platzhalter ist (`family_phylum_unclear`), und jede Familie der kuratierten
+Ausnahmeliste, die deshalb keine Ordnung hat (`family_order_exception`), je
+mit der Kette über den Code
 (siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#stamm-einer-familie-gegen-ihren-ordnungscode)),
 und jede Art, deren Gattung nicht zu ihrer eigenen Familie passt: verworfen
