@@ -118,9 +118,9 @@ slb_csv_columns() {
     tail -n +2 "$TEST_TMP/export/$1.csv" | cut -d , -f "$2" | sort
 }
 
-# Fehlt GenCode, gilt die einzige Gattung des Namens; ein Name zweier
-# Gattungen und ein Name ohne Gattung lassen die Gattung leer. Den
-# wissenschaftlichen Namen gibt die Quelle der Art auch ohne Gattung.
+# Fehlt GenCode, gilt die einzige passende Gattung des Namens; passen zwei
+# Gattungen des Namens, oder trägt keine den Namen, bleibt die Gattung leer.
+# Den wissenschaftlichen Namen gibt die Quelle der Art auch ohne Gattung.
 test_sealifebase_export_resolves_missing_genus_code_by_unique_name() {
     create_sealifebase_parquets
     run_sealifebase_export
@@ -154,14 +154,15 @@ discere:sealifebase_species:10" "$(slb_csv_columns taxonomy_distribution_regions
 }
 
 # Der Build-Bericht nennt jede Art, deren Gattung über den Namen aufgelöst
-# wurde, und jede, die offen blieb, samt Grund; Arten mit GenCode und den
-# Platzhalter nicht.
+# wurde, und jede, die offen blieb, samt Grund: Duplo ambiguus trifft zwei
+# Gattungen derselben Familie, beide passen. Arten mit GenCode und den
+# Platzhalter nennt er nicht.
 test_sealifebase_export_reports_genus_resolution() {
     create_sealifebase_parquets
     run_sealifebase_export
     assert_status 0
     assert_eq "genus_by_name	11	Abra tenuis	GenCode 1
-genus_unresolved	12	Duplo ambiguus	2 Gattungen dieses Namens
+genus_unresolved	12	Duplo ambiguus	2 Gattungen dieses Namens, davon passend: 2
 genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
         "$(cat "$TEST_TMP/export/genus_report.tsv")" "Bericht"
 }
@@ -173,7 +174,8 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 #   Mollusca      › Bivalvia (1)       › Cardiida (1)    › Semelidae (1), Tellinidae (2)
 #                                      › Venerida (2)    › Veneridae (3)
 #                 › Gastropoda (2)     › Neogastropoda (5) › Muricidae (6)
-#   Cnidaria      › Hydrozoa (3)       › Leptothecata (3)  › Halopterididae (4)
+#   Cnidaria      › Hydrozoa (3)       › Leptothecata (3)  › Halopterididae (4),
+#                                                            Plumulariidae (15)
 #   Rhodophyta    › Florideophyceae (4) › Ceramiales (4)   › Ceramiaceae (5)
 #   Mollusca      › Not assigned (5)   › Not assigned (6)  › Fooidae (9), Barridae (10)
 #   Arthropoda    › Arachnida (6)
@@ -190,7 +192,9 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 #   GenCode 10, zweimal vergeben: Dupla und Duplex (beide Semelidae)
 #
 #   Gattungen: 1 Abra (1), 2 Tellina (2), 3 Venus (3), 4 Gattya (5),
-#   5 Murex (6), 6 Halistemma (4), 7 Ambix (7), 8 Solus (1), 9 Placo (10)
+#   5 Murex (6), 6 Halistemma (4), 7 Ambix (7), 8 Solus (1), 9 Placo (10),
+#   11 Halopteris (5), 12 Halopteris (4), 13 Archeterokrohnia (4),
+#   14 Gemina (5), 15 Gemina (4), 16 Gemina (15), 17 Falsa (5), 18 Falsa (6)
 #
 #   Art                          GenCode  FamCode  Fall
 #   10 Abra alba                 1        1        passt
@@ -215,6 +219,22 @@ genus_unresolved	13	Nullus ignotus	keine Gattung dieses Namens" \
 #   27 Abra rara                 —        5        über den Namen, anderer Stamm
 #   30 Tellina nova              —        1        über den Namen, nur Familie
 #                                                  anders
+#   40 Halopteris campanula      11       15       anderer Stamm; gleichnamige
+#                                                  Gattung 12 nur Familie
+#                                                  anders → 12
+#   41 Archeterokrohnia          6        4        Gattung heißt anders;
+#      longicaudata                                Gattung 13 des Namens
+#                                                  passt → 13
+#   42 Gemina rara               14       15       anderer Stamm; gleichnamige
+#                                                  Gattungen 15 und 16 passen
+#                                                  beide → leer
+#   43 Falsa ficta               17       4        anderer Stamm; gleichnamige
+#                                                  Gattung 18 auch → leer
+#   44 Gemina prima              15       15       nur Familie anders;
+#                                                  gleichnamige Gattung 16
+#                                                  gleiche Familie → bleibt 15
+#   45 Gemina nova               —        5        über den Namen: drei
+#                                                  Gattungen, nur 14 passt
 write_genus_check_parquets() {
     local dir="$TEST_TMP/sealifebase"
     duckdb << SQL
@@ -244,6 +264,7 @@ COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassN
                    (6, 'Muricidae', 5, 'Neogastropoda', 2, 'Mollusca'),
                    (4, 'Halopterididae', 3, 'Leptothecata', 3, 'Cnidaria'),
                    (5, 'Ceramiaceae', 4, 'Ceramiales', 4, 'Rhodophyta'),
+                   (15, 'Plumulariidae', 3, 'Leptothecata', 3, 'Cnidaria'),
                    (8, 'Orphanidae', 99, 'Unknownida', 1, 'Mollusca'),
                    (9, 'Fooidae', 6, 'Not assigned', 5, 'Mollusca'), (10, 'Barridae', 6, 'Not assigned', 5, 'Mollusca')
       ) AS t(FamCode, Family, Ordnum, "Order", ClassNum, Phylum)) TO '$dir/families.parquet' (FORMAT parquet);
@@ -251,7 +272,10 @@ COPY (SELECT FamCode, Family, NULL::VARCHAR AS Division, Ordnum, "Order", ClassN
 COPY (SELECT GenCode, GenName, NULL::VARCHAR AS Subfamily, FamCode, NULL::VARCHAR AS CommonName
       FROM (VALUES (1, 'Abra', 1), (2, 'Tellina', 2), (3, 'Venus', 3), (4, 'Gattya', 5),
                    (5, 'Murex', 6), (6, 'Halistemma', 4), (7, 'Ambix', 7), (8, 'Solus', 1),
-                   (9, 'Placo', 10), (10, 'Dupla', 1), (10, 'Duplex', 1)
+                   (9, 'Placo', 10), (10, 'Dupla', 1), (10, 'Duplex', 1),
+                   (11, 'Halopteris', 5), (12, 'Halopteris', 4), (13, 'Archeterokrohnia', 4),
+                   (14, 'Gemina', 5), (15, 'Gemina', 4), (16, 'Gemina', 15),
+                   (17, 'Falsa', 5), (18, 'Falsa', 6)
       ) AS t(GenCode, GenName, FamCode)) TO '$dir/genera.parquet' (FORMAT parquet);
 
 COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
@@ -274,7 +298,13 @@ COPY (SELECT SpecCode, Genus, Species, GenCode, FamCode, NULL::DOUBLE AS Length,
           (30, 'Tellina',     'nova',        NULL, 1),
           (31, 'Placo',       'incertus',    9,    9),
           (32, 'Ambix',       'aranea',      7,    6),
-          (33, 'Abra',        'mixta',       1,    12)
+          (33, 'Abra',        'mixta',       1,    12),
+          (40, 'Halopteris',  'campanula',   11,   15),
+          (41, 'Archeterokrohnia', 'longicaudata', 6, 4),
+          (42, 'Gemina',      'rara',        14,   15),
+          (43, 'Falsa',       'ficta',       17,   4),
+          (44, 'Gemina',      'prima',       15,   15),
+          (45, 'Gemina',      'nova',        NULL, 5)
       ) AS t(SpecCode, Genus, Species, GenCode, FamCode)) TO '$dir/species.parquet' (FORMAT parquet);
 SQL
 }
@@ -404,11 +434,65 @@ discere:sealifebase_species:28,Abra orba,abra orba,valid,1" \
     assert_not_contains "$(cat "$TEST_TMP/export/species_scientific_names.csv")" "halistemma"
 }
 
+# Passt die Gattung des GenCode nicht, gilt die einzige passende andere
+# Gattung mit dem Namen der Art, auch wenn sie nur in der Familie abweicht
+# oder der GenCode auf eine anders benannte Gattung zeigt. Der Bericht nennt
+# beide Gattungen mit ihren Ketten.
+test_sealifebase_export_replaces_rejected_genus_by_fitting_genus_of_same_name() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:12" "$(slb_genus_of 40)" "Halopteris campanula"
+    assert_eq "discere:sealifebase_genus:13" "$(slb_genus_of 41)" "Archeterokrohnia longicaudata"
+    assert_eq "genus_replaced_by_name	Stamm: GenCode 11 Halopteris (Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta), Art: Plumulariidae / Leptothecata / Hydrozoa / Cnidaria; ersetzt durch GenCode 12 Halopteris (Halopterididae / Leptothecata / Hydrozoa / Cnidaria)" \
+        "$(slb_genus_report_of 40)" "Bericht anderer Stamm"
+    assert_eq "genus_replaced_by_name	Name: GenCode 6 Halistemma (Halopterididae / Leptothecata / Hydrozoa / Cnidaria), Art: Halopterididae / Leptothecata / Hydrozoa / Cnidaria; ersetzt durch GenCode 13 Archeterokrohnia (Halopterididae / Leptothecata / Hydrozoa / Cnidaria)" \
+        "$(slb_genus_report_of 41)" "Bericht Name"
+}
+
+# Den bevorzugten Namen einer Art mit ersetzter Gattung bilden die gewählte
+# Gattung und das Epitheton.
+test_sealifebase_export_names_species_after_replacing_genus() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_species:40,Halopteris campanula,1
+discere:sealifebase_species:41,Archeterokrohnia longicaudata,1" \
+        "$(slb_csv_columns species_scientific_names 1,2,7 | grep -E 'species:4[01],')" "bevorzugte Namen"
+}
+
+# Passen mehrere gleichnamige Gattungen, oder passt keine, bleibt die Gattung
+# leer; der Bericht nennt, wie viele es gibt und wie viele davon passen.
+test_sealifebase_export_rejects_genus_without_single_fitting_genus_of_same_name() {
+    run_genus_check_export
+    assert_eq "" "$(slb_genus_of 42)" "Gemina rara"
+    assert_eq "" "$(slb_genus_of 43)" "Falsa ficta"
+    assert_eq "genus_rejected	Stamm: GenCode 14 Gemina (Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta), Art: Plumulariidae / Leptothecata / Hydrozoa / Cnidaria; weitere Gattungen dieses Namens: 2, davon passend: 2" \
+        "$(slb_genus_report_of 42)" "Bericht zwei passende"
+    assert_eq "genus_rejected	Stamm: GenCode 17 Falsa (Ceramiaceae / Ceramiales / Florideophyceae / Rhodophyta), Art: Halopterididae / Leptothecata / Hydrozoa / Cnidaria; weitere Gattungen dieses Namens: 1, davon passend: 0" \
+        "$(slb_genus_report_of 43)" "Bericht keine passende"
+}
+
+# Passt die Gattung des GenCode, gilt sie, auch wenn eine gleichnamige
+# Gattung genauer passt.
+test_sealifebase_export_prefers_fitting_genus_of_code_over_genus_of_same_name() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:15" "$(slb_genus_of 44)" "Gemina prima"
+    assert_eq "genus_kept_family_differs	GenCode 15 Gemina (Halopterididae / Leptothecata / Hydrozoa / Cnidaria), Art: Plumulariidae / Leptothecata / Hydrozoa / Cnidaria" \
+        "$(slb_genus_report_of 44)" "Bericht"
+}
+
+# Ohne GenCode gilt unter mehreren Gattungen des Namens die einzige, die
+# passt.
+test_sealifebase_export_picks_single_fitting_genus_among_several_of_name() {
+    run_genus_check_export
+    assert_eq "discere:sealifebase_genus:14" "$(slb_genus_of 45)" "Gemina nova"
+    assert_eq "genus_by_name	GenCode 14" "$(slb_genus_report_of 45)" "Bericht"
+}
+
 # Je Art höchstens eine Zeile, Arten mit passender Gattung über GenCode keine,
 # sortiert nach Kategorie und Name.
 test_sealifebase_export_reports_each_genus_check_once() {
     run_genus_check_export
-    assert_eq "genus_by_name	26	Solus novus
+    assert_eq "genus_by_name	45	Gemina nova
+genus_by_name	26	Solus novus
+genus_kept_family_differs	44	Gemina prima
 genus_kept_family_differs	30	Tellina nova
 genus_kept_family_differs	20	Tellina tenuis
 genus_kept_order_differs	25	Ambix dubius
@@ -417,10 +501,14 @@ genus_rejected	33	Abra mixta
 genus_rejected	28	Abra orba
 genus_rejected	27	Abra rara
 genus_rejected	32	Ambix aranea
+genus_rejected	43	Falsa ficta
 genus_rejected	22	Gattya humilis
+genus_rejected	42	Gemina rara
 genus_rejected	23	Murex brandaris
 genus_rejected	31	Placo incertus
-genus_rejected	24	Stephanomia amphytridis" "$(cut -f 1-3 "$TEST_TMP/export/genus_report.tsv")" "Bericht"
+genus_rejected	24	Stephanomia amphytridis
+genus_replaced_by_name	41	Archeterokrohnia longicaudata
+genus_replaced_by_name	40	Halopteris campanula" "$(cut -f 1-3 "$TEST_TMP/export/genus_report.tsv")" "Bericht"
 }
 
 # Unter einem doppelten Ordnum bekommt eine Familie die Ordnungszeile, deren
@@ -538,7 +626,7 @@ test_sealifebase_export_writes_each_entity_once() {
     for table in classes orders families genera species; do
         assert_eq "" "$(slb_csv_columns "$table" 1 | uniq -d)" "doppelte Zeilen in $table"
     done
-    assert_eq "15" "$(slb_csv_columns species 1 | wc -l | tr -d ' ')" "Arten"
+    assert_eq "21" "$(slb_csv_columns species 1 | wc -l | tr -d ' ')" "Arten"
 }
 
 # Der Bericht nennt jede Zeile eines doppelten Codes mit ihrem Ausgang und

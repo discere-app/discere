@@ -238,14 +238,16 @@ veraltete Art ohne Gattung.
 
 SeaLifeBase nennt bei einigen Arten keinen GenCode (v26.06: 154), wohl aber
 den Gattungsnamen in der Spalte `Genus`. Der Export ordnet eine solche Art
-der SeaLifeBase-Gattung dieses Namens zu, wenn es genau eine gibt.
+der SeaLifeBase-Gattung dieses Namens zu, wenn genau eine davon zur Art
+passt (siehe
+[Gattung und Familie einer Art widersprechen sich](#gattung-und-familie-einer-art-widersprechen-sich)).
 Gattungsnamen sind in SeaLifeBase nicht eindeutig (v26.06: 87 doppelte); ein
-mehrdeutiger oder unbekannter Name ordnet nichts zu, die Gattung bleibt
-leer. Der Build-Bericht nennt jede Art, deren Gattung über den Namen kam
-(`genus_by_name`), und jede, die offen blieb (`genus_unresolved`, mit
-Grund). Für höhere Ränge gibt es keine solche Regel: Fehlt einer Gattung die
-Familie oder einer Familie die Ordnung, nennt die Quelle keinen Namen, über
-den sie sich auflösen ließe (siehe [Bekannte Grenzen](#bekannte-grenzen)).
+Name, unter dem mehrere passende Gattungen stehen, und ein unbekannter Name
+ordnen nichts zu, die Gattung bleibt leer. Der Build-Bericht nennt jede Art,
+deren Gattung über den Namen kam (`genus_by_name`), und jede, die offen
+blieb (`genus_unresolved`, mit Grund). Für höhere Ränge gibt es keine solche
+Regel: Fehlt einer Gattung die Familie oder einer Familie die Ordnung, nennt
+die Quelle keinen Namen, über den sie sich auflösen ließe (siehe [Bekannte Grenzen](#bekannte-grenzen)).
 
 ### Doppelte Codes in der Quelle
 
@@ -513,7 +515,8 @@ Namen derselben Gruppe.
   Familie, Klasse oder Stamm ein Rang-Platzhalter wie „Not assigned“ —
   zwei Familien unter derselben Platzhalter-Klasse können in verschiedenen
   echten Klassen stehen): Die Gattung bleibt leer (`genus_rejected`, Grund
-  `Name`, `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 51 Arten). Lieber
+  `Name`, `Stamm`, `Klasse` bzw. `Ordnung unklar`; v26.06: 41 Arten), außer
+  eine gleichnamige Gattung passt (unten). Lieber
   keine Einordnung als eine falsche, auch wenn im Einzelfall die Gattung
   recht hätte und der FamCode der Art falsch ist. Platzhalter erkennt der
   Export nach denselben Mustern wie Stage 02d
@@ -523,12 +526,24 @@ Namen derselben Gruppe.
   beiden Ketten; v26.06: 639 bzw. 165). Meist ist eine der beiden Angaben
   nach einer Umstellung veraltet.
 
+Passt die Gattung des GenCode nicht, prüft der Export nach derselben Regel
+jede andere Gattung, die den Namen aus `Genus` der Art trägt. Passt genau
+eine, gilt sie (`genus_replaced_by_name`, mit beiden Gattungen und ihren
+Ketten; v26.06: 10 Arten). So kommen die Hydrozoen der Gattung *Halopteris*,
+deren GenCode auf eine gleichnamige Braunalgen-Gattung zeigt, zur
+Hydrozoen-Gattung *Halopteris*, und *Stephanomia amphytridis*, deren GenCode
+auf *Halistemma* zeigt, zur Gattung *Stephanomia*. Passt die Gattung des
+GenCode, gilt sie, auch wenn eine gleichnamige ebenfalls passt. Passen
+mehrere gleichnamige oder keine, bleibt die Gattung leer; der Bericht nennt
+dann, wie viele es gibt und wie viele davon passen.
+
 Eine Art ohne Gattung behält ihren wissenschaftlichen Namen: Bevorzugt ist
 der Name, den die Quelle ihr in den Spalten `Genus` und `Species` gibt, auch
 wenn ihr GenCode auf eine anders benannte Gattung zeigt. Er ordnet sie
 keiner Gattung zu, und über ihn findet sie `species_name_lookup` und der
-iNaturalist-Abgleich. Die App lädt sie und zeigt die Ränge über ihr als
-„nicht zugeordnet“.
+iNaturalist-Abgleich. `species.name` bleibt das Epitheton. Die App zeigt
+und sucht die Art unter diesem bevorzugten Namen (*Gattya humilis*, nicht
+„humilis“) und die Ränge über ihr als „nicht zugeordnet“.
 
 Eine Invariante in `validate.sql` für die Gattung gibt es nicht: Die DB
 kennt den FamCode der Art nicht, nur die Kette über ihre Gattung. Die

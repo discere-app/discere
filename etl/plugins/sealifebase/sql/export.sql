@@ -319,13 +319,10 @@ GROUP BY e.SpecCode;
 
 -- ---------------------------------------------------------------------------
 -- Gattung je Art
--- Eine Art nennt ihre Gattung über GenCode. Bei einigen Arten fehlt er
--- (v26.06: 154), der Gattungsname steht aber in der Spalte Genus. Dann gilt
--- die SeaLifeBase-Gattung dieses Namens, wenn es genau eine gibt: Gattungs-
--- namen sind in SeaLifeBase nicht eindeutig (v26.06: 87 doppelte), und ein
--- mehrdeutiger Name ordnet nichts zu. Ohne Treffer bleibt die Gattung leer.
+-- Eine Art nennt ihre Gattung zweimal: über GenCode und mit dem Namen in der
+-- Spalte Genus. Bei einigen Arten fehlt der GenCode (v26.06: 154).
 --
--- Die so gefundene Gattung gilt nur, wenn sie zur Art passt. Die Art nennt
+-- Eine Gattung gilt nur, wenn sie zur Art passt. Die Art nennt
 -- mit FamCode auch selbst eine Familie, und beide Angaben widersprechen sich
 -- in SeaLifeBase gelegentlich bis hinauf zum Stamm (v26.06: Hydrozoen unter
 -- einer Rotalgen-Gattung). Welche Angabe stimmt, lässt sich aus der Quelle
@@ -340,7 +337,7 @@ GROUP BY e.SpecCode;
 --
 --   - Name der Gattung ungleich Genus der Art (trim, ohne Groß- und
 --     Kleinschreibung): Die Gattung ist eine andere, als die Art nennt.
---     Gattung leer, Grund „Name“.
+--     Grund „Name“.
 --   - Gleiche Familie: Die Gattung passt.
 --   - Ordnung einer Seite unklar — ohne Ordnung (auch unter einem doppelten
 --     Ordnum, der sich nicht auflösen ließ), ohne Familie, Kette darüber
@@ -348,21 +345,24 @@ GROUP BY e.SpecCode;
 --     Rang-Platzhalter („Not assigned“, Muster wie core/sql/placeholders.sql
 --     aus core/data/placeholder_patterns.csv): Ein Vergleich ist nicht
 --     möglich, denn zwei Familien unter derselben Platzhalter-Klasse können
---     in verschiedenen echten Klassen stehen. Gattung leer, Grund „Ordnung
---     unklar“.
---   - Anderer Stamm oder andere Klasse: Gattung leer, Grund „Stamm“ bzw.
---     „Klasse“.
+--     in verschiedenen echten Klassen stehen. Grund „Ordnung unklar“.
+--   - Anderer Stamm oder andere Klasse: Grund „Stamm“ bzw. „Klasse“.
 --   - Nur Familie oder Ordnung anders, Klasse und Stamm gleich: Die Gattung
---     bleibt. Das sind meist Umstellungen, bei denen eine der beiden Angaben
+--     passt. Das sind meist Umstellungen, bei denen eine der beiden Angaben
 --     veraltet ist; welche, sagt die Quelle nicht.
 --
--- Jede Art ohne GenCode und jede, deren Gattung nicht passt, steht im
--- Build-Bericht (genus_report.tsv).
+-- Passt die Gattung des GenCode, gilt sie. Sonst, und ohne GenCode, prüft
+-- der Export nach derselben Regel jede andere Gattung, die den Namen aus
+-- Genus trägt, und nimmt sie, wenn genau eine passt (v26.06: Hydrozoen der
+-- Gattung Halopteris, deren GenCode auf eine gleichnamige Braunalgen-Gattung
+-- zeigt). Gattungsnamen sind in SeaLifeBase nicht eindeutig (v26.06: 87
+-- doppelte); passen mehrere, ordnet der Name nichts zu. Passt keine, bleibt
+-- die Gattung leer.
+--
+-- Jede Art ohne GenCode und jede, deren Gattung des GenCode nicht passt oder
+-- nur in Familie bzw. Ordnung abweicht, steht im Build-Bericht
+-- (genus_report.tsv).
 -- ---------------------------------------------------------------------------
-CREATE TEMP TABLE t_genus_names AS
-SELECT TRIM(GenName) AS gen_name, COUNT(*) AS matches, MIN(GenCode) AS gencode
-FROM src_genera
-GROUP BY TRIM(GenName);
 
 -- is_rank_placeholder kommt aus core/sql/source_codes.sql.
 -- Kette über einer Familie, wie sie exportiert wird: Ordnung aus
@@ -385,81 +385,130 @@ JOIN t_family_order fo ON fo.famcode = f.FamCode
 LEFT JOIN src_orders o ON o.Ordnum = fo.ordnum
 LEFT JOIN src_classes c ON c.ClassNum = o.ClassNum;
 
-CREATE TEMP TABLE t_species_genus_check AS
-WITH candidates AS (
+-- Je Art und Kandidat eine Zeile mit dem Urteil der Regel oben: die Gattung
+-- des GenCode (by_code) und jede andere Gattung mit dem Namen aus Genus.
+CREATE TEMP TABLE t_species_genus_candidates AS
+WITH species AS (
     SELECT
-        s.SpecCode                                                      AS speccode,
-        CONCAT_WS(' ', TRIM(s.Genus), TRIM(s.Species))                  AS species_name,
-        TRIM(s.Genus)                                                   AS genus_name,
-        s.FamCode                                                       AS famcode,
-        s.GenCode IS NULL                                               AS by_name,
-        COALESCE(n.matches, 0)                                          AS name_matches,
-        CASE WHEN s.GenCode IS NOT NULL THEN s.GenCode
-             WHEN n.matches = 1         THEN n.gencode
-        END                                                             AS candidate
+        SpecCode                                                        AS speccode,
+        TRIM(Genus)                                                     AS genus_name,
+        FamCode                                                         AS famcode,
+        GenCode                                                         AS gencode
+    FROM src_species
+    WHERE NOT is_placeholder_species(SpecCode)
+),
+candidates AS (
+    SELECT s.*, s.gencode AS candidate, true AS by_code
+    FROM species s
+    WHERE s.gencode IS NOT NULL
+    UNION ALL
+    SELECT s.*, g.GenCode AS candidate, false AS by_code
+    FROM species s
+    JOIN src_genera g ON LOWER(TRIM(g.GenName)) = LOWER(s.genus_name)
+    WHERE g.GenCode IS DISTINCT FROM s.gencode
+),
+judged AS (
+    SELECT
+        c.speccode,
+        c.candidate,
+        c.by_code,
+        CASE
+            WHEN LOWER(TRIM(g.GenName)) IS DISTINCT FROM LOWER(c.genus_name) THEN 'Name'
+            WHEN g.FamCode = c.famcode                                      THEN 'passt'
+            WHEN cs.ordnum IS NULL OR cg.ordnum IS NULL
+              OR cs.classnum IS NULL OR cg.classnum IS NULL
+              OR cs.phylum IS NULL OR cg.phylum IS NULL                     THEN 'Ordnung unklar'
+            WHEN cs.phylum <> cg.phylum
+             AND NOT cs.placeholder_phylum AND NOT cg.placeholder_phylum    THEN 'Stamm'
+            WHEN cs.placeholder_class OR cg.placeholder_class               THEN 'Ordnung unklar'
+            WHEN cs.classnum <> cg.classnum                                 THEN 'Klasse'
+            WHEN cs.ordnum <> cg.ordnum                                     THEN 'Ordnung'
+            ELSE                                                                 'Familie'
+        END                                                             AS verdict,
+        -- Beide Seiten für den Bericht, die Ketten als Familie / Ordnung /
+        -- Klasse / Stamm, Unbekanntes als „?“.
+        'GenCode ' || CAST(c.candidate AS VARCHAR) || ' ' || TRIM(g.GenName) || ' ('
+            || CONCAT_WS(' / ', COALESCE(cg.family, '?'), COALESCE(cg.order_name, '?'),
+                         COALESCE(cg.class_name, '?'), COALESCE(cg.phylum_name, '?')) || ')' AS genus_text,
+        CONCAT_WS(' / ', COALESCE(cs.family, '?'), COALESCE(cs.order_name, '?'),
+                  COALESCE(cs.class_name, '?'), COALESCE(cs.phylum_name, '?'))   AS species_chain
+    FROM candidates c
+    LEFT JOIN src_genera g ON g.GenCode = c.candidate
+    LEFT JOIN t_family_chain cg ON cg.famcode = g.FamCode
+    LEFT JOIN t_family_chain cs ON cs.famcode = c.famcode
+)
+SELECT *, verdict IN ('passt', 'Ordnung', 'Familie') AS fits
+FROM judged;
+
+-- Je Art die gewählte Gattung (gencode) und die, von der die Zeile im
+-- Bericht handelt (reported): die des GenCode, ohne GenCode die gewählte oder
+-- die einzige des Namens.
+CREATE TEMP TABLE t_species_genus AS
+WITH counted AS (
+    SELECT
+        s.SpecCode                                                       AS speccode,
+        CONCAT_WS(' ', TRIM(s.Genus), TRIM(s.Species))                   AS species_name,
+        ANY_VALUE(k.candidate) FILTER (WHERE k.by_code)                  AS code_candidate,
+        COALESCE(BOOL_OR(k.fits) FILTER (WHERE k.by_code), false)        AS code_fits,
+        COUNT(k.candidate) FILTER (WHERE NOT k.by_code)                  AS name_matches,
+        COUNT(k.candidate) FILTER (WHERE NOT k.by_code AND k.fits)       AS name_fits,
+        ANY_VALUE(k.candidate) FILTER (WHERE NOT k.by_code)              AS name_candidate,
+        ANY_VALUE(k.candidate) FILTER (WHERE NOT k.by_code AND k.fits)   AS name_fit_candidate
     FROM src_species s
-    LEFT JOIN t_genus_names n
-      ON s.GenCode IS NULL AND n.gen_name = TRIM(s.Genus)
+    LEFT JOIN t_species_genus_candidates k ON k.speccode = s.SpecCode
     WHERE NOT is_placeholder_species(s.SpecCode)
+    GROUP BY s.SpecCode, s.Genus, s.Species
+),
+chosen AS (
+    SELECT
+        *,
+        CASE WHEN code_fits      THEN code_candidate
+             WHEN name_fits = 1  THEN name_fit_candidate
+        END                                                              AS gencode
+    FROM counted
 )
 SELECT
-    c.*,
-    TRIM(g.GenName)                                                     AS candidate_name,
-    CASE
-        WHEN c.candidate IS NULL                                        THEN NULL
-        WHEN LOWER(TRIM(g.GenName)) IS DISTINCT FROM LOWER(c.genus_name) THEN 'Name'
-        WHEN g.FamCode = c.famcode                                      THEN 'passt'
-        WHEN cs.ordnum IS NULL OR cg.ordnum IS NULL
-          OR cs.classnum IS NULL OR cg.classnum IS NULL
-          OR cs.phylum IS NULL OR cg.phylum IS NULL                     THEN 'Ordnung unklar'
-        WHEN cs.phylum <> cg.phylum
-         AND NOT cs.placeholder_phylum AND NOT cg.placeholder_phylum    THEN 'Stamm'
-        WHEN cs.placeholder_class OR cg.placeholder_class               THEN 'Ordnung unklar'
-        WHEN cs.classnum <> cg.classnum                                 THEN 'Klasse'
-        WHEN cs.ordnum <> cg.ordnum                                     THEN 'Ordnung'
-        ELSE                                                                 'Familie'
-    END                                                                 AS verdict,
-    -- Beide Ketten für den Bericht: Familie / Ordnung / Klasse / Stamm,
-    -- Unbekanntes als „?“.
-    CONCAT_WS(' / ', COALESCE(cg.family, '?'), COALESCE(cg.order_name, '?'),
-              COALESCE(cg.class_name, '?'), COALESCE(cg.phylum_name, '?'))   AS genus_chain,
-    CONCAT_WS(' / ', COALESCE(cs.family, '?'), COALESCE(cs.order_name, '?'),
-              COALESCE(cs.class_name, '?'), COALESCE(cs.phylum_name, '?'))   AS species_chain
-FROM candidates c
-LEFT JOIN src_genera g ON g.GenCode = c.candidate
-LEFT JOIN t_family_chain cg ON cg.famcode = g.FamCode
-LEFT JOIN t_family_chain cs ON cs.famcode = c.famcode;
-
-CREATE TEMP TABLE t_species_genus AS
-SELECT
     speccode,
-    CASE WHEN verdict IN ('passt', 'Ordnung', 'Familie') THEN candidate END AS gencode
-FROM t_species_genus_check;
+    species_name,
+    gencode,
+    COALESCE(code_candidate, gencode,
+             CASE WHEN name_matches = 1 THEN name_candidate END)         AS reported,
+    name_matches,
+    name_fits
+FROM chosen;
 
 COPY (
     SELECT
         CASE
-            WHEN verdict IS NULL                  THEN 'genus_unresolved'
-            WHEN verdict IN ('Name', 'Ordnung unklar', 'Stamm', 'Klasse')
-                                                  THEN 'genus_rejected'
-            WHEN verdict = 'Ordnung'              THEN 'genus_kept_order_differs'
-            WHEN verdict = 'Familie'              THEN 'genus_kept_family_differs'
+            WHEN r.speccode IS NULL               THEN 'genus_unresolved'
+            WHEN sg.gencode IS NULL               THEN 'genus_rejected'
+            WHEN sg.gencode <> r.candidate        THEN 'genus_replaced_by_name'
+            WHEN r.verdict = 'Ordnung'            THEN 'genus_kept_order_differs'
+            WHEN r.verdict = 'Familie'            THEN 'genus_kept_family_differs'
             ELSE                                       'genus_by_name'
         END,
-        CAST(speccode AS VARCHAR),
-        species_name,
+        CAST(sg.speccode AS VARCHAR),
+        sg.species_name,
         CASE
-            WHEN verdict IS NULL AND name_matches = 0 THEN 'keine Gattung dieses Namens'
-            WHEN verdict IS NULL THEN CAST(name_matches AS VARCHAR) || ' Gattungen dieses Namens'
-            WHEN verdict = 'passt' THEN 'GenCode ' || CAST(candidate AS VARCHAR)
-            ELSE CASE WHEN verdict IN ('Name', 'Ordnung unklar', 'Stamm', 'Klasse')
-                      THEN verdict || ': ' ELSE '' END
-                 || CASE WHEN by_name THEN 'über den Namen, ' ELSE '' END
-                 || 'GenCode ' || CAST(candidate AS VARCHAR) || ' ' || candidate_name
-                 || ' (' || genus_chain || '), Art: ' || species_chain
+            WHEN r.speccode IS NULL AND sg.name_matches = 0 THEN 'keine Gattung dieses Namens'
+            WHEN r.speccode IS NULL THEN CAST(sg.name_matches AS VARCHAR) || ' Gattungen dieses Namens, davon passend: '
+                                         || CAST(sg.name_fits AS VARCHAR)
+            WHEN r.verdict = 'passt' THEN 'GenCode ' || CAST(r.candidate AS VARCHAR)
+            ELSE CASE WHEN NOT r.fits THEN r.verdict || ': ' ELSE '' END
+                 || CASE WHEN NOT r.by_code THEN 'über den Namen, ' ELSE '' END
+                 || r.genus_text || ', Art: ' || r.species_chain
+                 || CASE
+                        WHEN sg.gencode <> r.candidate THEN '; ersetzt durch ' || c.genus_text
+                        WHEN sg.gencode IS NULL AND r.by_code AND sg.name_matches > 0
+                        THEN '; weitere Gattungen dieses Namens: ' || CAST(sg.name_matches AS VARCHAR)
+                             || ', davon passend: ' || CAST(sg.name_fits AS VARCHAR)
+                        ELSE ''
+                    END
         END
-    FROM t_species_genus_check
-    WHERE by_name OR verdict IS DISTINCT FROM 'passt'
+    FROM t_species_genus sg
+    LEFT JOIN t_species_genus_candidates r ON r.speccode = sg.speccode AND r.candidate = sg.reported
+    LEFT JOIN t_species_genus_candidates c ON c.speccode = sg.speccode AND c.candidate = sg.gencode
+    WHERE r.speccode IS NULL OR NOT r.by_code OR r.verdict <> 'passt'
     ORDER BY 1, 3, 2
 )
 TO '${EXPORT_DIR}/genus_report.tsv' (FORMAT csv, DELIMITER '\t', HEADER false, QUOTE '');
