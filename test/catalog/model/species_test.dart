@@ -3,7 +3,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Classification makeClassification({String genus = 'Carcharodon'}) {
+Classification makeClassification({String? genus = 'Carcharodon'}) {
   return Classification(
     genus,
     {
@@ -86,5 +86,47 @@ void main() {
       final parts = species.getBinomialName().split(' ');
       expect(parts.length, 2, reason: 'Should have exactly two parts');
     });
+  });
+
+  group('Species without a genus', () {
+    Species genusless({String? preferredScientificName}) => Species(
+      '4',
+      'ext4',
+      'sealifebase',
+      'humilis',
+      {},
+      makeClassification(genus: null),
+      [],
+      preferredScientificName: preferredScientificName,
+    );
+
+    test('is named by its preferred scientific name', () {
+      final species = genusless(preferredScientificName: 'Gattya humilis');
+
+      expect(species.binomialName, 'Gattya humilis');
+      expect(species.getBinomialName(), 'Gattya humilis');
+    });
+
+    test('has no binomial without a preferred scientific name', () {
+      final species = genusless();
+
+      expect(species.binomialName, isNull);
+      expect(species.getBinomialName(), 'humilis');
+    });
+  });
+
+  test('a genus outranks the preferred scientific name', () {
+    final species = Species(
+      '5',
+      'ext5',
+      'fishbase',
+      'carcharias',
+      {},
+      makeClassification(genus: 'Carcharodon'),
+      [],
+      preferredScientificName: 'Squalus carcharias',
+    );
+
+    expect(species.binomialName, 'Carcharodon carcharias');
   });
 }

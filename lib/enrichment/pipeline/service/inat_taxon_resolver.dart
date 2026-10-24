@@ -140,8 +140,9 @@ class INatTaxonResolver {
 
   /// Scientific-name candidates to try against iNaturalist's taxon search
   /// when no taxon ID is already known, preferring the species' own
-  /// preferred binomial name if the repository has no alternatives. None for
-  /// a species without a binomial: its epithet alone would find whichever
+  /// preferred binomial name if the repository has no alternatives. A
+  /// species without a binomial — no genus and no preferred scientific
+  /// name — adds no name of its own: its epithet alone would find whichever
   /// species shares it.
   Future<List<String>> scientificNameCandidates(Species species) async {
     final binomial = species.binomialName;

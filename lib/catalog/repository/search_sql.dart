@@ -9,13 +9,17 @@
 /// one place.
 library;
 
+import 'package:discere/catalog/repository/species_scientific_name_sql.dart';
 import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 
-/// A species' scientific name as the search shows and matches it: genus and
-/// epithet, or the epithet alone for a species without a genus, which the
-/// left join to `genera` keeps in the results.
-const _speciesScientificName = "COALESCE(g.name || ' ' || s.name, s.name)";
+/// A species' scientific name as the search shows and matches it — a
+/// species without a genus, which the left join to `genera` keeps in the
+/// results, under its preferred scientific name.
+final _speciesScientificName = speciesScientificNameSql(
+  species: 's',
+  genus: 'g',
+);
 
 /// Species-only FTS lookup used by the "quick search while typing" path.
 /// Faster than [referenceFtsUnionAllSql] because it skips genus/family/

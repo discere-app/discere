@@ -193,6 +193,7 @@ class LocalSpeciesImageService {
       species.commonNames,
       species.classification,
       pictures,
+      preferredScientificName: species.preferredScientificName,
       maxLengthCm: species.maxLengthCm,
       depthMinM: species.depthMinM,
       depthMaxM: species.depthMaxM,

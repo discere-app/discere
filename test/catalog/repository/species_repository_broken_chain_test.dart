@@ -16,6 +16,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 /// A species whose chain of higher ranks breaks off still loads, against a
 /// copy of the curated fixture with two gaps cut into it: Carcharodon
 /// carcharias loses its genus, and the genus Amphiprion loses its family.
+/// Without its genus, Carcharodon carcharias keeps the preferred scientific
+/// name its source (FishBase) gives it, "Carcharodon carcharias".
 const _carcharodonCarcharias = 'discere:species:694';
 const _amphiprionOcellaris = 'discere:species:6002';
 const _amphiprion = 'discere:genus:5106';
@@ -71,7 +73,52 @@ void main() {
     expect(classification.genusId, isNull);
     expect(classification.classScientificName, isNull);
     expect(classification.unassignedRanks, TaxonRank.values.toSet());
-    expect(species.binomialName, isNull);
+  });
+
+  test('a species without a genus is named by its preferred scientific '
+      'name', () async {
+    final repository = SpeciesRepository(database: referenceDb);
+
+    final byId = await repository.getSpeciesById(_carcharodonCarcharias);
+    final inBatch = await repository.getSpecies({_carcharodonCarcharias});
+
+    expect(byId!.binomialName, 'Carcharodon carcharias');
+    expect(inBatch.single.binomialName, 'Carcharodon carcharias');
+  });
+
+  test('the preferred name from the species\' own source outranks one from '
+      'another source', () async {
+    // "catalogue" sorts before "fishbase", the species' own source.
+    await referenceDb.insert('species_scientific_names', {
+      'species_id': _carcharodonCarcharias,
+      'name': 'Carcharias albus',
+      'normalized_name': 'carcharias albus',
+      'name_status': 'valid',
+      'source': 'catalogue',
+      'is_preferred': 1,
+    });
+
+    final species = await SpeciesRepository(
+      database: referenceDb,
+    ).getSpeciesById(_carcharodonCarcharias);
+
+    expect(species!.binomialName, 'Carcharodon carcharias');
+  });
+
+  test('a species without a genus or a preferred name is named by its '
+      'epithet', () async {
+    await referenceDb.update(
+      'species_scientific_names',
+      {'is_preferred': 0},
+      where: 'species_id = ?',
+      whereArgs: [_carcharodonCarcharias],
+    );
+
+    final species = await SpeciesRepository(
+      database: referenceDb,
+    ).getSpeciesById(_carcharodonCarcharias);
+
+    expect(species!.binomialName, isNull);
     expect(species.getBinomialName(), 'carcharias');
   });
 
@@ -100,7 +147,8 @@ void main() {
   });
 
   test(
-    'the search finds a species without a genus under its epithet',
+    'the search finds a species without a genus under its epithet, named '
+    'in full',
     () async {
       final found = await SearchRepository(
         searchWorker: SearchWorker(),
@@ -108,7 +156,22 @@ void main() {
       ).searchAll('carcharias', run: SearchRun.single);
 
       final hit = found.singleWhere((r) => r.id == _carcharodonCarcharias);
-      expect(hit.name, 'carcharias');
+      expect(hit.name, 'Carcharodon carcharias');
+    },
+  );
+
+  test(
+    'the search finds a species without a genus by its preferred name',
+    () async {
+      // No FTS table holds a full species name, so this term reaches the
+      // LIKE fallback, which matches the name as shown.
+      final found = await SearchRepository(
+        searchWorker: SearchWorker(),
+        database: referenceDb,
+      ).searchAll('Carcharodon carch', run: SearchRun.single);
+
+      final hit = found.singleWhere((r) => r.id == _carcharodonCarcharias);
+      expect(hit.name, 'Carcharodon carcharias');
     },
   );
 
