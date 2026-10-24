@@ -69,6 +69,14 @@
 --                    Synonym-Treffer und metadata_json in import.sh
 --   report.tsv       Zeilen für plugin_report: Kategorie, Schlüssel, Name,
 --                    Detail (abgelehnte Taxa und Homonyme)
+--   rejected_carriers.tsv
+--                    rank, entity_id, normalized_name, reason — jede
+--                    Entität, die den Namen eines abgelehnten Taxons bzw.
+--                    eines Homonyms (ambiguous) trägt; import.sh schreibt
+--                    daraus entity_external_id_rejections
+--   allowed_ancestors.tsv
+--                    class_id, rank, inat_taxon_id — für
+--                    inat_allowed_ancestors
 -- =============================================================================
 
 CREATE TEMP TABLE t_placeholder_patterns AS
@@ -262,3 +270,46 @@ COPY (
     GROUP BY v.rank, v.normalized_name
     ORDER BY 1, 3, 2
 ) TO '${EXPORT_DIR}/report.tsv' (FORMAT csv, DELIMITER '\t', HEADER false, QUOTE '', ESCAPE '');
+
+-- Jede Entität hinter einem abgelehnten Taxon und hinter einem Homonym: Für
+-- sie hat der Abgleich ein Taxon ihres Namens gesehen und bewusst nicht
+-- genommen. import.sh lässt die weg, die trotzdem eine Zuordnung bekommen.
+COPY (
+    SELECT DISTINCT c.rank, c.entity_id, c.normalized_name, r.reason
+    FROM (
+        SELECT rank, normalized_name, rejection AS reason
+        FROM t_verdicts
+        WHERE rejection IS NOT NULL
+        UNION ALL
+        SELECT rank, normalized_name, 'ambiguous' FROM t_homonyms
+    ) r
+    JOIN t_carriers c ON c.rank = r.rank AND c.normalized_name = r.normalized_name
+    ORDER BY 1, 2, 4
+) TO '${EXPORT_DIR}/rejected_carriers.tsv' (FORMAT csv, DELIMITER '\t', HEADER true, QUOTE '', ESCAPE '');
+
+-- Je eigener Klasse die iNaturalist-Taxa, die als Stamm bzw. Klasse in der
+-- Ahnenkette eines passenden Treffers stehen dürfen — dieselben Vergleiche
+-- wie in t_checks, nur als IDs, damit die App ohne Namen und ohne Listen
+-- prüft. Kein Stamm ohne prüfbaren Stamm der Kette, keine Klasse für eine
+-- Platzhalter-Klasse.
+COPY (
+    WITH upper_taxa AS (
+        SELECT taxon_id, rank, name FROM t_taxa WHERE rank IN ('phylum', 'class')
+    )
+    SELECT DISTINCT c.entity_id AS class_id, t.rank, t.taxon_id AS inat_taxon_id
+    FROM t_carriers c
+    JOIN upper_taxa t
+      ON (t.rank = 'phylum'
+          AND c.chain_phylum IS NOT NULL
+          AND NOT is_rank_placeholder(c.chain_phylum)
+          AND (t.name = c.chain_phylum
+               OR EXISTS (SELECT 1 FROM t_phylum_equivalents e
+                          WHERE e.phylum = c.chain_phylum AND e.inat_phylum = t.name)))
+      OR (t.rank = 'class'
+          AND NOT is_rank_placeholder(c.normalized_name)
+          AND (LOWER(t.name) = c.normalized_name
+               OR EXISTS (SELECT 1 FROM t_class_equivalents e
+                          WHERE e.class = c.normalized_name AND e.inat_class = LOWER(t.name))))
+    WHERE c.rank = 'class'
+    ORDER BY 1, 2, 3
+) TO '${EXPORT_DIR}/allowed_ancestors.tsv' (FORMAT csv, DELIMITER '\t', HEADER true, QUOTE '', ESCAPE '');

@@ -5,6 +5,13 @@ import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/util/background_json.dart';
 import 'package:discere/shared/util/logger.dart';
 
+/// The common names of one iNaturalist taxon, per app language code, with
+/// the id of the taxon they belong to.
+typedef INatTaxonCommonNames = ({
+  int taxonId,
+  Map<String, List<INatCommonName>> commonNames,
+});
+
 /// Fetches the common names iNaturalist has for a taxon, per language.
 ///
 /// Reads them off the legacy `taxon_names.json` endpoint, which is the only
@@ -29,8 +36,10 @@ class INatCommonNameApi {
   /// language code (`de`, `en`, `fr`, `es`) and values are ordered from best
   /// to worst candidate according to iNaturalist ranking metadata. Null when
   /// any request failed.
-  Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
-  fetchCommonNames(String scientificName, {int? taxonId}) async {
+  Future<INatTaxonCommonNames?> fetchCommonNames(
+    String scientificName, {
+    int? taxonId,
+  }) async {
     try {
       final resolvedTaxonId = await _taxonIds.resolve(
         scientificName,

@@ -2,29 +2,30 @@ import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
-import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/enrichment/pipeline/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
+import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/external/inaturalist/inat_photo_api.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/shared/util/logger.dart';
 
 class SpeciesPhotoService {
   static final _log = Logger.forType(SpeciesPhotoService);
   final INatPhotoCacheRepository _iNatCacheRepository;
   final INatPhotoApi? _iNatPhotos;
-  final ExternalIdRepository? _externalIdRepository;
+  final INatTaxonResolver? _taxonResolver;
   final ExternalIdCacheRepository? _externalIdCacheRepository;
   final InaturalistPhotoPictureMapper _mapper;
 
   SpeciesPhotoService(
     this._iNatCacheRepository, {
     INatPhotoApi? iNatPhotos,
-    ExternalIdRepository? externalIdRepository,
+    INatTaxonResolver? taxonResolver,
     ExternalIdCacheRepository? externalIdCacheRepository,
     InaturalistPhotoPictureMapper mapper =
         const InaturalistPhotoPictureMapper(),
   }) : _iNatPhotos = iNatPhotos,
-       _externalIdRepository = externalIdRepository,
+       _taxonResolver = taxonResolver,
        _externalIdCacheRepository = externalIdCacheRepository,
        _mapper = mapper;
 
@@ -75,19 +76,19 @@ class SpeciesPhotoService {
         return [...refPictures, ...cached];
       }
 
-      if (_iNatPhotos == null) {
+      final taxonResolver = _taxonResolver;
+      if (_iNatPhotos == null || taxonResolver == null) {
         return refPictures;
       }
 
-      final taxonId = await _resolveINatTaxonId(species);
-      // Without a taxon id the fetch searches by name, and a species without
-      // a binomial has none to search by.
-      final binomial = species.binomialName;
-      if (taxonId == null && binomial == null) {
+      final knownTaxonId = await taxonResolver.knownTaxonId(species);
+      final taxonId =
+          knownTaxonId ?? await taxonResolver.searchTaxonId(species);
+      if (taxonId == null) {
         return refPictures;
       }
       final result = await _iNatPhotos.fetchPhotos(
-        binomial ?? species.getBinomialName(),
+        species.getBinomialName(),
         taxonId: taxonId,
         allowTier3Fallback: true,
       );
@@ -95,11 +96,15 @@ class SpeciesPhotoService {
         return refPictures;
       }
 
-      await _iNatCacheRepository.cachePhotos(species.id, result.photos);
-      await _externalIdCacheRepository?.saveExternalId(
+      await _iNatCacheRepository.cachePhotos(
         species.id,
-        ExternalIdProvider.inaturalist,
-        result.taxonId.toString(),
+        result.photos,
+        taxonId: result.taxonId,
+      );
+      await taxonResolver.persistResolvedTaxonId(
+        species,
+        previousTaxonId: knownTaxonId,
+        resolvedTaxonId: result.taxonId,
       );
       final wikipediaUrl = result.wikipediaUrl;
       if (wikipediaUrl != null && wikipediaUrl.isNotEmpty) {
@@ -119,29 +124,12 @@ class SpeciesPhotoService {
       }
 
       return [...refPictures, ..._mapper.map(species.id, result.photos)];
+    } on TaxonNotFoundException {
+      return refPictures;
     } catch (e) {
       _log.warn('iNat live fetch failed for ${species.id}: $e');
       return refPictures;
     }
-  }
-
-  Future<int?> _resolveINatTaxonId(Species species) async {
-    final referenceId = await _externalIdRepository?.getExternalId(
-      species.id,
-      ExternalIdProvider.inaturalist,
-    );
-    final referenceTaxonId = referenceId != null
-        ? int.tryParse(referenceId)
-        : null;
-    if (referenceTaxonId != null) {
-      return referenceTaxonId;
-    }
-
-    final cachedId = await _externalIdCacheRepository?.getExternalId(
-      species.id,
-      ExternalIdProvider.inaturalist,
-    );
-    return cachedId != null ? int.tryParse(cachedId) : null;
   }
 
   /// Whether an iNat cache entry exists for the species.

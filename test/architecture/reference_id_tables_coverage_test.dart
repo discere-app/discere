@@ -49,6 +49,12 @@ const _exempt = <String, String>{
   'enrichment_taxonomy_work.runtime_entity_key':
       'always `rank:<scientificName>` — a higher taxon by name, which an '
       'alias does not change',
+  'inat_photo_cache.inat_taxon_id':
+      'an iNaturalist taxon id, the provenance stamp of the photos — not a '
+      'reference ID',
+  'runtime_common_names.inat_taxon_id':
+      'an iNaturalist taxon id, the provenance stamp of the names — not a '
+      'reference ID',
 };
 
 void main() {

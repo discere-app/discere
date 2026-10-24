@@ -253,6 +253,43 @@ CREATE TABLE IF NOT EXISTS entity_external_ids (
 );
 
 -- ---------------------------------------------------------------------------
+-- Abgelehnte Zuordnungen (docs/datenquellen.md, Stamm und Kette bei der
+-- iNaturalist-Zuordnung)
+-- Jede Entität, der eine Quelle eine externe ID bewusst nicht zuordnet,
+-- obwohl der Name ein Taxon trifft: Das Taxon passt nicht zur eigenen Kette,
+-- ist nicht prüfbar oder nicht eindeutig. Die App sucht für sie nicht selbst
+-- nach einer ID. Schlüssel wie in entity_external_ids (Art-ID bzw.
+-- Namensschlüssel 'genus:megalomma'); eine Entität mit Zuordnung steht hier
+-- nie. Eine Zeile je Grund.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS entity_external_id_rejections (
+    entity_id    TEXT NOT NULL,
+    entity_type  TEXT NOT NULL,
+    provider     TEXT NOT NULL,
+    reason       TEXT NOT NULL,
+    PRIMARY KEY (entity_id, provider, reason)
+);
+
+-- ---------------------------------------------------------------------------
+-- Erlaubte iNaturalist-Vorfahren je Klasse
+-- Die iNaturalist-Taxon-IDs des Stamms (rank 'phylum') und der Klasse (rank
+-- 'class'), die zur eigenen Klasse passen: gleicher Name oder gleichwertig
+-- laut plugins/inaturalist/data/{phylum,class}_equivalents.csv. Die App
+-- prüft damit einen Treffer ihrer Laufzeitsuche über dessen ancestor_ids,
+-- ohne Namen. Eine Klasse mit Platzhalter- oder ohne Stamm hat keine
+-- Stamm-Zeile, eine Platzhalter-Klasse keine Klassen-Zeile: Dort ist nichts
+-- prüfbar.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS inat_allowed_ancestors (
+    class_id       TEXT    NOT NULL REFERENCES classes(id),
+    rank           TEXT    NOT NULL CHECK (rank IN ('phylum', 'class')),
+    inat_taxon_id  INTEGER NOT NULL,
+    PRIMARY KEY (class_id, rank, inat_taxon_id)
+);
+
+-- ---------------------------------------------------------------------------
 -- ID-Register (docs/datenquellen.md, Identität)
 -- Hält über alle Releases fest, welcher Quellenschlüssel zu welcher
 -- Entitäts-ID gehört. Ein Build übernimmt es aus dem vorigen Release und

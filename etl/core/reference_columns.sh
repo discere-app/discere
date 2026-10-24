@@ -11,13 +11,15 @@ ENTITY_TABLES=(species genera families orders classes)
 # Spalten ohne Fremdschlüssel, die auf Entitäten verweisen. Die übrigen
 # Verweise ergeben sich aus den Fremdschlüsseln des Schemas; eine neue
 # Spalte dieser Art gehört hierher, sonst behält sie vorläufige IDs.
-# entity_external_ids führt bei höheren Taxa Namensschlüssel (genus:barbus),
-# die keine ID sind und unverändert bleiben.
+# entity_external_ids und entity_external_id_rejections führen bei höheren
+# Taxa Namensschlüssel (genus:barbus), die keine ID sind und unverändert
+# bleiben.
 REFERENCE_COLUMNS_WITHOUT_FK=(
     "common_names entity_id"
     "taxonomy_traits entity_id"
     "taxonomy_distribution_regions entity_id"
     "entity_external_ids entity_id"
+    "entity_external_id_rejections entity_id"
 )
 
 # foreign_key_columns <db>

@@ -1,6 +1,8 @@
 import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
+import 'package:discere/catalog/repository/external_id_rejection_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/catalog/repository/inat_allowed_ancestor_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
@@ -11,6 +13,7 @@ import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repos
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -18,6 +21,7 @@ import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
 import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
@@ -67,6 +71,10 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<INatPhotoCacheRepository>(),
   MockSpec<ExternalIdRepository>(),
   MockSpec<ExternalIdCacheRepository>(),
+  MockSpec<ExternalIdRejectionRepository>(),
+  MockSpec<INatAllowedAncestorRepository>(),
+  MockSpec<INatTaxonResolver>(),
+  MockSpec<INatTaxonIdResolver>(),
   MockSpec<RuntimeCommonNameRepository>(),
   MockSpec<SourceRepository>(),
   MockSpec<INatEnrichmentQueueService>(),

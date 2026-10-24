@@ -1901,6 +1901,44 @@ CREATE TABLE flashcard_stats (
     expect(row['species_id'], 'species-1');
     expect(row['acknowledged_at'], 1700);
   });
+
+  test('v20 -> v21 adds the iNat taxon stamp to the iNat data, leaving the '
+      'rows already there unstamped', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 20);
+    addTearDown(db.close);
+    await seedFtsTableForTestHost(db);
+    await db.execute('''
+      CREATE TABLE inat_photo_cache (
+        species_id TEXT NOT NULL, photo_url TEXT NOT NULL, thumb_url TEXT,
+        attribution TEXT, license_code TEXT, fetched_at INTEGER NOT NULL,
+        PRIMARY KEY (species_id, photo_url))''');
+    await db.execute('''
+      CREATE TABLE runtime_common_names (
+        entity_key TEXT NOT NULL, entity_type TEXT NOT NULL,
+        language_code TEXT NOT NULL, name TEXT NOT NULL, position INTEGER,
+        place_id INTEGER, place_position INTEGER,
+        fetched_at INTEGER NOT NULL)''');
+    await db.insert('inat_photo_cache', {
+      'species_id': 'sp1',
+      'photo_url': 'https://inat/1',
+      'fetched_at': 1,
+    });
+    await db.insert('runtime_common_names', {
+      'entity_key': 'species:sp1',
+      'entity_type': 'species',
+      'language_code': 'en',
+      'name': 'Snail',
+      'fetched_at': 1,
+    });
+
+    await UserDbSchema.upgrade(db, 20, UserDbSchema.version);
+
+    for (final table in ['inat_photo_cache', 'runtime_common_names']) {
+      final row = (await db.query(table)).single;
+      expect(row.containsKey('inat_taxon_id'), isTrue, reason: table);
+      expect(row['inat_taxon_id'], isNull, reason: table);
+    }
+  });
 }
 
 Future<bool> _tableExistsInTest(Database db, String table) async {

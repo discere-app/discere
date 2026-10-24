@@ -33,8 +33,7 @@ INatCommonNameApi _commonNameApi(http.Client client) =>
 
 
 void main() {
-  const expectedTaxonSearchFields =
-      'id,name,rank,preferred_common_name,matched_term';
+  const expectedTaxonSearchFields = 'id,name,rank,matched_term,ancestor_ids';
 
   group('INatSearchApi.searchTaxa', () {
     test('requests expanded nested taxon fields via GET override', () async {
@@ -497,7 +496,8 @@ void main() {
     });
 
     test(
-      'returns empty list when no taxon in first 10 results matches exactly',
+      'takes no taxon when none of the results carries the name: the first '
+      'result is another taxon',
       () async {
         final body = {
           'results': [
@@ -506,10 +506,11 @@ void main() {
         };
 
         final service = makeService(mockClient(body));
-        final result = await service.fetchPhotos('Exact Match');
-        final photos = result?.photos ?? [];
 
-        expect(photos, isEmpty);
+        await expectLater(
+          service.fetchPhotos('Exact Match'),
+          throwsA(isA<TaxonNotFoundException>()),
+        );
       },
     );
 

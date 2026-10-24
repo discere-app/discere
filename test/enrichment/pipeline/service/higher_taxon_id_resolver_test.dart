@@ -7,6 +7,7 @@ import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dar
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
+import 'package:discere/external/inaturalist/inat_ancestry_requirement.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
@@ -68,6 +69,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockExternalIdRepository mockExternalIdRepo;
   late MockExternalIdCacheRepository mockExternalIdCacheRepo;
+  late MockExternalIdRejectionRepository mockRejections;
+  late MockINatAllowedAncestorRepository mockAllowedAncestors;
   late List<http.Request> requests;
   late Map<String, int> speciesTaxonIds;
   late int detailStatus;
@@ -88,6 +91,8 @@ void main() {
   setUp(() {
     mockExternalIdRepo = MockExternalIdRepository();
     mockExternalIdCacheRepo = MockExternalIdCacheRepository();
+    mockRejections = MockExternalIdRejectionRepository();
+    mockAllowedAncestors = MockINatAllowedAncestorRepository();
     requests = [];
     speciesTaxonIds = {};
     detailStatus = 200;
@@ -112,6 +117,12 @@ void main() {
     when(
       mockExternalIdCacheRepo.saveExternalId(any, any, any),
     ).thenAnswer((_) async {});
+    // A reference database without the ETL's rejections and allowed
+    // ancestors, unless a test says otherwise.
+    when(mockRejections.isRejected(any, any)).thenAnswer((_) async => false);
+    when(
+      mockAllowedAncestors.requirementForHigherTaxon(any, any),
+    ).thenAnswer((_) async => null);
 
     final client = MockClient((request) async {
       requests.add(request);
@@ -132,16 +143,22 @@ void main() {
       );
     });
     final api = INatApiClient(client: client);
+    final taxonIds = INatTaxonIdResolver(api: api);
     resolver = HigherTaxonIdResolver(
       mockExternalIdRepo,
       mockExternalIdCacheRepo,
+      mockRejections,
+      mockAllowedAncestors,
       INatTaxonResolver(
         MockSpeciesRepository(),
         mockExternalIdRepo,
         mockExternalIdCacheRepo,
+        mockRejections,
+        mockAllowedAncestors,
+        taxonIds,
       ),
       INatTaxonDetails(api: api),
-      INatTaxonIdResolver(api: api),
+      taxonIds,
     );
   });
 
@@ -314,6 +331,126 @@ void main() {
         ),
       ),
     );
+  });
+
+  group('with the ETL\'s rejections and allowed ancestors', () {
+    /// Chordata and Chondrichthyes, as iNaturalist numbers them.
+    const chordata = 2;
+    const chondrichthyes = 196614;
+    const allowed = INatAncestryRequirement([
+      {chordata},
+      {chondrichthyes},
+    ]);
+
+    Map<String, Object> holocephali(int id, List<int> ancestorIds) => {
+      'id': id,
+      'name': 'Holocephali',
+      'rank': 'class',
+      'ancestor_ids': ancestorIds,
+    };
+
+    setUp(() {
+      when(
+        mockAllowedAncestors.requirementForHigherTaxon(any, any),
+      ).thenAnswer((_) async => allowed);
+    });
+
+    test('looks nothing up for a name key the ETL rejected', () async {
+      when(
+        mockRejections.isRejected(
+          'class:holocephali',
+          ExternalIdProvider.inaturalist,
+        ),
+      ).thenAnswer((_) async => true);
+      speciesTaxonIds = {'sp1': 50873};
+      searchResults = [
+        holocephali(60450, [1, chordata, chondrichthyes, 60450]),
+      ];
+
+      final resolution = await resolver.resolve(_holocephali, [
+        _species('sp1'),
+      ]);
+
+      expect(resolution, isA<HigherTaxonAbsent>());
+      expect(requests, isEmpty);
+      verifyNever(mockExternalIdCacheRepo.saveExternalId(any, any, any));
+    });
+
+    test('takes a search hit under an allowed phylum and class', () async {
+      searchResults = [
+        holocephali(60450, [1, chordata, chondrichthyes, 60450]),
+      ];
+
+      final resolution = await resolver.resolve(_holocephali, const []);
+
+      expect(
+        resolution,
+        isA<HigherTaxonFound>().having((r) => r.taxonId, 'taxonId', 60450),
+      );
+    });
+
+    test('takes no search hit of another phylum, and caches nothing', () async {
+      searchResults = [
+        holocephali(70000, [10, 11, 70000]),
+      ];
+
+      final resolution = await resolver.resolve(_holocephali, const []);
+
+      expect(resolution, isA<HigherTaxonAbsent>());
+      verifyNever(mockExternalIdCacheRepo.saveExternalId(any, any, any));
+    });
+
+    test('takes no search hit of the right phylum but another class', () async {
+      searchResults = [
+        holocephali(70001, [1, chordata, 3, 70001]),
+      ];
+
+      expect(
+        await resolver.resolve(_holocephali, const []),
+        isA<HigherTaxonAbsent>(),
+      );
+    });
+
+    test('takes neither of two hits that both fit', () async {
+      searchResults = [
+        holocephali(60450, [1, chordata, chondrichthyes, 60450]),
+        holocephali(60451, [1, chordata, chondrichthyes, 60451]),
+      ];
+
+      expect(
+        await resolver.resolve(_holocephali, const []),
+        isA<HigherTaxonAbsent>(),
+      );
+    });
+
+    test('does not search when the reference data has nothing to check '
+        'against', () async {
+      when(
+        mockAllowedAncestors.requirementForHigherTaxon(any, any),
+      ).thenAnswer((_) async => const INatAncestryRequirement([{}]));
+      searchResults = [
+        holocephali(60450, [1, chordata, chondrichthyes, 60450]),
+      ];
+
+      final resolution = await resolver.resolve(_holocephali, const []);
+
+      expect(resolution, isA<HigherTaxonAbsent>());
+      expect(searches(), isEmpty);
+    });
+
+    test('still takes the id an own species\' ancestry names', () async {
+      speciesTaxonIds = {'sp1': 50873};
+
+      final resolution = await resolver.resolve(_elasmobranchii, [
+        _species('sp1'),
+      ]);
+
+      expect(
+        resolution,
+        isA<HigherTaxonFound>().having((r) => r.taxonId, 'taxonId', 47273),
+      );
+      expect(searches(), isEmpty);
+    });
   });
 
   test('knownTaxonId prefers the reference database over the cache', () async {

@@ -636,7 +636,8 @@ beider Seiten: `phylum_mixed` (Stamm passt zu einem Teil der Entitäten),
 `class_mixed` (Entitäten in mehreren Klassen), `rank_mismatch` (weder
 Klasse noch Ordnung noch Familie passen), `synonym_family` bzw.
 `synonym_epithet` (Synonym-Treffer mit anderer Familie bzw. anderem
-Epitheton).
+Epitheton). Die Entitäten dahinter stehen zusätzlich in der DB (siehe
+unten).
 
 Jede Zuordnung trägt in `entity_external_ids.metadata_json` Stamm, Klasse,
 Ordnung und Familie des iNaturalist-Taxons, `matched_by` (`name` oder
@@ -652,6 +653,41 @@ der DB und die Listen gleichwertiger Namen. `validate.sql`
 prüft zusätzlich, was ohne iNaturalist feststeht: Jede zugeordnete Art und
 jede Entität hinter einem zugeordneten Namensschlüssel hat eine Kette bis
 zu einer Klasse mit Stamm. Die App liest `metadata_json` nicht.
+
+Die App sucht für Arten und höhere Taxa ohne Zuordnung zur Laufzeit selbst
+bei iNaturalist, über den Namen ([`docs/enrichment.md`](../../docs/enrichment.md#die-inat-taxon-id-einer-art-oder-eines-höheren-rangs)).
+Damit sie dabei nicht wiederfindet, was hier abgelehnt wurde, und einen
+Treffer ohne Namen und ohne eigene Listen prüfen kann, schreibt das Plugin
+zwei Tabellen:
+
+- **`entity_external_id_rejections`** (`entity_id`, `entity_type`,
+  `provider`, `reason`) — jede Entität, deren Name ein Taxon trifft, das der
+  Abgleich bewusst nicht nimmt, unter dem Schlüssel, den die App abfragt
+  (Art-ID bzw. Namensschlüssel). Gründe wie im Build-Bericht:
+  die fünf Prüfungen oben, `synonym_family` und `synonym_epithet`, dazu
+  `ambiguous` für Homonyme mit mehreren passenden Taxa und für Arten, die
+  der Abgleich nicht eindeutig zuordnet. Eine Zeile je Grund. Wer trotzdem
+  eine Zuordnung bekommt (über ein anderes Taxon seines Namens), steht dort
+  nicht. Die App sucht für diese Entitäten nicht: Ihre Suche prüft nur
+  Stamm und Klasse und fände die abgelehnten Taxa wieder.
+- **`inat_allowed_ancestors`** (`class_id`, `rank`, `inat_taxon_id`) — je
+  eigener Klasse die iNaturalist-IDs der Stämme (`rank = 'phylum'`) und
+  Klassen (`'class'`), die zu ihr passen: gleicher Name oder gleichwertig
+  laut `phylum_equivalents.csv` bzw. `class_equivalents.csv`, FishBase als
+  Chordata. Eine Klasse mit Platzhalter- oder ohne Stamm hat keine
+  Stamm-Zeile, eine Platzhalter-Klasse keine Klassen-Zeile — dort ist
+  nichts prüfbar, und die App sucht nicht. Die App prüft einen Suchtreffer
+  über seine `ancestor_ids`: bei Arten den Stamm, bei Gattungen, Familien
+  und Ordnungen auch die Klasse. Strenger als die Prüfung hier, die auch
+  Ordnung oder Familie gelten lässt — die IDs dieser Ränge kennt die App
+  für ein neues Taxon nicht.
+
+`validate_mappings.sql` prüft beide Tabellen nach dem Import: Jede Klasse
+mit Arten und echtem Stamm hat einen erlaubten Stamm (sonst fände die App
+für ihre Arten nie eine ID; ein fehlendes Paar gehört in
+`phylum_equivalents.csv`), jede Zeile nennt ein iNaturalist-Taxon des Rangs
+und Namens, den sie behauptet, und keine abgelehnte Entität hat eine
+Zuordnung oder ist keine Entität. Ältere Apps ignorieren die Tabellen.
 
 ### Fehlende und mehrdeutige Zuordnungen
 

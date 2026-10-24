@@ -1,8 +1,10 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -69,6 +71,7 @@ void main() {
       mockRuntimeCommonNameRepo.markNoCommonNames(
         entityKey: anyNamed('entityKey'),
         entityType: anyNamed('entityType'),
+        taxonId: anyNamed('taxonId'),
       ),
     ).thenAnswer((_) async {});
     when(
@@ -83,9 +86,7 @@ void main() {
     );
   });
 
-  ({int taxonId, Map<String, List<INatCommonName>> commonNames}) namesFor(
-    int taxonId,
-  ) => (
+  INatTaxonCommonNames namesFor(int taxonId) => (
     taxonId: taxonId,
     commonNames: <String, List<INatCommonName>>{
       'en': [INatCommonName(languageCode: 'en', name: 'Test name')],
@@ -115,6 +116,19 @@ void main() {
       verify(
         mockINatService.fetchCommonNames('Actinopterygii', taxonId: 47178),
       ).called(1);
+      final records =
+          verify(
+                mockRuntimeCommonNameRepo.saveTaxonomyCommonNamesBatch(
+                  captureAny,
+                ),
+              ).captured.single
+              as Iterable<RuntimeTaxonomyCommonNameRecord>;
+      expect({for (final record in records) record.entityKey: record.taxonId}, {
+        'genus:barbus': 86989,
+        'family:cyprinidae': 51783,
+        'order:cypriniformes': 48051,
+        'class:actinopterygii': 47178,
+      });
     });
 
     test('stores a no-result marker when iNaturalist has no such taxon, and '
@@ -136,6 +150,7 @@ void main() {
         mockRuntimeCommonNameRepo.markNoCommonNames(
           entityKey: 'genus:barbus',
           entityType: 'genera',
+          taxonId: null,
         ),
       ).called(1);
       verifyNever(
@@ -166,6 +181,7 @@ void main() {
           mockRuntimeCommonNameRepo.markNoCommonNames(
             entityKey: 'genus:barbus',
             entityType: 'genera',
+            taxonId: 86989,
           ),
         ).called(1);
         expect(completed, ['genus:barbus']);
@@ -191,6 +207,7 @@ void main() {
         mockRuntimeCommonNameRepo.markNoCommonNames(
           entityKey: anyNamed('entityKey'),
           entityType: anyNamed('entityType'),
+          taxonId: anyNamed('taxonId'),
         ),
       );
       expect(completed, isEmpty);
@@ -218,6 +235,7 @@ void main() {
           mockRuntimeCommonNameRepo.markNoCommonNames(
             entityKey: anyNamed('entityKey'),
             entityType: anyNamed('entityType'),
+            taxonId: anyNamed('taxonId'),
           ),
         );
         expect(completed, isEmpty);

@@ -4,11 +4,11 @@ import 'package:discere/app/bootstrap/app_restart.dart';
 import 'package:discere/app/bootstrap/app_session.dart';
 import 'package:discere/app/bootstrap/bootstrap_error_shell.dart';
 import 'package:discere/app/bootstrap/bootstrap_shell.dart';
+import 'package:discere/app/bootstrap/reference_db_alignment.dart';
 import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_declined_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
-import 'package:discere/app/bootstrap/reference_id_alias_step.dart';
 import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/diagnostics_wiring.dart';
@@ -144,7 +144,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
       throw _ReferenceDbUnavailable(e);
     }
     // Outside the timeout below: its length scales with the user's data.
-    await applyReferenceIdAliases();
+    await alignUserDataWithReferenceDb();
     return _setupCriticalServices(
       diagnostics: diagnostics,
       notificationService: widget.notificationService,

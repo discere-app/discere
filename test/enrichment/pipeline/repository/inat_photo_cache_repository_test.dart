@@ -38,7 +38,7 @@ void main() {
   });
 
   test('a species looked up without photos maps to an empty list', () async {
-    await repository.cachePhotos('sp1', []);
+    await repository.cachePhotos('sp1', [], taxonId: null);
 
     final cached = await repository.getCachedPhotosForSpecies({'sp1'});
 
@@ -50,7 +50,7 @@ void main() {
     await repository.cachePhotos('sp1', [
       _photo('https://inat/a.jpg'),
       _photo('https://inat/b.jpg'),
-    ]);
+    ], taxonId: 7);
 
     final cached = await repository.getCachedPhotosForSpecies({'sp1'});
 
@@ -62,8 +62,10 @@ void main() {
   });
 
   test('keeps the three states apart within one batch', () async {
-    await repository.cachePhotos('cached', [_photo('https://inat/a.jpg')]);
-    await repository.cachePhotos('looked-up-empty', []);
+    await repository.cachePhotos('cached', [
+      _photo('https://inat/a.jpg'),
+    ], taxonId: 7);
+    await repository.cachePhotos('looked-up-empty', [], taxonId: 8);
 
     final cached = await repository.getCachedPhotosForSpecies({
       'cached',
@@ -77,14 +79,37 @@ void main() {
   });
 
   test('re-caching replaces what the species had before', () async {
-    await repository.cachePhotos('sp1', [_photo('https://inat/old.jpg')]);
-    await repository.cachePhotos('sp1', [_photo('https://inat/new.jpg')]);
+    await repository.cachePhotos('sp1', [
+      _photo('https://inat/old.jpg'),
+    ], taxonId: 7);
+    await repository.cachePhotos('sp1', [
+      _photo('https://inat/new.jpg'),
+    ], taxonId: 7);
 
     final cached = await repository.getCachedPhotosForSpecies({'sp1'});
 
     expect(cached['sp1']!.map((picture) => picture.url), [
       'https://inat/new.jpg',
     ]);
+  });
+
+  test('every row carries the taxon the photos came from', () async {
+    await repository.cachePhotos('sp1', [
+      _photo('https://inat/a.jpg'),
+      _photo('https://inat/b.jpg'),
+    ], taxonId: 7);
+    await repository.cachePhotos('found-empty', [], taxonId: 8);
+    await repository.cachePhotos('not-found', [], taxonId: null);
+
+    final rows = await database.query(
+      INatPhotoCacheRepository.tableName,
+      columns: ['species_id', 'inat_taxon_id'],
+      orderBy: 'species_id, photo_url',
+    );
+    expect(
+      rows.map((row) => '${row['species_id']}=${row['inat_taxon_id']}'),
+      ['found-empty=8', 'not-found=null', 'sp1=7', 'sp1=7'],
+    );
   });
 
   test('an empty request reads nothing', () async {

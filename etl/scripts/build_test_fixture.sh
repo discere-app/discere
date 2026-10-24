@@ -5,8 +5,9 @@
 # Filtert eine lokal gebaute Voll-DB (etl/build.sh) auf eine kuratierte
 # Artenliste (test_fixture_species.txt) herunter — inkl. vollständiger
 # Taxonomie-Ahnenkette, Common Names, wissenschaftlicher Namen/Synonyme,
-# Bilder, Traits/Verbreitungsdaten sowie ID-Register (entity_source_keys) und
-# Aliase (entity_aliases) für genau diese Arten und ihre Ahnen. FTS-Indexe und
+# Bilder, Traits/Verbreitungsdaten, ID-Register (entity_source_keys),
+# Aliase (entity_aliases) sowie abgelehnte iNaturalist-Zuordnungen und
+# erlaubte iNaturalist-Vorfahren für genau diese Arten und ihre Ahnen. FTS-Indexe und
 # species_name_lookup werden danach über die bestehenden ETL-SQL-Skripte neu
 # aufgebaut (core/sql/rebuild_fts.sql, core/sql/rebuild_lookup.sql).
 #
@@ -151,6 +152,17 @@ DELETE FROM taxonomy_distribution_regions
   WHERE entity_id NOT IN (SELECT id FROM _fixture_species_ids);
 DELETE FROM entity_external_ids
   WHERE entity_id NOT IN (SELECT id FROM _fixture_entity_ids);
+-- Rejections are keyed like entity_external_ids: species by id, higher taxa
+-- by the name key every same-named row shares.
+DELETE FROM entity_external_id_rejections
+  WHERE entity_id NOT IN (SELECT id FROM _fixture_species_ids)
+    AND entity_id NOT IN (
+      SELECT 'genus:' || LOWER(TRIM(name)) FROM genera WHERE id IN (SELECT id FROM _fixture_genus_ids)
+      UNION SELECT 'family:' || LOWER(TRIM(name)) FROM families WHERE id IN (SELECT id FROM _fixture_family_ids)
+      UNION SELECT 'order:' || LOWER(TRIM(name)) FROM orders WHERE id IN (SELECT id FROM _fixture_order_ids)
+      UNION SELECT 'class:' || LOWER(TRIM(name)) FROM classes WHERE id IN (SELECT id FROM _fixture_class_ids));
+DELETE FROM inat_allowed_ancestors
+  WHERE class_id NOT IN (SELECT id FROM _fixture_class_ids);
 DELETE FROM pictures
   WHERE species NOT IN (SELECT id FROM _fixture_species_ids);
 -- ID register and aliases follow the entities they point to, so the fixture

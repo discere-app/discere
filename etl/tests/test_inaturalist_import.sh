@@ -490,6 +490,108 @@ test_inaturalist_rejects_synonym_with_another_epithet() {
         "$(inaturalist_report)" "Build-Bericht"
 }
 
+# Jede Entität, für die der Abgleich ein Taxon ihres Namens bewusst nicht
+# nimmt, steht mit Grund in entity_external_id_rejections — außer sie hat
+# trotzdem eine Zuordnung: Amphiprion ocellaris und percula über ihren
+# akzeptierten Namen, genus:triphora über das passende der zwei Taxa.
+test_inaturalist_records_rejected_entities() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file \
+        "$OCELLARIS" \
+        "102	$POMACENTRIDAE	10	species	Amphiprion percula	true" \
+        "103	$POMACENTRIDAE	10	species	Amphiprion communis	true" \
+        "104	$POMACENTRIDAE	20	genus	Amphiprion	true" \
+        "105	$POMACENTRIDAE	20	genus	Amphiprion	true" \
+        "401	$TRACHEOPHYTA	10	species	Triphora pusilla	true" \
+        "403	$TRACHEOPHYTA	10	species	Alsidium pusillum	true" \
+        "406	$APODIDAE	20	genus	Apus	true" \
+        "407	$TRIPHORIDAE	20	genus	Triphora	true" \
+        "408	$TRACHEOPHYTA	20	genus	Triphora	true" \
+        "413	$APODIDAE	20	genus	Batis	true" \
+        "502	$APODIDAE	10	species	Amphiprion bicolor	true" \
+        "503	$POMACENTRIDAE	10	species	Amphiprion melanopus	true"
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:3 species ambiguous
+discere:fishbase_species:5 species synonym_epithet
+discere:sealifebase_species:1 species phylum_mismatch
+discere:sealifebase_species:5 species phylum_unknown
+genus:amphiprion genera ambiguous
+genus:apus genera phylum_mixed
+genus:batis genera class_mixed" \
+        "$(sqlite3 -separator ' ' "$DB" "SELECT entity_id, entity_type, reason FROM entity_external_id_rejections
+                                         WHERE provider = 'inaturalist' ORDER BY 1, 3;")" "Ablehnungen"
+}
+
+test_inaturalist_reimport_replaces_its_rejections() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file "$OCELLARIS" "401	$TRACHEOPHYTA	10	species	Triphora pusilla	true"
+    run_inaturalist_import
+    assert_status 0
+    write_taxa_file "400	$TRIPHORIDAE	10	species	Triphora pusilla	true"
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "" "$(sqlite3 "$DB" "SELECT entity_id FROM entity_external_id_rejections;")" "Ablehnungen nach Reimport"
+}
+
+# Je Klasse die iNaturalist-IDs von Stamm und Klasse, gegen die die App die
+# ancestor_ids eines Suchtreffers prüft: Teleostei (FishBase, also Chordata)
+# zu Actinopterygii und Kamptozoa zu Entoprocta über die Listen
+# gleichwertiger Namen; Entoprocta und Branchiopoda führt iNaturalist nicht
+# als Klasse, der Platzhalter-Stamm bekommt nichts.
+test_inaturalist_records_allowed_ancestors_per_class() {
+    create_mini_reference_db
+    add_sealifebase_chains
+    write_taxa_file "$OCELLARIS"
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_class:7 class 30
+discere:fishbase_class:7 phylum 2
+discere:sealifebase_class:1 class 40
+discere:sealifebase_class:1 phylum 4
+discere:sealifebase_class:2 phylum 5
+discere:sealifebase_class:3 phylum 3
+discere:sealifebase_class:5 class 33
+discere:sealifebase_class:5 phylum 2" \
+        "$(sqlite3 -separator ' ' "$DB" "SELECT class_id, rank, inat_taxon_id FROM inat_allowed_ancestors ORDER BY 1, 2, 3;")" \
+        "erlaubte Vorfahren"
+}
+
+# Ein Stamm, den iNaturalist nicht führt und zu dem kein gleichwertiger
+# eingetragen ist: Die App fände für die Arten der Klasse nie eine ID. Der
+# Build bricht ab, damit das Paar in data/phylum_equivalents.csv landet.
+# Eine Klasse ohne Art erreicht die App nicht; sie zählt nicht.
+add_placozoa_class() {
+    sqlite3 "$DB" "INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
+        ('discere:sealifebase_class:9', '9', 'sealifebase', 'Placozoa', 'Placozoa');
+    INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+        ('discere:sealifebase_order:9', '9', 'sealifebase', 'Trichoplacida', 'discere:sealifebase_class:9');
+    INSERT INTO families (id, external_id, external_source, name, \"order\") VALUES
+        ('discere:sealifebase_family:9', '9', 'sealifebase', 'Trichoplacidae', 'discere:sealifebase_order:9');
+    INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+        ('discere:sealifebase_genus:9', '9', 'sealifebase', 'Trichoplax', 'discere:sealifebase_family:9');"
+}
+
+test_inaturalist_validation_fails_on_class_without_allowed_phylum() {
+    create_mini_reference_db
+    add_placozoa_class
+    give_species_to discere:sealifebase_genus:9
+    write_taxa_file "$OCELLARIS"
+    run_inaturalist_import
+    assert_status 1
+    assert_contains "$ERR" "class:placozoa		erlaubter stamm fehlt	discere:sealifebase_class:9"
+}
+
+test_inaturalist_validation_ignores_class_without_species() {
+    create_mini_reference_db
+    add_placozoa_class
+    write_taxa_file "$OCELLARIS"
+    run_inaturalist_import
+    assert_status 0
+}
+
 # validate() prüft jede Zuordnung mit eigener SQL gegen taxa.csv und die
 # Kette. Eine Kopie des Plugins, deren Prüfung oder metadata_json kaputt
 # ist, muss deshalb scheitern, statt die falsche Zuordnung zu schreiben.
@@ -548,6 +650,24 @@ test_inaturalist_validation_fails_on_wrong_metadata() {
     run_broken_plugin import.sh "json_object('phylum', phylum," "json_object('phylum', 'Mollusca',"
     assert_status 1
     assert_contains "$ERR" "discere:fishbase_species:1	100	metadata"
+}
+
+test_inaturalist_validation_fails_on_wrong_allowed_ancestor() {
+    create_mini_reference_db
+    write_taxa_file "$OCELLARIS"
+    run_broken_plugin sql/export.sql "          AND (t.name = c.chain_phylum" "          AND (true"
+    assert_status 1
+    assert_contains "$ERR" "class:teleostei	3	erlaubter vorfahr	discere:fishbase_class:7"
+}
+
+test_inaturalist_validation_fails_on_rejection_with_mapping() {
+    create_mini_reference_db
+    write_taxa_file "$OCELLARIS" "101	$POMACENTRIDAE	10	species	Amphiprion bicolor	true"
+    run_broken_plugin import.sh \
+        "WHERE entity_key NOT IN (SELECT entity_id FROM entity_external_ids WHERE provider = '\${PLUGIN_SOURCE}');" \
+        "WHERE 1;"
+    assert_status 1
+    assert_contains "$ERR" "discere:fishbase_species:1	100	ablehnung mit zuordnung	ambiguous"
 }
 
 add_frenata_synonym() {

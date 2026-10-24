@@ -1,7 +1,10 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
+import 'package:discere/catalog/repository/external_id_rejection_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/catalog/repository/inat_allowed_ancestor_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:discere/external/inaturalist/inat_taxon_detail_reader.dart';
@@ -23,8 +26,9 @@ final class HigherTaxonFound extends HigherTaxonResolution {
   const HigherTaxonFound(this.taxonId);
 }
 
-/// iNaturalist has no such taxon: no sampled species' ancestry names it, and
-/// no taxon carries exactly its name on its rank.
+/// No iNaturalist taxon may be taken for it: the ETL rejected the taxa of
+/// its name, or no sampled species' ancestry names it and no single taxon
+/// that fits carries exactly its name on its rank.
 final class HigherTaxonAbsent extends HigherTaxonResolution {
   const HigherTaxonAbsent();
 }
@@ -32,17 +36,21 @@ final class HigherTaxonAbsent extends HigherTaxonResolution {
 /// Finds the iNaturalist taxon id of a genus, family, order or class.
 ///
 /// In order: the reference database, an id found earlier and cached, the
-/// ancestry of the taxon's own species, and last an exact name search. The
-/// ancestry comes before the search because it proves identity: a name in
-/// the chain of a species the reference data files under this taxon is this
-/// taxon, whatever rank iNaturalist gives it, and a homonym elsewhere in the
-/// tree (Articulata: a brachiopod class here, a crinoid subclass there)
-/// cannot match. The search catches what is left — taxa iNaturalist has,
-/// but under which it files none of the sampled species.
+/// ancestry of the taxon's own species, and last an exact name search. A
+/// name key the ETL rejected — it stands for taxa of several phyla or
+/// classes, or iNaturalist's taxon of that name did not fit — gets neither
+/// of the last two: whatever they found would be wrong for at least one row
+/// the key stands for. The ancestry comes before the search because it
+/// proves identity: a name in the chain of a species the reference data
+/// files under this taxon is this taxon, whatever rank iNaturalist gives it,
+/// and a homonym elsewhere in the tree (Articulata: a brachiopod class here,
+/// a crinoid subclass there) cannot match. The search catches what is left —
+/// taxa iNaturalist has, but under which it files none of the sampled
+/// species — and takes a hit only under a phylum and class that fit every
+/// row the key stands for.
 ///
 /// Species are resolved by [INatTaxonIdResolver.resolve] instead, which
-/// accepts a synonym hit and the search's first result — exactly what this
-/// must not.
+/// accepts a synonym hit — exactly what this must not.
 class HigherTaxonIdResolver {
   static final _log = Logger.forType(HigherTaxonIdResolver);
 
@@ -54,6 +62,8 @@ class HigherTaxonIdResolver {
 
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
+  final ExternalIdRejectionRepository _rejections;
+  final INatAllowedAncestorRepository _allowedAncestors;
   final INatTaxonResolver _speciesTaxonIds;
   final INatTaxonDetails _taxonDetails;
   final INatTaxonIdResolver _taxonIds;
@@ -61,6 +71,8 @@ class HigherTaxonIdResolver {
   const HigherTaxonIdResolver(
     this._externalIdRepository,
     this._externalIdCacheRepository,
+    this._rejections,
+    this._allowedAncestors,
     this._speciesTaxonIds,
     this._taxonDetails,
     this._taxonIds,
@@ -93,6 +105,13 @@ class HigherTaxonIdResolver {
   ) async {
     final knownId = await knownTaxonId(target.runtimeEntityKey);
     if (knownId != null) return HigherTaxonFound(knownId);
+    if (await _rejections.isRejected(
+      target.runtimeEntityKey,
+      ExternalIdProvider.inaturalist,
+    )) {
+      _log.debug('No iNat lookup for ${target.runtimeEntityKey}: rejected');
+      return const HigherTaxonAbsent();
+    }
 
     final foundId =
         await _idFromAncestry(target, speciesList) ??
@@ -144,11 +163,22 @@ class HigherTaxonIdResolver {
     return null;
   }
 
+  /// Null as well when the reference database can say which phyla fit, but
+  /// not for every row the name key stands for: nothing to tell a homonym
+  /// apart by.
   Future<int?> _idFromExactSearch(TaxonomyPlanEntry target) async {
+    final rank = TaxonRank.fromRankName(target.rank);
+    if (rank == null) return null;
+    final ancestry = await _allowedAncestors.requirementForHigherTaxon(
+      rank,
+      target.scientificName,
+    );
+    if (ancestry != null && !ancestry.canBeMet) return null;
     try {
       return await _taxonIds.resolveExact(
         target.scientificName,
         rank: target.rank,
+        ancestry: ancestry,
       );
     } on TaxonNotFoundException {
       return null;

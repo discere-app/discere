@@ -74,6 +74,7 @@ void main() {
       mockRuntimeCommonNameRepo.markNoCommonNames(
         entityKey: anyNamed('entityKey'),
         entityType: anyNamed('entityType'),
+        taxonId: anyNamed('taxonId'),
       ),
     ).thenAnswer((_) async {});
     when(
@@ -83,7 +84,9 @@ void main() {
       mockRuntimeCommonNameRepo.saveTaxonomyCommonNamesBatch(any),
     ).thenAnswer((_) async {});
     when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => null);
-    when(mockINatCacheRepo.cachePhotos(any, any)).thenAnswer((_) async {});
+    when(
+      mockINatCacheRepo.cachePhotos(any, any, taxonId: anyNamed('taxonId')),
+    ).thenAnswer((_) async {});
   });
 
   test(
@@ -245,10 +248,23 @@ void main() {
         taxonIds: integratedTaxonIds,
         taxonDetails: integratedTaxonDetails,
       );
+      // A reference database without rejections and allowed ancestors.
+      final rejections = MockExternalIdRejectionRepository();
+      final allowedAncestors = MockINatAllowedAncestorRepository();
+      when(rejections.isRejected(any, any)).thenAnswer((_) async => false);
+      when(
+        allowedAncestors.requirementForSpecies(any),
+      ).thenAnswer((_) async => null);
+      when(
+        allowedAncestors.requirementForHigherTaxon(any, any),
+      ).thenAnswer((_) async => null);
       final integratedTaxonResolver = INatTaxonResolver(
         mockSpeciesRepo,
         mockExternalIdRepo,
         mockExternalIdCacheRepo,
+        rejections,
+        allowedAncestors,
+        integratedTaxonIds,
       );
       final integratedPhotoService = INatPhotoEnrichmentService(
         mockSpeciesRepo,
@@ -270,6 +286,8 @@ void main() {
         HigherTaxonIdResolver(
           mockExternalIdRepo,
           mockExternalIdCacheRepo,
+          rejections,
+          allowedAncestors,
           integratedTaxonResolver,
           integratedTaxonDetails,
           integratedTaxonIds,

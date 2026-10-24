@@ -78,7 +78,15 @@ class INatPhotoCacheRepository {
   /// Stores fetched iNat photos for a species.
   ///
   /// If [photos] is empty, a sentinel row is inserted to avoid re-fetching.
-  Future<void> cachePhotos(String speciesId, List<INatPhoto> photos) async {
+  /// Every row carries [taxonId], the iNat taxon the photos were fetched
+  /// from — null only for a sentinel no taxon was found for — so that
+  /// `INatProvenanceReconciler` can tell them apart from photos of a taxon
+  /// the species no longer maps to.
+  Future<void> cachePhotos(
+    String speciesId,
+    List<INatPhoto> photos, {
+    required int? taxonId,
+  }) async {
     final db = await _database;
     final stopwatch = Stopwatch()..start();
     _log.debug(
@@ -100,6 +108,7 @@ class INatPhotoCacheRepository {
             'species_id': speciesId,
             'photo_url': _emptySentinel,
             'fetched_at': DateTime.now().millisecondsSinceEpoch,
+            'inat_taxon_id': taxonId,
           });
           return;
         }
@@ -112,6 +121,7 @@ class INatPhotoCacheRepository {
             'attribution': photo.attribution,
             'license_code': photo.licenseCode,
             'fetched_at': DateTime.now().millisecondsSinceEpoch,
+            'inat_taxon_id': taxonId,
           });
         }
       });

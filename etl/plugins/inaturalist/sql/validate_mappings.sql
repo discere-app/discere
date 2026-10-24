@@ -25,6 +25,23 @@
 --              ihrem in den ersten vier Buchstaben
 --   metadata   metadata_json nennt dieselbe Kette, matched_by und homonym
 --
+-- Dazu die Tabellen für die Laufzeitsuche der App (Ausgabe: Schlüssel,
+-- iNaturalist-ID, Regel, Klasse bzw. Entität):
+--   erlaubter stamm fehlt
+--              eine Klasse mit Arten und einem Stamm, der kein Platzhalter
+--              ist, hat keinen erlaubten iNaturalist-Stamm in
+--              inat_allowed_ancestors — die App fände für ihre Arten nie
+--              eine ID; ein fehlendes Paar gehört nach
+--              data/phylum_equivalents.csv. Eine Klasse ohne Art erreicht
+--              die App nicht.
+--   erlaubter vorfahr
+--              eine Zeile in inat_allowed_ancestors nennt ein Taxon, das
+--              nicht den Rang der Zeile hat oder weder gleich heißt wie Stamm
+--              bzw. Klasse der Kette noch ihm gleichwertig ist
+--   ablehnung mit zuordnung, ablehnung ohne entität
+--              eine Entität in entity_external_id_rejections hat eine
+--              Zuordnung, oder ihr Schlüssel bezeichnet keine Entität
+--
 -- Platzhalter (via sed in import.sh): ${TAXA_TSV}, ${PHYLUM_EQUIVALENTS},
 -- ${CLASS_EQUIVALENTS}, ${PLACEHOLDER_PATTERNS}
 -- =============================================================================
@@ -179,3 +196,39 @@ WHERE name IS NOT NULL
        OR json_extract(metadata_json, '$.homonym') IS NOT homonym
        OR (entity_type = 'species' AND json_extract(metadata_json, '$.matched_by') IS NOT matched_by))
 GROUP BY mapping_key;
+
+SELECT 'class:' || LOWER(TRIM(c.name)), '', 'erlaubter stamm fehlt', c.id
+FROM classes c
+WHERE EXISTS (SELECT 1 FROM orders o JOIN families f ON f."order" = o.id
+              JOIN genera g ON g.family = f.id JOIN species s ON s.genus = g.id
+              WHERE o.class = c.id)
+  AND TRIM(CASE WHEN c.external_source = 'fishbase' THEN 'Chordata' ELSE c.super_class END) != ''
+  AND NOT EXISTS (SELECT 1 FROM v_placeholder_patterns p
+                  WHERE LOWER(TRIM(c.super_class)) GLOB p.pattern AND c.external_source != 'fishbase')
+  AND NOT EXISTS (SELECT 1 FROM inat_allowed_ancestors a WHERE a.class_id = c.id AND a.rank = 'phylum');
+
+SELECT 'class:' || LOWER(TRIM(c.name)), a.inat_taxon_id, 'erlaubter vorfahr', c.id
+FROM inat_allowed_ancestors a
+JOIN classes c ON c.id = a.class_id
+LEFT JOIN v_taxa t ON CAST(t.taxon_id AS INTEGER) = a.inat_taxon_id
+WHERE t.taxon_id IS NULL
+   OR t.rank != a.rank
+   OR (a.rank = 'phylum'
+       AND NOT (TRIM(t.name) = (CASE WHEN c.external_source = 'fishbase' THEN 'Chordata' ELSE c.super_class END)
+                OR EXISTS (SELECT 1 FROM v_phylum_equivalents e
+                           WHERE e.phylum = (CASE WHEN c.external_source = 'fishbase' THEN 'Chordata' ELSE c.super_class END)
+                             AND e.inat_phylum = TRIM(t.name))))
+   OR (a.rank = 'class'
+       AND NOT (LOWER(TRIM(t.name)) = LOWER(TRIM(c.name))
+                OR EXISTS (SELECT 1 FROM v_class_equivalents e
+                           WHERE LOWER(e.class) = LOWER(TRIM(c.name)) AND LOWER(e.inat_class) = LOWER(TRIM(t.name)))));
+
+SELECT r.entity_id, e.external_id, 'ablehnung mit zuordnung', r.reason
+FROM entity_external_id_rejections r
+JOIN entity_external_ids e ON e.entity_id = r.entity_id AND e.provider = r.provider
+WHERE r.provider = 'inaturalist';
+
+SELECT r.entity_id, '', 'ablehnung ohne entität', r.reason
+FROM entity_external_id_rejections r
+WHERE r.provider = 'inaturalist'
+  AND NOT EXISTS (SELECT 1 FROM v_chain c WHERE c.mapping_key = r.entity_id);
