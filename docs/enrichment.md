@@ -1,6 +1,6 @@
 # iNaturalist-Enrichment — wie der Ablauf funktioniert
 
-**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-09-02)
+**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-10-18)
 
 Kurzreferenz für den aktuellen Enrichment-Ablauf: ein import-weites,
 species-zentrisches Producer-Consumer-Modell mit zwei unabhängig laufenden
@@ -266,54 +266,167 @@ Schlüssel `rank + taxon_id` bzw. `rank + scientific_name`) — Genus-/Familien-
 Ordnungs-/Klassen-Volksnamen werden einmal pro Taxon geholt, nicht einmal pro
 Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
 
-## Höhere Ränge: die iNat-Taxon-ID
+## Die iNat-Taxon-ID einer Art oder eines höheren Rangs
 
-Volksnamen von Gattung, Familie, Ordnung und Klasse holt
-`TaxonomyCommonNameEnrichmentService` immer über eine iNat-Taxon-ID. Die ID
-liefert `HigherTaxonIdResolver`, in dieser Reihenfolge:
+Fotos und Volksnamen holt die App von iNaturalist immer über eine
+Taxon-ID. Woher diese ID kommt, entscheidet über richtig oder falsch: Ein
+Name allein trennt keine Homonyme — die Schnecke *Triphora pusilla* heißt
+wie eine Orchidee, die Borstenwurm-Gattung *Megalomma* wie ein
+Sandlaufkäfer. Grundsatz: lieber keine Zuordnung als eine falsche, also
+keine Fotos und Namen eines anderen Lebewesens.
 
-1. **Referenz-DB** (`entity_external_ids`, z. B. `class:actinopterygii`) — wird
-   unverändert genommen. Der ETL hat diese IDs gegen die eigene Kette
-   geprüft: Stamm, dazu Klasse, Ordnung oder Familie (siehe
-   [`etl/docs/datenquellen.md`](../etl/docs/datenquellen.md#stamm-und-kette-bei-der-inaturalist-zuordnung)).
-   Die Laufzeitsuche der App (3. und 4., ebenso `INatTaxonIdResolver.resolve`
-   für Arten) prüft das noch nicht
-   ([#342](https://github.com/discere-app/discere/issues/342)).
-2. **Cache** (`external_identifier_cache`, Schlüssel = Entity-Key) — eine
-   früher über 3. oder 4. gefundene ID.
-3. **Vorfahrenketten der eigenen Arten:** Die Detail-Dokumente der Arten des
-   Eintrags (`INatTaxonDetails`, Feld `ancestors`) nennen alle höheren Taxa,
-   unter denen iNat die Art führt. Steht der wissenschaftliche Name dort, ist
-   es nachweislich dasselbe Taxon — auch auf einem anderen Rang
-   (Elasmobranchii ist bei iNat eine Unterklasse), und ein Homonym an anderer
-   Stelle im Baum (Articulata: Armfüßer-Klasse hier, Seelilien-Unterklasse
-   dort) kann nicht treffen. Ein Treffer auf dem angefragten Rang gewinnt,
-   sonst zählt nur ein einziger Treffer auf einem anderen Rang. Gelesen werden
-   höchstens die ersten 30 Arten mit bekannter iNat-ID (sortiert), also ein
-   gebündelter Request — oft keiner, weil die Foto-Anreicherung dieselben
-   Dokumente schon geladen hat.
-4. **Exakte Namenssuche** (`INatTaxonIdResolver.resolveExact`): nur ein
-   Treffer mit genau diesem Namen auf genau diesem Rang. Kein Synonym-Treffer
-   (`matched_term` — Sebastidae träfe so Scorpaenidae) und kein
-   "erstes Ergebnis" — ein falscher Name ist schlimmer als keiner. Die
-   Auflösung von Arten (`INatTaxonIdResolver.resolve`) bleibt davon unberührt
-   und nimmt beides weiterhin an.
+Arten löst `INatTaxonResolver` auf, für den Foto-, den Volksnamen-Worker
+und den Live-Abruf der Artseite (`SpeciesPhotoService`); höhere Ränge
+(Gattung, Familie, Ordnung, Klasse) für `TaxonomyCommonNameEnrichmentService`
+löst `HigherTaxonIdResolver` auf. Beide fragen iNaturalist über
+`INatTaxonIdResolver` (`external/inaturalist/`):
 
-Eine über 3. oder 4. gefundene ID wird im Cache gespeichert; der `work_key`
-eines später geplanten Eintrags wird daraus gebildet (`<rang>:taxon:<id>`).
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Enrichment-Service<br/>(Fotos, Volksnamen, Taxonomie)
+    participant R as INatTaxonResolver /<br/>HigherTaxonIdResolver
+    participant DB as Referenz-DB
+    participant C as external_identifier_cache
+    participant A as Ahnenkette eigener Arten<br/>(INatTaxonDetails)
+    participant API as iNat-API<br/>/v2/taxa
+    participant P as Stammprüfung<br/>(INatAncestryRequirement)
+
+    S->>R: Taxon-ID für Art-ID bzw. Namensschlüssel
+    R->>DB: entity_external_ids
+    alt ID in der Referenz-DB
+        DB-->>R: ID (vom ETL gegen die Kette geprüft)
+        R-->>S: ID
+    else keine ID
+        R->>C: früher gefundene ID?
+        alt im Cache
+            C-->>R: ID
+            R-->>S: ID
+        else nicht im Cache
+            R->>DB: entity_external_id_rejections
+            alt vom ETL abgelehnt
+                R-->>S: keine Zuordnung (endgültig)
+            else nicht abgelehnt
+                opt nur höhere Ränge
+                    R->>A: Ahnen der eigenen Arten mit bekannter ID
+                    A-->>R: Name dort genannt: ID → Cache, fertig
+                end
+                R->>DB: inat_allowed_ancestors (Stämme, Klassen der Klasse)
+                alt nichts prüfbar (Kette ohne Klasse, Platzhalter-Stamm)
+                    R-->>S: keine Zuordnung (endgültig)
+                else prüfbar (oder ältere Referenz-DB ohne Tabelle)
+                    R->>API: q=Name, rank, fields=…,ancestor_ids
+                    API-->>R: Treffer mit ancestor_ids
+                    R->>P: ancestor_ids gegen erlaubte Stämme (und Klassen)
+                    alt genau ein passender Treffer
+                        R->>C: ID speichern
+                        R-->>S: ID
+                    else keiner oder mehrere
+                        R-->>S: keine Zuordnung (endgültig)
+                    end
+                end
+            end
+        end
+    end
+```
+
+1. **Referenz-DB** (`entity_external_ids`: Art-ID bzw. Namensschlüssel wie
+   `genus:megalomma`) — wird unverändert genommen. Der ETL hat diese IDs
+   gegen die eigene Kette geprüft: Stamm, dazu Klasse, Ordnung oder Familie
+   (siehe [`etl/docs/datenquellen.md`](../etl/docs/datenquellen.md#stamm-und-kette-bei-der-inaturalist-zuordnung)).
+2. **Cache** (`external_identifier_cache`, Schlüssel = Art-ID bzw.
+   Entity-Key) — eine früher über die folgenden Schritte gefundene ID.
+3. **Ablehnungen des ETL** (`entity_external_id_rejections`): Hat der ETL
+   für diese Art bzw. diesen Namensschlüssel ein Taxon ihres Namens gesehen
+   und bewusst nicht genommen — anderer Stamm, nicht prüfbar, Namensträger
+   in mehreren Stämmen oder Klassen, Synonym einer anderen Familie, mehrere
+   passende Taxa —, sucht die App nicht selbst: Sie fände dieselben Taxa
+   wieder und prüft nur den Stamm. Die Art bzw. der Eintrag bleibt
+   endgültig ohne iNat-Fotos und -Namen (`TaxonNotFoundException` bzw.
+   `HigherTaxonAbsent`: leere Markierung in `inat_photo_cache`, `__none__`
+   in `runtime_common_names`). Bei einem höheren Rang entfällt auch die
+   Ahnenkette: Der Schlüssel steht für alle gleichnamigen Zeilen, und was
+   die Kette einer Art fände, wäre für eine andere Zeile falsch.
+4. **Nur höhere Ränge — Vorfahrenketten der eigenen Arten:** Die
+   Detail-Dokumente der Arten des Eintrags (`INatTaxonDetails`, Feld
+   `ancestors`) nennen alle höheren Taxa, unter denen iNat die Art führt.
+   Steht der wissenschaftliche Name dort, ist es nachweislich dasselbe
+   Taxon — auch auf einem anderen Rang (Elasmobranchii ist bei iNat eine
+   Unterklasse), und ein Homonym an anderer Stelle im Baum (Articulata:
+   Armfüßer-Klasse hier, Seelilien-Unterklasse dort) kann nicht treffen. Ein
+   Treffer auf dem angefragten Rang gewinnt, sonst zählt nur ein einziger
+   Treffer auf einem anderen Rang. Gelesen werden höchstens die ersten 30
+   Arten mit bekannter iNat-ID (sortiert), also ein gebündelter Request —
+   oft keiner, weil die Foto-Anreicherung dieselben Dokumente schon geladen
+   hat.
+5. **Namenssuche mit Stammprüfung** (`/v2/taxa?q=…&rank=…`, mit
+   `ancestor_ids` im selben Request). Was zur eigenen Kette passt, liest die
+   App aus `inat_allowed_ancestors`: je eigener Klasse die iNat-IDs der
+   passenden Stämme (und Klassen), vom ETL aus denselben Listen
+   gleichwertiger Namen abgeleitet wie seine eigene Prüfung
+   (`INatAllowedAncestorRepository`). Die reine Prüfung ist
+   `INatAncestryRequirement.isMetBy`.
+   - **Arten** (`INatTaxonIdResolver.resolve`, über alle Namen aus
+     `scientificNameCandidates`): Ein Treffer muss einen erlaubten Stamm der
+     Klasse der Art in seinen `ancestor_ids` tragen. Ein Treffer mit genau
+     dem Namen gewinnt; nur ohne passenden solchen zählt ein Synonym-Treffer
+     (`matched_term`) — iNaturalist führt eine Art oft unter neuer Gattung.
+     Eine Art ohne Kette bis zur Klasse (etwa ohne Gattung) oder mit
+     Platzhalter-Stamm wird nicht gesucht: Es gäbe nichts, woran ein
+     Homonym zu erkennen wäre.
+   - **Höhere Ränge** (`INatTaxonIdResolver.resolveExact`): nur ein Treffer
+     mit genau diesem Namen auf genau diesem Rang, kein Synonym-Treffer
+     (`matched_term` — Sebastidae träfe so Scorpaenidae). Unterhalb der
+     Klasse genügt der Stamm nicht — innerhalb eines Stamms wiederholen sich
+     Gattungsnamen —, der Treffer muss auch unter einer erlaubten Klasse
+     liegen. Ein Namensschlüssel steht für jede gleichnamige Zeile der
+     Rangtabelle mit einer Art darunter; der Treffer muss zu jeder passen.
+     Eine Zeile ohne Kette bis zur Klasse oder eine Klasse, die iNaturalist
+     nicht führt, macht die Suche für den Schlüssel unmöglich.
+   - **Nie das erste Ergebnis** für ein fehlendes besseres, und nie eines von
+     zwei gleich passenden: Bleibt nicht genau ein Taxon übrig, gibt es keine
+     Zuordnung, und die Antwort ist endgültig.
+
+   Mit einer **älteren Referenz-DB** ohne die beiden Tabellen (refdb-v2)
+   kennt die App weder Ablehnungen noch erlaubte Stämme. Dann entscheidet
+   allein der Name, mit denselben Regeln: genau ein Treffer mit diesem Namen
+   bzw. ein Synonym-Treffer, nie das erste Ergebnis. Ob die Tabellen da sind,
+   prüft `OptionalReferenceTable` einmal je geöffneter Datenbank.
+
+Eine über 4. oder 5. gefundene ID wird im Cache gespeichert; der `work_key`
+eines später geplanten höheren Eintrags wird daraus gebildet
+(`<rang>:taxon:<id>`). Ein gescheiterter Request ist keine Antwort: Der
+Eintrag bleibt offen, und der Retry-Weg oben greift.
 
 **Fehler ≠ leer.** Endgültig "keine Namen" (die `__none__`-Markierung in
-`runtime_common_names`, Arbeit `done`) gibt es nur, wenn iNat eindeutig
-geantwortet hat: Taxon in keiner Kette und nicht in der exakten Suche, oder
-Taxon gefunden, aber ohne Namen. Jeder Fehler — Nicht-200, Timeout, ein
-gescheiterter Detail-Abruf, ein gescheiterter Namensabruf trotz bekannter ID —
-lässt den Eintrag offen, und der Retry-Weg oben greift.
+`runtime_common_names`, Arbeit `done`) gibt es nur, wenn die Antwort
+feststeht: vom ETL abgelehnt, nichts prüfbar, Taxon in keiner Kette und kein
+passender Treffer der exakten Suche, oder Taxon gefunden, aber ohne Namen.
+Jeder Fehler — Nicht-200, Timeout, ein gescheiterter Detail-Abruf, ein
+gescheiterter Namensabruf trotz bekannter ID — lässt den Eintrag offen, und
+der Retry-Weg oben greift.
 
 **Bekannte Lücke: Teleostei.** Die Klasse Teleostei (rund 34 600 Arten der
 Referenz-DB) gibt es bei iNat nicht, weder in den Ketten noch per Suche. Sie
 behält den englischen Namen der Referenz-DB. Die Namen von Actinopterygii
 wären falsch — ein anderes, übergeordnetes Taxon. Abhilfe nur über eine
 andere Namensquelle als iNaturalist.
+
+**Bekannte Lücke: Daten aus der Zeit ohne Prüfung.** Auf Geräten, die vor
+dieser Prüfung angereichert haben, kann `external_identifier_cache` IDs aus
+der damaligen Suche enthalten (die das erste Ergebnis nahm und keinen Stamm
+prüfte), dazu Fotos (`inat_photo_cache`, ohne Taxon-ID) und Volksnamen
+(`runtime_common_names`) dieser Taxa. Die App nimmt eine ID aus dem Cache
+ungeprüft (Schritt 2), und abgeschlossene Arbeit wird nicht wiederholt. Wie
+diese Daten beim Einspielen einer neuen Referenz-DB verworfen werden, ist
+offen ([#342](https://github.com/discere-app/discere/issues/342)).
+
+**Bekannte Lücke: Vorschaubilder der Suche.** `INatPhotoApi.fetchThumbnailUrl`
+(Suchergebnisse, Taxonomie-Listen, Arten hinzufügen) sucht ein Vorschaubild
+nur über den Namen, ohne Referenz-DB-ID, Ablehnungen und Stammprüfung — mit
+denselben Regeln wie eine ältere Referenz-DB (kein erstes Ergebnis). Es
+speichert nichts, zeigt aber womöglich das Bild eines gleichnamigen
+Lebewesens.
 
 ## Referenz-DB-Version & Basisbild-Refresh
 
@@ -408,7 +521,9 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `DeckEnrichmentProjectionRepository` | `pipeline/repository/` | Liest dieselben Tabellen, ohne sie zu ändern: Deck-Projektion, Delta-Abfrage, Diagnose-Zählungen |
 | `DeckProjectionBuilder` | `pipeline/repository/` | Faltet die Zeilen einer Deck-Projektion zusammen — hier liegen die deck-seitigen Regeln, ohne Datenbank prüfbar |
 | `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches pro Species/Taxon, aufgerufen von den beiden Workern |
-| `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Vorfahrenketten der Arten → exakte Suche (siehe "Höhere Ränge") |
+| `INatTaxonResolver` | `pipeline/service/` | iNat-Taxon-ID einer Art: Referenz-DB → Cache → Ablehnungen → Namenssuche mit Stammprüfung (siehe "Die iNat-Taxon-ID") |
+| `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Ablehnungen → Vorfahrenketten der Arten → exakte Suche mit Stamm- und Klassenprüfung (siehe "Die iNat-Taxon-ID") |
+| `ExternalIdRejectionRepository` / `INatAllowedAncestorRepository` | `catalog/repository/` | Lesen die Ablehnungen und die erlaubten iNat-Stämme und -Klassen je Klasse aus der Referenz-DB; ohne die Tabellen (ältere Referenz-DB) keine Ablehnung bzw. keine Prüfung |
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Rein informativ: UI-Cooldown-Anzeige + Keepalive-Signal, gate't keine Requests |
