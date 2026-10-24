@@ -48,12 +48,38 @@ void main() {
     );
   });
 
+  test('picks the rejected entities out of a batch larger than one query '
+      'binds', () async {
+    await db.execute(
+      'CREATE TABLE ${ExternalIdRejectionRepository.tableName} '
+      '(entity_id TEXT, entity_type TEXT, provider TEXT, reason TEXT)',
+    );
+    await db.execute('''
+      INSERT INTO ${ExternalIdRejectionRepository.tableName} VALUES
+        ('s:1', 'species', 'inaturalist', 'phylum_mismatch'),
+        ('s:1', 'species', 'inaturalist', 'ambiguous'),
+        ('s:999', 'species', 'inaturalist', 'ambiguous'),
+        ('s:2', 'species', 'wikipedia', 'ambiguous')''');
+    final repository = ExternalIdRejectionRepository(referenceDatabase: db);
+
+    expect(
+      await repository.rejectedAmong({
+        for (var i = 0; i < 1200; i++) 's:$i',
+      }, ExternalIdProvider.inaturalist),
+      {'s:1', 's:999'},
+    );
+  });
+
   test('knows of no rejection in a reference database without the table', () async {
     final repository = ExternalIdRejectionRepository(referenceDatabase: db);
 
     expect(
       await repository.isRejected('s:1', ExternalIdProvider.inaturalist),
       isFalse,
+    );
+    expect(
+      await repository.rejectedAmong({'s:1'}, ExternalIdProvider.inaturalist),
+      isEmpty,
     );
   });
 }
