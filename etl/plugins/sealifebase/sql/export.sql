@@ -853,7 +853,7 @@ COPY (
         p.lifestage                                                                            AS lifestage,
         p.authname                                                                             AS author,
         p.copyright                                                                            AS copyright,
-        CONCAT('https://sealifebase.org/images/species/', p.picname)                          AS url,
+        CONCAT('https://sealifebase.se/images/species/', p.picname)                           AS url,
         'sealifebase'                                                                          AS origin,
         normalize_license(COALESCE(p.copyright, ''))                                          AS license_key,
         is_usable_license(COALESCE(p.copyright, ''))                                          AS is_usable
