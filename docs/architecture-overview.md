@@ -221,7 +221,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
 - `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
-- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `applyReferenceIdAliases`, the step that runs `ReferenceIdMigration` between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `alignUserDataWithReferenceDb`, which runs `applyReferenceIdAliases` (`ReferenceIdMigration`) and then `reconcileINatProvenance` (`INatProvenanceReconciler`) between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
 
 ### Module Dependency Rules
 
@@ -280,6 +280,11 @@ Three boundaries are worth knowing:
   or a file copied between devices. There is no such path today; adding one
   (issue #204) should call `SchemaReconciler.reconcile` itself rather than
   making every app start pay for a check that cannot currently find anything.
+
+Since reconciliation runs only on create and upgrade, a column added to an
+asset also needs a `UserDbSchema.version` bump, with or without a migration
+behind it: without one, an existing database never runs reconciliation and
+never gets the column.
 
 A column added to an asset must be nullable or carry a default, or no existing
 database can ever receive it — SQLite cannot `ALTER TABLE … ADD COLUMN` a
@@ -368,9 +373,9 @@ for how ownership across overlapping decks works):
 | `enrichment_species_deck_membership` | Junction table: which decks currently reference which species. Pruned once a species' work is fully terminal for every deck wanting it; unrelated to the permanent cache above |
 | `enrichment_taxonomy_work` | Same idea one level up — deduplicated taxonomy (genus/family/order/class) common-name work, keyed by `work_key` (`rank + taxon_id`, fallback `rank + scientific_name`) |
 | `enrichment_unresolved_names` | Species names submitted at import or deck creation that couldn't be resolved against the reference DB yet, queued for iNat-based resolution (`INatWorker`'s lowest-priority queue item) |
-| `inat_photo_cache` | Runtime-fetched iNaturalist photos, keyed by `(species_id, photo_url)` |
+| `inat_photo_cache` | Runtime-fetched iNaturalist photos, keyed by `(species_id, photo_url)`, each stamped with the iNat taxon it came from (`inat_taxon_id`) |
 | `external_identifier_cache` | Runtime-discovered external IDs (e.g. iNaturalist taxon IDs not already in the reference DB's `entity_external_ids`), keyed by `(entity_id, provider)` |
-| `runtime_common_names` | Runtime-fetched common names per entity/language, keyed by `entity_key` + `language_code`, with iNat ranking (`position`, `place_id`, `place_position`) |
+| `runtime_common_names` | Runtime-fetched common names per entity/language, keyed by `entity_key` + `language_code`, with iNat ranking (`position`, `place_id`, `place_position`) and the iNat taxon they came from (`inat_taxon_id`) |
 | `runtime_common_name_search_documents` | Denormalized per-entity search document (one row per `entity_key`, one column per language) feeding the FTS table below |
 | `runtime_common_name_search_fts` | FTS4 virtual table over `runtime_common_name_search_documents`, rebuilt whenever a row changes |
 | `local_diagnostics_events` | Structured diagnostics/telemetry events (`category`, `event_type`, `subject_id`, `details_json`) |
@@ -447,10 +452,19 @@ The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
    its counts per table, a failure with its version and time only (the
    error is in the log). The diagnostics page and its report show it next
    to the applied version and any available or staged update.
-3. **Build the services** — only now does anything read user data.
+3. **Reconcile iNat data** — `reconcileINatProvenance` runs
+   `INatProvenanceReconciler` once the aliases are applied for the installed
+   version, unless the version recorded under
+   `inat_provenance_reconciled_version` is that one. Stored iNat photos and
+   names carry the iNat taxon they were fetched from; those whose taxon the
+   entity no longer maps to are discarded and their work reset to pending
+   ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
+   Failure handling as in step 2, without a run record.
+4. **Build the services** — only now does anything read user data.
 
-Running step 2 on every start rather than right after an install is what
-covers a crash between installing a database and rewriting the user data.
+Steps 2 and 3 run as one call, `alignUserDataWithReferenceDb`. Running them
+on every start rather than right after an install is what covers a crash
+between installing a database and rewriting the user data.
 
 Before step 1, `ReferenceDatabaseProvisioner.installStagedUpdate` puts a
 staged update in place. A reference DB is only ever replaced there, with

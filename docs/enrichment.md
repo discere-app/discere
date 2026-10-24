@@ -1,6 +1,6 @@
 # iNaturalist-Enrichment — wie der Ablauf funktioniert
 
-**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-10-18)
+**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-10-24)
 
 Kurzreferenz für den aktuellen Enrichment-Ablauf: ein import-weites,
 species-zentrisches Producer-Consumer-Modell mit zwei unabhängig laufenden
@@ -412,21 +412,92 @@ behält den englischen Namen der Referenz-DB. Die Namen von Actinopterygii
 wären falsch — ein anderes, übergeordnetes Taxon. Abhilfe nur über eine
 andere Namensquelle als iNaturalist.
 
-**Bekannte Lücke: Daten aus der Zeit ohne Prüfung.** Auf Geräten, die vor
-dieser Prüfung angereichert haben, kann `external_identifier_cache` IDs aus
-der damaligen Suche enthalten (die das erste Ergebnis nahm und keinen Stamm
-prüfte), dazu Fotos (`inat_photo_cache`, ohne Taxon-ID) und Volksnamen
-(`runtime_common_names`) dieser Taxa. Die App nimmt eine ID aus dem Cache
-ungeprüft (Schritt 2), und abgeschlossene Arbeit wird nicht wiederholt. Wie
-diese Daten beim Einspielen einer neuen Referenz-DB verworfen werden, ist
-offen ([#342](https://github.com/discere-app/discere/issues/342)).
+### Herkunft der iNat-Daten
+
+Jede Foto-Zeile (`inat_photo_cache`) und jede Volksnamen-Zeile
+(`runtime_common_names`) trägt in `inat_taxon_id` das iNat-Taxon, aus dem
+sie geholt wurde — die ID, mit der der Abruf tatsächlich lief. Eine
+Leer-Markierung trägt das Taxon, das keine Fotos bzw. Namen hatte; nur eine
+Markierung, für die gar kein Taxon in Frage kam (abgelehnt, nichts prüfbar,
+kein passender Treffer), trägt `NULL`.
+
+Eine neue Referenz-DB kann eine Entität einem anderen Taxon zuordnen, ihre
+Zuordnung streichen oder die Taxa ihres Namens ablehnen. Die gespeicherten
+Daten gehören dann zu einem anderen Lebewesen, und abgeschlossene Arbeit
+würde sie nie ersetzen. Deshalb gleicht `INatProvenanceReconciler` die
+Stempel ab, sobald die installierte Referenz-DB-Version nicht die zuletzt
+abgeglichene ist (`inat_provenance_reconciled_version` in den
+SharedPreferences) — im Bootstrap, nach `ReferenceIdMigration` (die IDs
+müssen zur Referenz-DB passen, gegen die abgeglichen wird; ohne angewandte
+Aliase wartet der Abgleich) und vor dem Bau der Services:
+
+```mermaid
+flowchart TD
+    V{Referenz-DB-Version<br/>schon abgeglichen?} -- ja --> E[fertig]
+    V -- nein --> L["Stempel (Fotos, Namen) und Cache-IDs lesen;<br/>Referenz-IDs und Ablehnungen dazu, in IN-Blöcken"]
+    L --> X["erwartete ID je Entität:<br/>Referenz-DB-ID, sonst Cache-ID (nicht abgelehnt), sonst keine"]
+    X --> S{Stempel = erwartete ID?}
+    S -- ja --> K[behalten]
+    S -- nein --> D["verwerfen, Arbeit auf pending"]
+    X --> C{"Cache-ID abgelehnt<br/>oder von Referenz-DB-ID überdeckt?"}
+    C -- ja --> CD[Cache-ID löschen]
+    K & D & CD --> M["eine Transaktion, dann Version merken"]
+```
+
+- **Erwartete ID** einer Entität (Art-ID bzw. Namensschlüssel): die
+  Referenz-DB-ID, sonst — wenn der ETL sie nicht ablehnt — die Cache-ID,
+  sonst keine. Das ist die Reihenfolge der Resolver (Schritte 1 und 2). Sie
+  lesen den Cache vor den Ablehnungen; das stimmt, weil der Abgleich die
+  Cache-ID einer abgelehnten Entität löscht — ebenso eine, die eine
+  Referenz-DB-ID überdeckt: Sie würde nie gelesen und träte wieder in Kraft,
+  sobald die Referenz-DB ihre ID streicht. Ein Test hält fest, dass nach dem
+  Abgleich genau die Daten bleiben, deren Stempel die Resolver als ID
+  kennen.
+- **Bleibt**, wessen Stempel die erwartete ID ist — auch eine
+  `NULL`-Markierung, solange es keine ID gibt.
+- **Verworfen** wird alles andere: geänderte, gestrichene, abgelehnte
+  Zuordnung, und eine Markierung ohne Taxon, wo es jetzt eins gibt. Mit den
+  Fotos gehen Wikipedia-Link und IUCN-Status (`external_identifier_cache`;
+  sie stammen aus demselben Taxon), mit den Namen auch ihre Markierung, ihr
+  Suchdokument und dessen FTS-Zeile (die FTS-Tabelle hat keinen Trigger).
+  Die vorhandenen Arbeitszeilen (`inatPrimary`, `inatBackfill`,
+  `speciesCommonNames` bzw. `enrichment_taxonomy_work`) gehen auf `pending`,
+  statt gelöscht zu werden — eine Arbeitszeile entsteht nur beim Einplanen
+  eines Decks und käme sonst nie wieder; neue legt der Abgleich nicht an.
+  Danach holen die Worker neu, mit der geprüften Auflösung, und die Artseite
+  holt beim nächsten Öffnen live. `base`-Bilder, Lernfortschritt und Decks
+  bleiben unberührt.
+
+Die Regeln liegen datenbankfrei in `INatProvenancePlanner`; der Abgleich
+liest einmal je Tabelle und schreibt alles in einer Transaktion. Scheitert
+er, startet die App trotzdem, merkt sich die Version nicht und versucht es
+beim nächsten Start erneut.
+
+**Erster Abgleich.** Daten aus App-Versionen ohne Stempel tragen `NULL`.
+Ist noch keine Version abgeglichen, nimmt der Abgleich an, dass sie mit der
+jetzt installierten Referenz-DB geholt wurden: In aller Regel ist sie das,
+weil eine Referenz-DB meist mit einer neuen App-Version kommt. Eine ältere
+App-Version installiert aber selbst jede neuere Referenz-DB mit
+unterstütztem Schema — für Daten von davor stimmt die Annahme nicht (siehe
+die Lücke unten). Hat die Referenz-DB eine
+ID, bekommen sie diese als Stempel. Sonst stammen sie aus der alten
+Laufzeitsuche, die das erste Ergebnis nahm und keinen Stamm prüfte, oder
+aus keinem Taxon — sie werden verworfen. Aus demselben Grund gilt keine
+Cache-ID dieser Zeit: Alle fallen, und die geprüfte Suche entscheidet neu.
+
+**Bekannte Lücke: Daten aus einer noch älteren Referenz-DB.** Wer vor dem
+ersten Abgleich Daten mit einer älteren Referenz-DB geholt und seither eine
+neuere installiert hat, dessen Daten bekommen beim ersten Abgleich die ID der
+installierten Referenz-DB als Stempel, auch wenn sie unter einer anderen ID
+geholt wurden. Die Fotodateien verworfener Fotos bleiben unter
+`external_images/` liegen, ohne dass etwas auf sie verweist.
 
 **Bekannte Lücke: Vorschaubilder der Suche.** `INatPhotoApi.fetchThumbnailUrl`
 (Suchergebnisse, Taxonomie-Listen, Arten hinzufügen) sucht ein Vorschaubild
 nur über den Namen, ohne Referenz-DB-ID, Ablehnungen und Stammprüfung — mit
 denselben Regeln wie eine ältere Referenz-DB (kein erstes Ergebnis). Es
 speichert nichts, zeigt aber womöglich das Bild eines gleichnamigen
-Lebewesens.
+Lebewesens ([#349](https://github.com/discere-app/discere/issues/349)).
 
 ## Referenz-DB-Version & Basisbild-Refresh
 
@@ -523,6 +594,9 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches pro Species/Taxon, aufgerufen von den beiden Workern |
 | `INatTaxonResolver` | `pipeline/service/` | iNat-Taxon-ID einer Art: Referenz-DB → Cache → Ablehnungen → Namenssuche mit Stammprüfung (siehe "Die iNat-Taxon-ID") |
 | `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Ablehnungen → Vorfahrenketten der Arten → exakte Suche mit Stamm- und Klassenprüfung (siehe "Die iNat-Taxon-ID") |
+| `INatProvenanceReconciler` | `pipeline/service/` | Gleicht beim Start die gestempelten iNat-Daten mit der installierten Referenz-DB ab, einmal je Version (siehe "Herkunft der iNat-Daten") |
+| `INatProvenancePlanner` | `pipeline/repository/` | Entscheidet je Entität: Fotos bzw. Namen behalten, stempeln oder verwerfen, Cache-ID löschen — ohne Datenbank prüfbar |
+| `INatProvenanceRepository` | `pipeline/repository/` | Liest Stempel und Cache-IDs und wendet den Plan in einer Transaktion über Fotos, Namen, Suchdokumente, Cache und Arbeitszeilen an |
 | `ExternalIdRejectionRepository` / `INatAllowedAncestorRepository` | `catalog/repository/` | Lesen die Ablehnungen und die erlaubten iNat-Stämme und -Klassen je Klasse aus der Referenz-DB; ohne die Tabellen (ältere Referenz-DB) keine Ablehnung bzw. keine Prüfung |
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
