@@ -376,13 +376,19 @@ ETL-Build:
     → nur Taxa, die zur eigenen Kette jeder gleichnamigen Entität passen
       (docs/datenquellen.md, Stamm und Kette bei der iNaturalist-Zuordnung)
     → entity_external_ids befüllen
+    → bewusst nicht zugeordnete Entitäten → entity_external_id_rejections
+    → je Klasse die iNat-IDs passender Stämme und Klassen
+      → inat_allowed_ancestors
 
 App:
   external_id(provider='inaturalist') in Referenz-DB?
     → direkt per taxon_id auf Foto-/Namens-Endpunkte
   fehlt?
     → Fallback: User-DB-Cache prüfen
-    → danach erst /v1/taxa?q=name&rank=species&per_page=10
+    → in entity_external_id_rejections? → keine Suche, keine iNat-Daten
+    → sonst /v2/taxa?q=name&rank=…&fields=…,ancestor_ids, Treffer nur mit
+      erlaubtem Stamm (höhere Ränge: und Klasse) aus inat_allowed_ancestors,
+      nie das erste Ergebnis (docs/enrichment.md, Die iNat-Taxon-ID)
 ```
 
 ### Schema
@@ -394,6 +400,18 @@ SELECT * FROM entity_external_ids WHERE provider = 'inaturalist' LIMIT 5;
 -- discere:species:10042         | species     | inaturalist | 12345
 -- genus:barbus                   | genera      | inaturalist | 86989
 -- family:cyprinidae              | families    | inaturalist | 51783
+
+-- Ab refdb-v3; ältere Referenz-DBs haben die beiden Tabellen nicht, die
+-- App prüft das einmal je geöffneter DB (OptionalReferenceTable).
+SELECT * FROM entity_external_id_rejections WHERE provider = 'inaturalist' LIMIT 2;
+-- entity_id                     | entity_type | provider    | reason
+-- discere:species:120678        | species     | inaturalist | phylum_mismatch
+-- genus:megalomma               | genera      | inaturalist | phylum_mismatch
+
+SELECT * FROM inat_allowed_ancestors WHERE class_id = 'discere:class:77';  -- Gastropoda
+-- class_id         | rank   | inat_taxon_id
+-- discere:class:77 | class  | 47114
+-- discere:class:77 | phylum | 47115
 ```
 
 ### Repository
@@ -427,5 +445,7 @@ Sollte > 0 sein. Falls 0: `./etl/plugins/inaturalist/import.sh --db <db>` laufen
 **Fallback liefert immer noch keine Treffer**
 Der ETL arbeitet mit aktiven Taxa aus `taxa.csv`. Für echte Lücken greift die
 App auf den User-DB-Cache zurück und resolved erst danach live via
-`/v1/taxa?q=name`. Der Fallback ist nur für nicht gematchte oder neue Taxa
-gedacht, nicht für den Regelfall.
+`/v2/taxa?q=name`. Eine Entität in `entity_external_id_rejections` sucht sie
+nie, eine Art ohne Kette bis zur Klasse oder mit Platzhalter-Stamm ebenso
+nicht, und ein Treffer ohne erlaubten Stamm zählt nicht — gewollt, lieber
+keine Zuordnung als eine falsche.

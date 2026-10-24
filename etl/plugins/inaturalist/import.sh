@@ -24,7 +24,10 @@
 # ihres Namens passen (sql/export.sql). Höhere Taxa werden unter ihrem
 # Namensschlüssel abgelegt (genus:barbus), den die App abfragt, Arten unter
 # ihrer ID. Was nicht eindeutig zuzuordnen ist oder abgelehnt wird, steht im
-# Build-Bericht statt in der DB.
+# Build-Bericht; jede Entität, die so ohne Zuordnung bleibt, dazu in
+# entity_external_id_rejections. inat_allowed_ancestors hält je Klasse die
+# iNaturalist-IDs der passenden Stämme und Klassen. Mit beiden Tabellen
+# prüft die App ihre eigene Laufzeitsuche (docs/enrichment.md).
 #
 # Plugin-Konventionen:
 #   - Kein CREATE TABLE — Schema ist Aufgabe von core/create_db.sh
@@ -170,6 +173,15 @@ export_records() {
 # Familie des iNaturalist-Taxons, ob es über ein Synonym zugeordnet wurde und
 # ob sein Name bei iNaturalist mehrere Taxa trägt. validate() prüft damit
 # jede Zuordnung erneut, unabhängig von export.sql.
+#
+# entity_external_id_rejections: jede Entität, deren Name ein Taxon trifft,
+# das der Abgleich bewusst nicht nimmt — abgelehnt in export.sql (Gründe wie
+# im Build-Bericht, Homonyme als ambiguous), als Synonym-Treffer abgelehnt
+# (synonym_family, synonym_epithet) oder bei Arten mehrdeutig im Abgleich
+# (ambiguous). Wer trotzdem eine Zuordnung bekommt, etwa über ein anderes
+# Taxon seines Namens, steht dort nicht. Die App sucht für diese Entitäten
+# nicht selbst, denn ihre Suche fände dieselben Taxa wieder und prüft nur den
+# Stamm.
 import_mappings() {
     local synced_at
     synced_at="$(date -u +%Y-%m-%d)"
@@ -220,6 +232,24 @@ WHERE matched_by = 'synonym'
        OR substr(CASE WHEN instr(name_rest, ' ') > 0
                       THEN substr(name_rest, 1, instr(name_rest, ' ') - 1)
                       ELSE name_rest END, 1, 4) != substr(own_epithet, 1, 4));
+CREATE TEMP TABLE tmp_rejected_carriers (rank TEXT, entity_id TEXT, normalized_name TEXT, reason TEXT);
+.import --skip 1 "$WORK_DIR/rejected_carriers.tsv" tmp_rejected_carriers
+CREATE TEMP TABLE tmp_carriers (
+    rank TEXT, normalized_name TEXT, entity_id TEXT,
+    chain_phylum TEXT, chain_class TEXT, chain_order TEXT, chain_family TEXT
+);
+.import --skip 1 "$WORK_DIR/reference_names.tsv" tmp_carriers
+CREATE TEMP TABLE tmp_allowed_ancestors (class_id TEXT, rank TEXT, inat_taxon_id TEXT);
+.import --skip 1 "$WORK_DIR/allowed_ancestors.tsv" tmp_allowed_ancestors
+CREATE TEMP TABLE tmp_rejection_candidates AS
+SELECT rank, entity_id, normalized_name, reason FROM tmp_rejected_carriers
+UNION ALL
+SELECT 'species', entity_id, LOWER(TRIM(name)), category FROM tmp_rejected
+UNION ALL
+SELECT c.rank, c.entity_id, c.normalized_name, 'ambiguous'
+FROM tmp_match_result r
+JOIN tmp_carriers c ON c.rank = r.rank AND c.normalized_name = LOWER(TRIM(r.name))
+WHERE r.rank = 'species' AND r.status = 'ambiguous';
 .mode tabs
 .once "$WORK_DIR/synonym_report.tsv"
 SELECT category, record_key, name, detail FROM tmp_rejected ORDER BY category, name, record_key;
@@ -241,11 +271,33 @@ INSERT INTO entity_external_ids (
                 'matched_by', NULLIF(matched_by, ''), 'homonym', homonym)
 FROM tmp_accepted
 WHERE record_key NOT IN (SELECT record_key FROM tmp_rejected);
+DELETE FROM entity_external_id_rejections WHERE provider = '${PLUGIN_SOURCE}';
+INSERT INTO entity_external_id_rejections (entity_id, entity_type, provider, reason)
+SELECT DISTINCT entity_key, entity_type, '${PLUGIN_SOURCE}', reason
+FROM (
+    SELECT CASE rank WHEN 'species' THEN entity_id ELSE rank || ':' || normalized_name END AS entity_key,
+           CASE rank
+               WHEN 'species' THEN 'species'
+               WHEN 'genus'   THEN 'genera'
+               WHEN 'family'  THEN 'families'
+               WHEN 'order'   THEN 'orders'
+               WHEN 'class'   THEN 'classes'
+           END AS entity_type,
+           reason
+    FROM tmp_rejection_candidates
+)
+WHERE entity_key NOT IN (SELECT entity_id FROM entity_external_ids WHERE provider = '${PLUGIN_SOURCE}');
+DELETE FROM inat_allowed_ancestors;
+INSERT INTO inat_allowed_ancestors (class_id, rank, inat_taxon_id)
+SELECT class_id, rank, CAST(inat_taxon_id AS INTEGER) FROM tmp_allowed_ancestors;
 COMMIT;
 EOF
     plugin_report < "$WORK_DIR/synonym_report.tsv"
     plugin_log "Synonym-Treffer abgelehnt, andere Familie: $(grep -c '^synonym_family' "$WORK_DIR/synonym_report.tsv" || true)," \
         "anderes Epitheton: $(grep -c '^synonym_epithet' "$WORK_DIR/synonym_report.tsv" || true)"
+    plugin_log "Entitäten ohne Zuordnung wegen Ablehnung: $(sqlite3 "$DB_PATH" \
+        "SELECT COUNT(DISTINCT entity_id) FROM entity_external_id_rejections WHERE provider = '${PLUGIN_SOURCE}';")," \
+        "erlaubte Vorfahren: $(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM inat_allowed_ancestors;")"
 }
 
 # ---------------------------------------------------------------------------
