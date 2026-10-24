@@ -96,7 +96,8 @@ feature_comparison.md
 /etl/plugins/inaturalist/cache/
 # Vorgänger-Releases, die build.sh für das ID-Register lädt
 /etl/cache/
-/.claude/
+/.claude/*
+!/.claude/skills/
 
 # Marker written by .github/scripts/run_integration_tests.sh (see flutter_ci.yml)
 integration-tests-started
