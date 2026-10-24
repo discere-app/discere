@@ -420,6 +420,14 @@ das Zielbild. Zwei zusätzliche Skripte hängen an einem lokal gebauten
 ./scripts/build_test_fixture.sh
 ```
 
+Vor dem Upload prüft `publish_release.sh` außer dem Build-Vermerk
+(`core/check_publishable.sh`) die Bild-Hosts (`core/check_image_hosts.sh`,
+braucht Netz): Je Host mit nutzbaren Bildern (`is_usable = 1`) lädt es eine
+kleine Stichprobe per GET mit dem User-Agent der App und bricht ab, wenn ein
+Host nicht mit Status 200 und `image/*` antwortet oder eine
+Cloudflare-Challenge (`cf-mitigated`) schickt. Einzelne fehlende Bilder (404)
+duldet die Prüfung, solange die Mehrheit der Stichprobe lädt.
+
 Neue Art in einem Test gebraucht, die noch nicht in der Fixture ist? In
 `scripts/test_fixture_species.txt` ergänzen und `build_test_fixture.sh` neu
 laufen lassen.
@@ -438,6 +446,7 @@ sqlite3 /tmp/test.db "PRAGMA journal_mode = DELETE;"
 gzip --keep --stdout /tmp/test.db > /tmp/discere_reference.db.gz
 shasum -a 256 /tmp/discere_reference.db.gz; wc -c < /tmp/discere_reference.db.gz
 ./core/schema_version.sh --db /tmp/test.db
+./core/check_image_hosts.sh --db /tmp/test.db
 
 # 2. Als Prerelease hochladen; der Tag endet auf -dev
 gh release create refdb-<name>-dev /tmp/discere_reference.db.gz \

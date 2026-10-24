@@ -23,7 +23,10 @@
 # than that release, is accepted (core/check_publishable.sh): a partial
 # build, a --no-enrich or --initial build, one against an older predecessor,
 # or a --version not above the published one is refused. "Published" means
-# the newest release of any schema (core/manifest_newest.sh). Not part of CI — reference-DB
+# the newest release of any schema (core/manifest_newest.sh). Every image
+# host with usable pictures must also serve a sample of them to the app's
+# User-Agent (core/check_image_hosts.sh, needs network access): a host that
+# blocks the app looks fine in the DB and in a browser. Not part of CI — reference-DB
 # updates are infrequent and this mirrors discere-data's existing manual
 # publish pattern (scripts/generate-index.sh).
 #
@@ -49,7 +52,7 @@
 #   --tag <name>             Release tag (default: refdb-v<version>)
 #
 # Requires: gh (authenticated — run `gh auth login` once), jq, sha256sum (or
-# shasum on macOS), gzip, git. The discere-data checkout needs a "github"
+# shasum on macOS), gzip, git, curl. The discere-data checkout needs a "github"
 # git remote pointing at github.com/discere-app/discere-data.
 # =============================================================================
 
@@ -77,7 +80,7 @@ while [[ $# -gt 0 ]]; do
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,53p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
@@ -119,6 +122,10 @@ git -C "$DATA_REPO" pull --ff-only github main
 "$SCRIPT_DIR/core/check_publishable.sh" --db "$SOURCE_DB" \
     --manifest "$DATA_REPO/data/reference-db/manifest.json" --version "$VERSION" \
     || fail "$SOURCE_DB darf nicht veröffentlicht werden."
+# Ein Host, der die App aussperrt, fällt weder in der DB noch im Browser auf;
+# seine Bilder blieben in der App leer.
+"$SCRIPT_DIR/core/check_image_hosts.sh" --db "$SOURCE_DB" \
+    || fail "Bild-Hosts von $SOURCE_DB liefern der App keine Bilder."
 SCHEMA_VERSION="$("$SCRIPT_DIR/core/schema_version.sh" --db "$SOURCE_DB")" \
     || fail "Schemaversion von $SOURCE_DB nicht bestimmbar."
 log "Schemaversion laut DB: $SCHEMA_VERSION"
