@@ -20,7 +20,12 @@ void main() {
   late MockINatPhotoCacheRepository mockINatCacheRepo;
   late MockExternalIdRepository mockExternalIdRepo;
   late MockExternalIdCacheRepository mockExternalIdCacheRepo;
+  late MockINatTaxonIdResolver mockTaxonIds;
+  late MockExternalIdRejectionRepository mockRejections;
   late INatPhotoEnrichmentService photoService;
+
+  /// The id the name search answers unless a test says otherwise.
+  const searchedTaxonId = 900;
 
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
@@ -29,7 +34,17 @@ void main() {
     mockINatCacheRepo = MockINatPhotoCacheRepository();
     mockExternalIdRepo = MockExternalIdRepository();
     mockExternalIdCacheRepo = MockExternalIdCacheRepository();
+    mockTaxonIds = MockINatTaxonIdResolver();
+    mockRejections = MockExternalIdRejectionRepository();
+    final allowedAncestors = MockINatAllowedAncestorRepository();
 
+    when(mockRejections.isRejected(any, any)).thenAnswer((_) async => false);
+    when(
+      allowedAncestors.requirementForSpecies(any),
+    ).thenAnswer((_) async => null);
+    when(
+      mockTaxonIds.resolve(any, ancestry: anyNamed('ancestry')),
+    ).thenAnswer((_) async => searchedTaxonId);
     when(
       mockImageService.downloadAndSaveUrlMap(
         any,
@@ -71,6 +86,9 @@ void main() {
       mockSpeciesRepo,
       mockExternalIdRepo,
       mockExternalIdCacheRepo,
+      mockRejections,
+      allowedAncestors,
+      mockTaxonIds,
     );
     photoService = INatPhotoEnrichmentService(
       mockSpeciesRepo,
@@ -110,11 +128,7 @@ void main() {
         mockSpeciesRepo.getSpecies({'sp1'}),
       ).thenAnswer((_) async => {species});
       when(
-        mockINatService.fetchPhotos(
-          'Natator depressa',
-          taxonId: anyNamed('taxonId'),
-          maxPhotos: anyNamed('maxPhotos'),
-        ),
+        mockTaxonIds.resolve('Natator depressa', ancestry: anyNamed('ancestry')),
       ).thenThrow(const TaxonNotFoundException('Natator depressa'));
 
       final completedSpeciesIds = <String>[];
@@ -128,6 +142,55 @@ void main() {
       expect(completedSpeciesIds, ['sp1']);
       expect(summary.imageSpeciesCount, 0);
       expect(summary.imageCount, 0);
+    });
+
+    test('settles a species the ETL rejected as without iNat photos, without '
+        'searching for it', () async {
+      final species = Species(
+        'sp1',
+        '1',
+        'sealifebase',
+        'pusilla',
+        const {},
+        Classification(
+          'Triphora',
+          const {},
+          null,
+          'Triphoridae',
+          const {},
+          'Littorinimorpha',
+          const {},
+          'Gastropoda',
+          const {},
+          null,
+        ),
+        const [],
+      );
+      when(
+        mockSpeciesRepo.getSpecies({'sp1'}),
+      ).thenAnswer((_) async => {species});
+      when(
+        mockRejections.isRejected('sp1', ExternalIdProvider.inaturalist),
+      ).thenAnswer((_) async => true);
+
+      final completedSpeciesIds = <String>[];
+      await photoService.fetchINatPhotosForSpecies(
+        {'sp1'},
+        primaryOnly: true,
+        onSpeciesCompleted: completedSpeciesIds.add,
+      );
+
+      verifyNever(mockTaxonIds.resolve(any, ancestry: anyNamed('ancestry')));
+      verifyNever(
+        mockINatService.fetchPhotos(
+          any,
+          taxonId: anyNamed('taxonId'),
+          maxPhotos: anyNamed('maxPhotos'),
+        ),
+      );
+      verifyNever(mockExternalIdCacheRepo.saveExternalId(any, any, any));
+      verify(mockINatCacheRepo.cachePhotos('sp1', const [])).called(1);
+      expect(completedSpeciesIds, ['sp1']);
     });
 
     test('leaves the species pending for retry when iNat photos were found but '
@@ -232,16 +295,21 @@ void main() {
           ),
         ).thenAnswer((_) async => ['Natator depressa', 'Natator depressus']);
         when(
-          mockINatService.fetchPhotos(
+          mockTaxonIds.resolve(
             'Natator depressa',
-            taxonId: anyNamed('taxonId'),
-            maxPhotos: anyNamed('maxPhotos'),
+            ancestry: anyNamed('ancestry'),
           ),
-        ).thenAnswer((_) async => null);
+        ).thenThrow(const TaxonNotFoundException('Natator depressa'));
+        when(
+          mockTaxonIds.resolve(
+            'Natator depressus',
+            ancestry: anyNamed('ancestry'),
+          ),
+        ).thenAnswer((_) async => 702);
         when(
           mockINatService.fetchPhotos(
-            'Natator depressus',
-            taxonId: anyNamed('taxonId'),
+            'Natator depressa',
+            taxonId: 702,
             maxPhotos: anyNamed('maxPhotos'),
           ),
         ).thenAnswer(
@@ -264,14 +332,11 @@ void main() {
         }, primaryOnly: true);
 
         verifyInOrder([
+          mockTaxonIds.resolve('Natator depressa', ancestry: null),
+          mockTaxonIds.resolve('Natator depressus', ancestry: null),
           mockINatService.fetchPhotos(
             'Natator depressa',
-            taxonId: null,
-            maxPhotos: 1,
-          ),
-          mockINatService.fetchPhotos(
-            'Natator depressus',
-            taxonId: null,
+            taxonId: 702,
             maxPhotos: 1,
           ),
         ]);
@@ -508,7 +573,7 @@ void main() {
       verify(
         mockINatService.fetchPhotos(
           'Partial speciosa',
-          taxonId: null,
+          taxonId: searchedTaxonId,
           maxPhotos: 10,
           allowTier3Fallback: true,
         ),
@@ -774,7 +839,7 @@ void main() {
       verify(
         mockINatService.fetchPhotos(
           'Never speciosa',
-          taxonId: null,
+          taxonId: searchedTaxonId,
           maxPhotos: 10,
           allowTier3Fallback: true,
         ),

@@ -133,7 +133,7 @@ class SpeciesCommonNameEnrichmentService {
   }) async {
     ({int taxonId, Map<String, List<INatCommonName>> commonNames})? result;
     try {
-      result = await _fetchCommonNamesWithScientificNameFallback(
+      result = await _fetchCommonNamesByTaxonId(
         species,
         taxonId: taxonId,
       );
@@ -175,48 +175,18 @@ class SpeciesCommonNameEnrichmentService {
     );
   }
 
+  /// Fetches by the known [taxonId], else by the id a name search finds.
+  /// Throws [TaxonNotFoundException] when the search settles that there is
+  /// none ([INatTaxonResolver.searchTaxonId]).
   Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
-  _fetchCommonNamesWithScientificNameFallback(
-    Species species, {
-    required int? taxonId,
-  }) async {
-    if (taxonId != null) {
-      return _iNatNames.fetchCommonNames(
-        species.getBinomialName(),
-        taxonId: taxonId,
-      );
-    }
-
-    // Only conclude the species is genuinely unresolvable (as opposed to a
-    // transient failure worth retrying later) if every candidate name was
-    // definitively rejected by iNaturalist rather than merely failing.
-    var allCandidatesNotFound = true;
-    for (final candidate in await _taxonResolver.scientificNameCandidates(
-      species,
-    )) {
-      try {
-        final result = await _iNatNames.fetchCommonNames(candidate);
-        if (result == null) {
-          allCandidatesNotFound = false;
-          continue;
-        }
-        if (candidate != species.getBinomialName()) {
-          _log.debug(
-            'iNat common-name fallback matched ${species.id}: '
-            '${species.getBinomialName()} -> $candidate '
-            '(taxon=${result.taxonId})',
-          );
-        }
-        return result;
-      } on TaxonNotFoundException {
-        continue;
-      }
-    }
-
-    if (allCandidatesNotFound) {
-      throw TaxonNotFoundException(species.getBinomialName());
-    }
-    return null;
+  _fetchCommonNamesByTaxonId(Species species, {required int? taxonId}) async {
+    final resolvedTaxonId =
+        taxonId ?? await _taxonResolver.searchTaxonId(species);
+    if (resolvedTaxonId == null) return null;
+    return _iNatNames.fetchCommonNames(
+      species.getBinomialName(),
+      taxonId: resolvedTaxonId,
+    );
   }
 }
 

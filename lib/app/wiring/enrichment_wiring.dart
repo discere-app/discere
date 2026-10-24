@@ -1,3 +1,4 @@
+import 'package:discere/app/wiring/inat_taxon_id_wiring.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
@@ -14,10 +15,8 @@ import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_reposito
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
-import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
-import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
@@ -74,10 +73,18 @@ buildEnrichmentServices({
   required bool processEnrichmentJobs,
 }) {
   final iNatCacheRepository = INatPhotoCacheRepository();
+  final taxonIdResolvers = buildINatTaxonIdResolvers(
+    speciesRepository: speciesRepository,
+    externalIdRepository: externalIdRepository,
+    externalIdCacheRepository: externalIdCacheRepository,
+    iNatTaxonDetails: iNatTaxonDetails,
+    iNatTaxonIds: iNatTaxonIds,
+  );
+  final taxonResolver = taxonIdResolvers.species;
   final speciesPhotoService = SpeciesPhotoService(
     iNatCacheRepository,
     iNatPhotos: iNatPhotos,
-    externalIdRepository: externalIdRepository,
+    taxonResolver: taxonResolver,
     externalIdCacheRepository: externalIdCacheRepository,
   );
   final speciesMediaService = SpeciesMediaService(
@@ -87,11 +94,6 @@ buildEnrichmentServices({
   );
   final runtimeCommonNameRepository = RuntimeCommonNameRepository(
     searchRepository: RuntimeCommonNameSearchRepository(),
-  );
-  final taxonResolver = INatTaxonResolver(
-    speciesRepository,
-    externalIdRepository,
-    externalIdCacheRepository,
   );
   final baseImageEnrichmentService = BaseImageEnrichmentService(
     speciesRepository,
@@ -114,13 +116,7 @@ buildEnrichmentServices({
   final taxonomyEnrichmentService = TaxonomyCommonNameEnrichmentService(
     speciesRepository,
     iNatNames,
-    HigherTaxonIdResolver(
-      externalIdRepository,
-      externalIdCacheRepository,
-      taxonResolver,
-      iNatTaxonDetails,
-      iNatTaxonIds,
-    ),
+    taxonIdResolvers.higherRanks,
     runtimeCommonNameRepository,
   );
   final nameResolutionService = INatNameResolutionService(

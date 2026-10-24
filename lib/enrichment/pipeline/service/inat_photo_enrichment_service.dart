@@ -271,7 +271,7 @@ class INatPhotoEnrichmentService {
     })?
     result;
     try {
-      result = await _fetchPhotosWithScientificNameFallback(
+      result = await _fetchPhotosByTaxonId(
         species,
         taxonId: taxonId,
         maxPhotos: maxPhotos,
@@ -368,6 +368,9 @@ class INatPhotoEnrichmentService {
     );
   }
 
+  /// Fetches by the known [taxonId], else by the id a name search finds.
+  /// Throws [TaxonNotFoundException] when the search settles that there is
+  /// none ([INatTaxonResolver.searchTaxonId]).
   Future<
     ({
       int taxonId,
@@ -376,55 +379,21 @@ class INatPhotoEnrichmentService {
       String? iucnStatus,
     })?
   >
-  _fetchPhotosWithScientificNameFallback(
+  _fetchPhotosByTaxonId(
     Species species, {
     required int? taxonId,
     required int maxPhotos,
     bool allowTier3Fallback = false,
   }) async {
-    if (taxonId != null) {
-      return _iNatPhotos.fetchPhotos(
-        species.getBinomialName(),
-        taxonId: taxonId,
-        maxPhotos: maxPhotos,
-        allowTier3Fallback: allowTier3Fallback,
-      );
-    }
-
-    // Only conclude the species is genuinely unresolvable (as opposed to a
-    // transient failure worth retrying later) if every candidate name was
-    // definitively rejected by iNaturalist rather than merely failing.
-    var allCandidatesNotFound = true;
-    for (final candidate in await _taxonResolver.scientificNameCandidates(
-      species,
-    )) {
-      try {
-        final result = await _iNatPhotos.fetchPhotos(
-          candidate,
-          maxPhotos: maxPhotos,
-          allowTier3Fallback: allowTier3Fallback,
-        );
-        if (result == null) {
-          allCandidatesNotFound = false;
-          continue;
-        }
-        if (candidate != species.getBinomialName()) {
-          _log.debug(
-            'iNat photo fallback matched ${species.id}: '
-            '${species.getBinomialName()} -> $candidate '
-            '(taxon=${result.taxonId})',
-          );
-        }
-        return result;
-      } on TaxonNotFoundException {
-        continue;
-      }
-    }
-
-    if (allCandidatesNotFound) {
-      throw TaxonNotFoundException(species.getBinomialName());
-    }
-    return null;
+    final resolvedTaxonId =
+        taxonId ?? await _taxonResolver.searchTaxonId(species);
+    if (resolvedTaxonId == null) return null;
+    return _iNatPhotos.fetchPhotos(
+      species.getBinomialName(),
+      taxonId: resolvedTaxonId,
+      maxPhotos: maxPhotos,
+      allowTier3Fallback: allowTier3Fallback,
+    );
   }
 
   Map<String, Picture> _picturesByUrl(Iterable<Picture> pictures) {

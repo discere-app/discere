@@ -2,6 +2,9 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
+import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
+import 'package:discere/external/inaturalist/inat_ancestry_requirement.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +17,9 @@ void main() {
   late MockINatPhotoApi mockINatService;
   late MockExternalIdRepository mockExternalIdRepository;
   late MockExternalIdCacheRepository mockExternalIdCacheRepository;
+  late MockExternalIdRejectionRepository mockRejections;
+  late MockINatAllowedAncestorRepository mockAllowedAncestors;
+  late MockINatTaxonIdResolver mockTaxonIds;
   late SpeciesPhotoService service;
 
   setUp(() {
@@ -21,6 +27,9 @@ void main() {
     mockINatService = MockINatPhotoApi();
     mockExternalIdRepository = MockExternalIdRepository();
     mockExternalIdCacheRepository = MockExternalIdCacheRepository();
+    mockRejections = MockExternalIdRejectionRepository();
+    mockAllowedAncestors = MockINatAllowedAncestorRepository();
+    mockTaxonIds = MockINatTaxonIdResolver();
 
     when(
       mockPhotoCacheRepository.getCachedPhotos(any),
@@ -29,8 +38,18 @@ void main() {
       mockPhotoCacheRepository.cachePhotos(any, any),
     ).thenAnswer((_) async {});
     when(
-      mockExternalIdRepository.getExternalId(any, any),
+      mockExternalIdRepository.getExternalIdsForProvider(any, any),
+    ).thenAnswer((_) async => {});
+    when(
+      mockExternalIdCacheRepository.getExternalIdsForProvider(any, any),
+    ).thenAnswer((_) async => {});
+    when(mockRejections.isRejected(any, any)).thenAnswer((_) async => false);
+    when(
+      mockAllowedAncestors.requirementForSpecies(any),
     ).thenAnswer((_) async => null);
+    when(
+      mockTaxonIds.resolve(any, ancestry: anyNamed('ancestry')),
+    ).thenThrow(const TaxonNotFoundException('unknown'));
     when(
       mockExternalIdCacheRepository.getExternalId(any, any),
     ).thenAnswer((_) async => null);
@@ -41,7 +60,14 @@ void main() {
     service = SpeciesPhotoService(
       mockPhotoCacheRepository,
       iNatPhotos: mockINatService,
-      externalIdRepository: mockExternalIdRepository,
+      taxonResolver: INatTaxonResolver(
+        MockSpeciesRepository(),
+        mockExternalIdRepository,
+        mockExternalIdCacheRepository,
+        mockRejections,
+        mockAllowedAncestors,
+        mockTaxonIds,
+      ),
       externalIdCacheRepository: mockExternalIdCacheRepository,
     );
   });
@@ -49,11 +75,10 @@ void main() {
   test('passes reference-db taxon id to iNat fallback fetch', () async {
     final species = _species('sp1');
     when(
-      mockExternalIdRepository.getExternalId(
+      mockExternalIdRepository.getExternalIdsForProvider({
         'sp1',
-        ExternalIdProvider.inaturalist,
-      ),
-    ).thenAnswer((_) async => '123');
+      }, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => {'sp1': 123});
     when(
       mockINatService.fetchPhotos(
         species.getBinomialName(),
@@ -86,10 +111,7 @@ void main() {
       ),
     ).called(1);
     verifyNever(
-      mockExternalIdCacheRepository.getExternalId(
-        'sp1',
-        ExternalIdProvider.inaturalist,
-      ),
+      mockExternalIdCacheRepository.getExternalIdsForProvider(any, any),
     );
   });
 
@@ -98,11 +120,10 @@ void main() {
     () async {
       final species = _species('sp1');
       when(
-        mockExternalIdCacheRepository.getExternalId(
+        mockExternalIdCacheRepository.getExternalIdsForProvider({
           'sp1',
-          ExternalIdProvider.inaturalist,
-        ),
-      ).thenAnswer((_) async => '456');
+        }, ExternalIdProvider.inaturalist),
+      ).thenAnswer((_) async => {'sp1': 456});
       when(
         mockINatService.fetchPhotos(
           species.getBinomialName(),
@@ -133,11 +154,10 @@ void main() {
   test('persists the wikipedia URL alongside the resolved taxon id', () async {
     final species = _species('sp1');
     when(
-      mockExternalIdRepository.getExternalId(
+      mockExternalIdRepository.getExternalIdsForProvider({
         'sp1',
-        ExternalIdProvider.inaturalist,
-      ),
-    ).thenAnswer((_) async => '123');
+      }, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => {'sp1': 123});
     when(
       mockINatService.fetchPhotos(
         species.getBinomialName(),
@@ -167,11 +187,10 @@ void main() {
   test('does not persist a wikipedia URL when iNat has none on file', () async {
     final species = _species('sp1');
     when(
-      mockExternalIdRepository.getExternalId(
+      mockExternalIdRepository.getExternalIdsForProvider({
         'sp1',
-        ExternalIdProvider.inaturalist,
-      ),
-    ).thenAnswer((_) async => '123');
+      }, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => {'sp1': 123});
     when(
       mockINatService.fetchPhotos(
         species.getBinomialName(),
@@ -201,11 +220,10 @@ void main() {
   test('persists the IUCN status alongside the resolved taxon id', () async {
     final species = _species('sp1');
     when(
-      mockExternalIdRepository.getExternalId(
+      mockExternalIdRepository.getExternalIdsForProvider({
         'sp1',
-        ExternalIdProvider.inaturalist,
-      ),
-    ).thenAnswer((_) async => '123');
+      }, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => {'sp1': 123});
     when(
       mockINatService.fetchPhotos(
         species.getBinomialName(),
@@ -248,14 +266,71 @@ void main() {
     );
   });
 
+  test('fetches by the id a name search finds under the allowed phyla', () async {
+    final species = _species('sp1');
+    const fishes = INatAncestryRequirement([
+      {2},
+    ]);
+    when(
+      mockAllowedAncestors.requirementForSpecies(any),
+    ).thenAnswer((_) async => fishes);
+    when(
+      mockTaxonIds.resolve('Amphiprion ocellaris', ancestry: fishes),
+    ).thenAnswer((_) async => 789);
+    when(
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 789,
+        allowTier3Fallback: true,
+      ),
+    ).thenAnswer(
+      (_) async => (
+        taxonId: 789,
+        photos: const <INatPhoto>[],
+        wikipediaUrl: null,
+        iucnStatus: null,
+      ),
+    );
+
+    await service.getPhotosWithFallback(species);
+
+    verify(
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 789,
+        allowTier3Fallback: true,
+      ),
+    ).called(1);
+  });
+
+  test('does not search for a species the ETL rejected', () async {
+    final species = _species('sp1');
+    when(
+      mockRejections.isRejected('sp1', ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => true);
+
+    final pictures = await service.getPhotosWithFallback(species);
+
+    expect(pictures, isEmpty);
+    verifyNever(mockTaxonIds.resolve(any, ancestry: anyNamed('ancestry')));
+    verifyNever(
+      mockINatService.fetchPhotos(
+        any,
+        taxonId: anyNamed('taxonId'),
+        maxPhotos: anyNamed('maxPhotos'),
+        allowTier3Fallback: anyNamed('allowTier3Fallback'),
+      ),
+    );
+    verifyNever(mockPhotoCacheRepository.cachePhotos(any, any));
+  });
+
   test('does not persist an IUCN status when iNat has none on file', () async {
     final species = _species('sp1');
     when(
-      mockExternalIdRepository.getExternalId(
+      mockExternalIdRepository.getExternalIdsForProvider({
         'sp1',
-        ExternalIdProvider.inaturalist,
-      ),
-    ).thenAnswer((_) async => '123');
+      }, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => {'sp1': 123});
     when(
       mockINatService.fetchPhotos(
         species.getBinomialName(),

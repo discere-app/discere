@@ -2,8 +2,8 @@ New: Choose the name language on species and taxonomy pages.
 Change: Now requires Android 11 or newer.
 Change: JSON export asks where to save the file.
 Fix: Review sessions and watchlist load much faster.
-Fix: Multiple choice no longer silently falls back to flipping.
-Fix: Edit deck shows all images.
+Fix: Multiple choice no longer falls back to flipping.
+Fix: Edit deck shows all images; no photos/names of wrong species.
 Fix: Online search shows progress and errors.
 Fix: Less memory; all species, “unassigned” never asked.
-New: Data updates download in the background with progress, then “Apply”; also from Settings.
+New: Data updates load in background, then “Apply”; also in Settings.

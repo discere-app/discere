@@ -3,7 +3,7 @@ Neu: Namenssprache auf Arten-/Taxonseiten wählbar.
 Änderung: JSON-Export fragt nach Speicherort.
 Fix: Lernsessions und Merkliste laden schneller.
 Fix: Multiple Choice fällt nicht mehr auf Umdrehen zurück.
-Fix: Deck bearbeiten zeigt alle Bilder.
+Fix: Alle Bilder im Deck-Editor; nie Fotos/Namen falscher Arten.
 Fix: Online-Suche zeigt Fortschritt und Fehler.
 Fix: Weniger Speicher; alle Arten, „nicht zugeordnet“ ungefragt.
-Neu: Datenupdates laden mit Fortschritt im Hintergrund, dann „Anwenden“; auch in den Einstellungen.
+Neu: Datenupdates im Hintergrund, dann „Anwenden“; auch in Einstellungen.

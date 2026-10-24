@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'package:discere/external/inaturalist/inat_ancestry_requirement.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/request_memo.dart';
 import 'package:http/http.dart' as http;
-/// Thrown when an iNaturalist taxon search succeeds but confirms the
-/// scientific name matches no taxon at all — a permanent outcome, unlike a
-/// network error or timeout, which should still be retried later.
+
+/// Thrown when an iNaturalist taxon search succeeds but yields no taxon the
+/// name may be resolved to — none at all, none that fits, or one that must
+/// not be searched for — a permanent outcome, unlike a network error or
+/// timeout, which should still be retried later.
 final class TaxonNotFoundException implements Exception {
   final String scientificName;
 
@@ -19,149 +22,140 @@ final class TaxonNotFoundException implements Exception {
 /// Everything else the app asks iNaturalist for is keyed by that id, so this
 /// sits under the rest rather than beside it.
 ///
-/// Answers are remembered and concurrent lookups of the same name share one
-/// request — enrichment resolves the same taxon for several species at once,
-/// against an API that rate-limits.
+/// Search answers are remembered and concurrent searches for the same name
+/// share one request — enrichment resolves the same taxon for several species
+/// at once, against an API that rate-limits.
+///
+/// A hit is only taken when it is the one taxon that fits: never the
+/// search's first result for want of a better one, and never one of two that
+/// fit equally. With an [INatAncestryRequirement] it must also sit under the
+/// phyla (and classes) the reference data allows; a name alone does not tell
+/// homonyms apart, and photos or names of another organism are worse than
+/// none.
 class INatTaxonIdResolver {
   final INatApiClient _api;
 
-  late final RequestMemo<String, int?> _taxonIdMemo = RequestMemo(
-    isWorthKeeping: (taxonId) => taxonId != null,
-    onMemoHit: (key) =>
-        INatApiClient.logDebug('iNat resolve taxon memo hit "$key"'),
-  );
-
-  /// Separate from [_taxonIdMemo] so that a lax species-style answer — a
-  /// synonym hit, the first result — is never handed out as an exact one.
-  late final RequestMemo<String, int> _exactTaxonIdMemo = RequestMemo(
-    isWorthKeeping: (_) => true,
-    onMemoHit: (key) =>
-        INatApiClient.logDebug('iNat exact taxon memo hit "$key"'),
-  );
+  /// Keyed by rank and name; which hit a caller takes depends on what it
+  /// asks for, so the raw hits are what is worth sharing.
+  late final RequestMemo<String, List<_TaxonSearchHit>> _searchMemo =
+      RequestMemo(
+        isWorthKeeping: (_) => true,
+        onMemoHit: (key) =>
+            INatApiClient.logDebug('iNat taxon search memo hit "$key"'),
+      );
 
   INatTaxonIdResolver({required INatApiClient api}) : _api = api;
 
-  static const _taxonSearchFields =
-      'id,name,rank,preferred_common_name,matched_term';
+  static const _taxonSearchFields = 'id,name,rank,matched_term,ancestor_ids';
 
-  /// Checks if the API result is a relevant match for the query.
-  bool _isRelevantMatch(String query, String result) {
-    return result.toLowerCase().trim() == query.toLowerCase().trim();
-  }
-
-  /// The species taxon id for [scientificName], or null when iNaturalist has
-  /// nothing usable. [taxonId] short-circuits when the caller already knows
-  /// it. Throws [TaxonNotFoundException] when the search is conclusive.
+  /// The species taxon id for [scientificName], or null when the search
+  /// failed. [taxonId] short-circuits when the caller already knows it.
+  /// Throws [TaxonNotFoundException] when the search is conclusive: no
+  /// result, or none that fits.
   ///
-  /// Laxer than [resolveExact] on purpose. Searching on `rank=species` only
-  /// returns species, and a species iNaturalist does not know comes back as
-  /// an empty list — so a synonym hit is almost always the same species
-  /// under a new genus name, and where iNaturalist has merged two species,
-  /// its view is taken. Without synonym hits such species would get neither
-  /// photos nor names.
-  Future<int?> resolve(String scientificName, {int? taxonId}) {
-    if (taxonId != null) return Future.value(taxonId);
-    return _taxonIdMemo.fetch(
-      scientificName.trim().toLowerCase(),
-      () => _resolveTaxonIdUncached(scientificName),
+  /// A hit carrying exactly the name wins; without one, a hit that matches
+  /// it as a synonym (`matched_term`). Searching on `rank=species` only
+  /// returns species, so a synonym hit is mostly the same species under a
+  /// new genus name, and where iNaturalist has merged two species, its view
+  /// is taken. Either kind must meet [ancestry] when given — without it, a
+  /// reference database that cannot say which phyla fit, only the name
+  /// decides.
+  Future<int?> resolve(
+    String scientificName, {
+    int? taxonId,
+    INatAncestryRequirement? ancestry,
+  }) async {
+    if (taxonId != null) return taxonId;
+
+    final List<_TaxonSearchHit> hits;
+    try {
+      hits = await _search(scientificName, rank: 'species');
+    } on http.ClientException catch (e) {
+      INatApiClient.logDebug('iNat resolve taxon failed: $e');
+      return null;
+    }
+
+    final named = hits.where((hit) => hit.isNamed(scientificName));
+    final synonyms = hits.where(
+      (hit) => !hit.isNamed(scientificName) && hit.matches(scientificName),
     );
+    final acceptedNamed = _fitting(named, ancestry);
+    final resolvedId = acceptedNamed.isNotEmpty
+        ? _single(acceptedNamed)
+        : _single(_fitting(synonyms, ancestry));
+    if (resolvedId == null) {
+      INatApiClient.logDebug(
+        'iNat resolve taxon none for "$scientificName" '
+        '(${hits.length} results)',
+      );
+      throw TaxonNotFoundException(scientificName);
+    }
+    INatApiClient.logDebug(
+      'iNat resolve taxon matched "$scientificName" -> $resolvedId',
+    );
+    return resolvedId;
   }
 
   /// The id of the taxon named exactly [scientificName] on exactly [rank],
   /// for the ranks above species.
   ///
-  /// Stricter than [resolve] on purpose: a synonym hit or the search's first
-  /// result is a different taxon often enough (Sebastidae matching
-  /// Scorpaenidae through a synonym) that its names would be wrong, and a
-  /// wrong name is worse than none. Throws [TaxonNotFoundException] when no
-  /// result matches, and an [http.ClientException] or a timeout when the
+  /// Stricter than [resolve] on purpose: a synonym hit is a different taxon
+  /// often enough (Sebastidae matching Scorpaenidae through a synonym) that
+  /// its names would be wrong, and a wrong name is worse than none. The hit
+  /// must meet [ancestry] when given. Throws [TaxonNotFoundException] when no
+  /// single result fits, and an [http.ClientException] or a timeout when the
   /// search itself failed.
-  Future<int> resolveExact(String scientificName, {required String rank}) {
-    return _exactTaxonIdMemo.fetch(
-      '${rank.trim().toLowerCase()}:${scientificName.trim().toLowerCase()}',
-      () => _resolveExactUncached(scientificName, rank: rank),
+  Future<int> resolveExact(
+    String scientificName, {
+    required String rank,
+    INatAncestryRequirement? ancestry,
+  }) async {
+    final hits = await _search(scientificName, rank: rank);
+    final resolvedId = _single(
+      _fitting(
+        hits.where((hit) => hit.rank == rank && hit.isNamed(scientificName)),
+        ancestry,
+      ),
     );
-  }
-
-  Future<int?> _resolveTaxonIdUncached(String scientificName) async {
-    final stopwatch = Stopwatch()..start();
-    final searchResponse = await _searchTaxa(scientificName, rank: 'species');
-
-    if (searchResponse.statusCode != 200) {
+    if (resolvedId == null) {
       INatApiClient.logDebug(
-        'iNat resolve taxon failed for "$scientificName" '
-        '(status=${searchResponse.statusCode}, '
-        '${stopwatch.elapsedMilliseconds}ms)',
-      );
-      return null;
-    }
-
-    final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
-    final results = searchData['results'] as List<dynamic>?;
-    if (results == null || results.isEmpty) {
-      INatApiClient.logDebug(
-        'iNat resolve taxon empty for "$scientificName" '
-        '(${stopwatch.elapsedMilliseconds}ms)',
+        'iNat exact taxon none for "$scientificName" ($rank)',
       );
       throw TaxonNotFoundException(scientificName);
     }
-
-    for (final r in results) {
-      final name = r['name'] as String? ?? '';
-      final matchedTerm = r['matched_term'] as String?;
-
-      if (_isRelevantMatch(scientificName, name) ||
-          (matchedTerm != null &&
-              _isRelevantMatch(scientificName, matchedTerm))) {
-        final resolvedId = r['id'] as int?;
-        INatApiClient.logDebug(
-          'iNat resolve taxon matched "$scientificName" -> $resolvedId '
-          '(${stopwatch.elapsedMilliseconds}ms)',
-        );
-        return resolvedId;
-      }
-    }
-
-    final fallbackId = results.first['id'] as int?;
     INatApiClient.logDebug(
-      'iNat resolve taxon fallback "$scientificName" -> $fallbackId '
-      '(${stopwatch.elapsedMilliseconds}ms)',
+      'iNat exact taxon matched "$scientificName" ($rank) -> $resolvedId',
     );
-    return fallbackId;
+    return resolvedId;
   }
 
-  Future<int> _resolveExactUncached(
+  static List<_TaxonSearchHit> _fitting(
+    Iterable<_TaxonSearchHit> hits,
+    INatAncestryRequirement? ancestry,
+  ) => [
+    for (final hit in hits)
+      if (ancestry == null || ancestry.isMetBy(hit.ancestorIds)) hit,
+  ];
+
+  /// The id when exactly one taxon is left; two that fit equally are a
+  /// homonym the search cannot settle.
+  static int? _single(List<_TaxonSearchHit> hits) {
+    final ids = {for (final hit in hits) hit.id};
+    return ids.length == 1 ? ids.single : null;
+  }
+
+  Future<List<_TaxonSearchHit>> _search(
+    String scientificName, {
+    required String rank,
+  }) => _searchMemo.fetch(
+    '${rank.trim().toLowerCase()}:${scientificName.trim().toLowerCase()}',
+    () => _searchUncached(scientificName, rank: rank),
+  );
+
+  Future<List<_TaxonSearchHit>> _searchUncached(
     String scientificName, {
     required String rank,
   }) async {
-    final response = await _searchTaxa(scientificName, rank: rank);
-    if (response.statusCode != 200) {
-      throw http.ClientException(
-        'iNat taxon search for "$scientificName" ($rank) failed with status '
-        '${response.statusCode}',
-      );
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    for (final r in data['results'] as List<dynamic>? ?? const []) {
-      final resolvedId = r['id'] as int?;
-      if (resolvedId != null &&
-          r['rank'] == rank &&
-          _isRelevantMatch(scientificName, r['name'] as String? ?? '')) {
-        INatApiClient.logDebug(
-          'iNat exact taxon matched "$scientificName" ($rank) -> $resolvedId',
-        );
-        return resolvedId;
-      }
-    }
-    INatApiClient.logDebug('iNat exact taxon none for "$scientificName" ($rank)');
-    throw TaxonNotFoundException(scientificName);
-  }
-
-  Future<http.Response> _searchTaxa(
-    String scientificName, {
-    required String rank,
-  }) {
     final searchUri = _api.uri(
       '/taxa',
       queryParameters: {
@@ -173,6 +167,59 @@ class INatTaxonIdResolver {
         'rank': [rank],
       },
     );
-    return _api.get(searchUri).timeout(const Duration(seconds: 10));
+    final response = await _api
+        .get(searchUri)
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw http.ClientException(
+        'iNat taxon search for "$scientificName" ($rank) failed with status '
+        '${response.statusCode}',
+      );
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return [
+      for (final result in data['results'] as List<dynamic>? ?? const [])
+        ?_TaxonSearchHit.fromJson(result as Map<String, dynamic>),
+    ];
   }
+}
+
+/// One result of a taxon search, with what [INatTaxonIdResolver] decides on.
+final class _TaxonSearchHit {
+  final int id;
+  final String name;
+  final String? rank;
+  final String? matchedTerm;
+  final List<int> ancestorIds;
+
+  const _TaxonSearchHit({
+    required this.id,
+    required this.name,
+    required this.rank,
+    required this.matchedTerm,
+    required this.ancestorIds,
+  });
+
+  static _TaxonSearchHit? fromJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    if (id is! int) return null;
+    return _TaxonSearchHit(
+      id: id,
+      name: json['name'] as String? ?? '',
+      rank: json['rank'] as String?,
+      matchedTerm: json['matched_term'] as String?,
+      ancestorIds: [
+        for (final ancestorId in json['ancestor_ids'] as List<dynamic>? ?? [])
+          if (ancestorId is int) ancestorId,
+      ],
+    );
+  }
+
+  bool isNamed(String scientificName) => _sameName(name, scientificName);
+
+  bool matches(String scientificName) =>
+      matchedTerm != null && _sameName(matchedTerm!, scientificName);
+
+  static bool _sameName(String left, String right) =>
+      left.trim().toLowerCase() == right.trim().toLowerCase();
 }
