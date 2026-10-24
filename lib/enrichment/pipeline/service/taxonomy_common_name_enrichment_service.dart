@@ -8,7 +8,6 @@ import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dar
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
-import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -166,14 +165,15 @@ class TaxonomyCommonNameEnrichmentService {
         final taxonomyTarget = plan[entityKey]!;
 
         try {
-          final commonNames = await _fetchTaxonomyCommonNames(
+          final fetched = await _fetchTaxonomyCommonNames(
             taxonomyTarget,
             speciesList,
           );
-          if (commonNames.isEmpty) {
+          if (fetched == null || fetched.commonNames.isEmpty) {
             await _runtimeCommonNameRepository.markNoCommonNames(
               entityKey: entityKey,
               entityType: _entityTypeForTaxonomyRank(taxonomyTarget.rank),
+              taxonId: fetched?.taxonId,
             );
             onEntityCompleted?.call(entityKey);
             return;
@@ -190,11 +190,12 @@ class TaxonomyCommonNameEnrichmentService {
                 taxonomyTarget.rank,
                 taxonomyTarget.scientificName,
               ),
-              runtimeCommonNames: commonNames,
+              taxonId: fetched.taxonId,
+              runtimeCommonNames: fetched.commonNames,
             ),
           );
           enrichedEntityCount++;
-          commonNameCount += commonNames.values.fold(
+          commonNameCount += fetched.commonNames.values.fold(
             0,
             (sum, list) => sum + list.length,
           );
@@ -236,27 +237,26 @@ class TaxonomyCommonNameEnrichmentService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  /// Empty when iNaturalist answered conclusively: no such taxon, or one
-  /// without common names. A failed request throws instead, so the caller
-  /// retries rather than recording "no names" for good.
-  Future<Map<String, List<INatCommonName>>> _fetchTaxonomyCommonNames(
+  /// Null when iNaturalist answered conclusively that there is no such
+  /// taxon; empty names for one without common names. A failed request
+  /// throws instead, so the caller retries rather than recording "no names"
+  /// for good.
+  Future<INatTaxonCommonNames?> _fetchTaxonomyCommonNames(
     TaxonomyPlanEntry target,
     List<Species> speciesList,
   ) async {
     switch (await _taxonIds.resolve(target, speciesList)) {
       case HigherTaxonAbsent():
-        return const {};
+        return null;
       case HigherTaxonFound(:final taxonId):
         final result = await _iNatNames.fetchCommonNames(
           target.scientificName,
           taxonId: taxonId,
         );
-        if (result == null) {
-          throw http.ClientException(
-            'iNat common names for ${target.runtimeEntityKey} unavailable',
-          );
-        }
-        return result.commonNames;
+        if (result != null) return result;
+        throw http.ClientException(
+          'iNat common names for ${target.runtimeEntityKey} unavailable',
+        );
     }
   }
 

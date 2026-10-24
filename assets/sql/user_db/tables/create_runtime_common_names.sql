@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS runtime_common_names (
   position       INTEGER,           -- globales iNat-Ranking (niedriger = besser)
   place_id       INTEGER,           -- iNat Place-ID, NULL = globaler Name
   place_position INTEGER,           -- Ranking innerhalb dieses Place
-  fetched_at     INTEGER NOT NULL
+  fetched_at     INTEGER NOT NULL,
+  inat_taxon_id  INTEGER            -- iNat-Taxon der Namen; NULL = kein Taxon
 );
 
 CREATE INDEX IF NOT EXISTS idx_runtime_common_names_lookup

@@ -108,8 +108,10 @@ List<String> _decodeStringListForMigration(Object? rawValue) {
 class UserDbSchema {
   UserDbSchema._();
 
-  /// Current user DB schema version — bump whenever a migration is added.
-  static const int version = 20;
+  /// Current user DB schema version — bump whenever a migration is added, and
+  /// whenever an asset gains a column: reconciliation only runs on create and
+  /// upgrade, so an existing database gets the column through a bump alone.
+  static const int version = 21;
 
   /// Every table of the current schema, in creation order — `decks` first,
   /// because the tables after it declare a foreign key to it.
@@ -181,6 +183,7 @@ class UserDbSchema {
     if (oldVersion < 18) await migrateUserDbToV18(db);
     if (oldVersion < 19) await migrateUserDbToV19(db);
     if (oldVersion < 20) await migrateUserDbToV20(db);
+    // v21 only adds columns (inat_taxon_id), which reconciliation brings.
 
     // Bring whatever the ladder produced to the current shape: missing
     // tables, missing columns, missing indexes. A migration describes the

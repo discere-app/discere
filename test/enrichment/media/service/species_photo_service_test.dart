@@ -35,7 +35,11 @@ void main() {
       mockPhotoCacheRepository.getCachedPhotos(any),
     ).thenAnswer((_) async => null);
     when(
-      mockPhotoCacheRepository.cachePhotos(any, any),
+      mockPhotoCacheRepository.cachePhotos(
+        any,
+        any,
+        taxonId: anyNamed('taxonId'),
+      ),
     ).thenAnswer((_) async {});
     when(
       mockExternalIdRepository.getExternalIdsForProvider(any, any),
@@ -112,6 +116,45 @@ void main() {
     ).called(1);
     verifyNever(
       mockExternalIdCacheRepository.getExternalIdsForProvider(any, any),
+    );
+    verify(
+      mockPhotoCacheRepository.cachePhotos('sp1', any, taxonId: 123),
+    ).called(1);
+  });
+
+  // A copy would outlive the reference database's id: the cache is read
+  // when the reference database has none, so a later release that drops
+  // the mapping would keep the old taxon in force.
+  test('does not cache a reference-database id as a runtime one', () async {
+    final species = _species('sp1');
+    when(
+      mockExternalIdRepository.getExternalIdsForProvider({
+        'sp1',
+      }, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => {'sp1': 123});
+    when(
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 123,
+        allowTier3Fallback: true,
+      ),
+    ).thenAnswer(
+      (_) async => (
+        taxonId: 123,
+        photos: const <INatPhoto>[],
+        wikipediaUrl: null,
+        iucnStatus: null,
+      ),
+    );
+
+    await service.getPhotosWithFallback(species);
+
+    verifyNever(
+      mockExternalIdCacheRepository.saveExternalId(
+        any,
+        ExternalIdProvider.inaturalist,
+        any,
+      ),
     );
   });
 
@@ -301,6 +344,16 @@ void main() {
         allowTier3Fallback: true,
       ),
     ).called(1);
+    verify(
+      mockExternalIdCacheRepository.saveExternalId(
+        'sp1',
+        ExternalIdProvider.inaturalist,
+        '789',
+      ),
+    ).called(1);
+    verify(
+      mockPhotoCacheRepository.cachePhotos('sp1', any, taxonId: 789),
+    ).called(1);
   });
 
   test('does not search for a species the ETL rejected', () async {
@@ -321,7 +374,13 @@ void main() {
         allowTier3Fallback: anyNamed('allowTier3Fallback'),
       ),
     );
-    verifyNever(mockPhotoCacheRepository.cachePhotos(any, any));
+    verifyNever(
+      mockPhotoCacheRepository.cachePhotos(
+        any,
+        any,
+        taxonId: anyNamed('taxonId'),
+      ),
+    );
   });
 
   test('does not persist an IUCN status when iNat has none on file', () async {

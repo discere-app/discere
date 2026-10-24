@@ -74,6 +74,7 @@ void main() {
       mockRuntimeCommonNameRepo.markNoCommonNames(
         entityKey: anyNamed('entityKey'),
         entityType: anyNamed('entityType'),
+        taxonId: anyNamed('taxonId'),
       ),
     ).thenAnswer((_) async {});
     when(
@@ -83,7 +84,9 @@ void main() {
       mockRuntimeCommonNameRepo.saveTaxonomyCommonNamesBatch(any),
     ).thenAnswer((_) async {});
     when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => null);
-    when(mockINatCacheRepo.cachePhotos(any, any)).thenAnswer((_) async {});
+    when(
+      mockINatCacheRepo.cachePhotos(any, any, taxonId: anyNamed('taxonId')),
+    ).thenAnswer((_) async {});
   });
 
   test(

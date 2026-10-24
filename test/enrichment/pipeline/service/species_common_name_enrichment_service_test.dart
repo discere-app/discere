@@ -7,6 +7,7 @@ import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
@@ -83,6 +84,7 @@ void main() {
       mockRuntimeCommonNameRepo.markNoCommonNames(
         entityKey: anyNamed('entityKey'),
         entityType: anyNamed('entityType'),
+        taxonId: anyNamed('taxonId'),
       ),
     ).thenAnswer((_) async {});
     when(
@@ -213,10 +215,12 @@ void main() {
           argThat(
             predicate(
               (dynamic records) =>
-                  records is Map<Species, Map<String, List<INatCommonName>>> &&
+                  records is Map<Species, INatTaxonCommonNames> &&
                   records.length == 1 &&
                   records.keys.single.id == 'sp1' &&
-                  records.values.single['en']?.single.name == 'Common barbel',
+                  records.values.single.taxonId == searchedTaxonId &&
+                  records.values.single.commonNames['en']?.single.name ==
+                      'Common barbel',
             ),
           ),
         ),
@@ -235,6 +239,18 @@ void main() {
         'order:cypriniformes',
         'class:actinopterygii',
       });
+      expect(
+        {
+          for (final record in taxonomyRecords)
+            record.entityKey: record.taxonId,
+        },
+        {
+          'genus:barbus': 201,
+          'family:cyprinidae': 202,
+          'order:cypriniformes': 203,
+          'class:actinopterygii': 204,
+        },
+      );
       expect(
         taxonomyRecords
             .where((record) => record.entityKey == 'genus:barbus')
@@ -376,6 +392,7 @@ void main() {
         mockRuntimeCommonNameRepo.markNoCommonNames(
           entityKey: 'species:sp1',
           entityType: 'species',
+          taxonId: 703,
         ),
       ).called(1);
       expect(summary.commonNameSpeciesCount, 0);
@@ -424,6 +441,7 @@ void main() {
         mockRuntimeCommonNameRepo.markNoCommonNames(
           entityKey: 'species:sp1',
           entityType: 'species',
+          taxonId: null,
         ),
       ).called(1);
       expect(completedSpeciesIds, ['sp1']);
@@ -472,6 +490,7 @@ void main() {
       mockRuntimeCommonNameRepo.markNoCommonNames(
         entityKey: 'species:sp1',
         entityType: 'species',
+        taxonId: null,
       ),
     ).called(1);
     expect(completedSpeciesIds, ['sp1']);

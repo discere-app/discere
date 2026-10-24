@@ -69,7 +69,9 @@ void main() {
       mockExternalIdCacheRepo.saveExternalId(any, any, any),
     ).thenAnswer((_) async {});
     when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => null);
-    when(mockINatCacheRepo.cachePhotos(any, any)).thenAnswer((_) async {});
+    when(
+      mockINatCacheRepo.cachePhotos(any, any, taxonId: anyNamed('taxonId')),
+    ).thenAnswer((_) async {});
     when(
       mockSpeciesRepo.getScientificNameCandidates(
         any,
@@ -138,7 +140,9 @@ void main() {
         onSpeciesCompleted: completedSpeciesIds.add,
       );
 
-      verify(mockINatCacheRepo.cachePhotos('sp1', const [])).called(1);
+      verify(
+        mockINatCacheRepo.cachePhotos('sp1', const [], taxonId: null),
+      ).called(1);
       expect(completedSpeciesIds, ['sp1']);
       expect(summary.imageSpeciesCount, 0);
       expect(summary.imageCount, 0);
@@ -189,7 +193,9 @@ void main() {
         ),
       );
       verifyNever(mockExternalIdCacheRepo.saveExternalId(any, any, any));
-      verify(mockINatCacheRepo.cachePhotos('sp1', const [])).called(1);
+      verify(
+        mockINatCacheRepo.cachePhotos('sp1', const [], taxonId: null),
+      ).called(1);
       expect(completedSpeciesIds, ['sp1']);
     });
 
@@ -252,7 +258,11 @@ void main() {
       );
 
       verify(
-        mockINatCacheRepo.cachePhotos('sp1', argThat(hasLength(1))),
+        mockINatCacheRepo.cachePhotos(
+          'sp1',
+          argThat(hasLength(1)),
+          taxonId: 704,
+        ),
       ).called(1);
       expect(completedSpeciesIds, isEmpty);
       // Photo metadata was still found, so this summary keeps its existing

@@ -278,7 +278,11 @@ class INatPhotoEnrichmentService {
         allowTier3Fallback: allowTier3Fallback,
       );
     } on TaxonNotFoundException {
-      await _iNatCacheRepository.cachePhotos(species.id, const []);
+      await _iNatCacheRepository.cachePhotos(
+        species.id,
+        const [],
+        taxonId: null,
+      );
       return const _SpeciesPhotoFetchOutcome(pictures: [], isTerminal: true);
     }
     if (result == null) {
@@ -292,7 +296,11 @@ class INatPhotoEnrichmentService {
     );
     await _persistWikipediaUrl(species, result.wikipediaUrl);
     await _persistIucnStatus(species, result.iucnStatus);
-    await _iNatCacheRepository.cachePhotos(species.id, result.photos);
+    await _iNatCacheRepository.cachePhotos(
+      species.id,
+      result.photos,
+      taxonId: result.taxonId,
+    );
     return _SpeciesPhotoFetchOutcome(
       pictures: _photoPictureMapper.map(species.id, result.photos),
       isTerminal: true,

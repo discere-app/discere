@@ -81,9 +81,9 @@ class SpeciesPhotoService {
         return refPictures;
       }
 
+      final knownTaxonId = await taxonResolver.knownTaxonId(species);
       final taxonId =
-          await taxonResolver.knownTaxonId(species) ??
-          await taxonResolver.searchTaxonId(species);
+          knownTaxonId ?? await taxonResolver.searchTaxonId(species);
       if (taxonId == null) {
         return refPictures;
       }
@@ -96,11 +96,15 @@ class SpeciesPhotoService {
         return refPictures;
       }
 
-      await _iNatCacheRepository.cachePhotos(species.id, result.photos);
-      await _externalIdCacheRepository?.saveExternalId(
+      await _iNatCacheRepository.cachePhotos(
         species.id,
-        ExternalIdProvider.inaturalist,
-        result.taxonId.toString(),
+        result.photos,
+        taxonId: result.taxonId,
+      );
+      await taxonResolver.persistResolvedTaxonId(
+        species,
+        previousTaxonId: knownTaxonId,
+        resolvedTaxonId: result.taxonId,
       );
       final wikipediaUrl = result.wikipediaUrl;
       if (wikipediaUrl != null && wikipediaUrl.isNotEmpty) {

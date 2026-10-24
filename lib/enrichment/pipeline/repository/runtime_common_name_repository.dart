@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -13,6 +14,9 @@ class RuntimeTaxonomyCommonNameRecord {
   final String entityType;
   final String scientificName;
   final Map<Language, List<String>> referenceCommonNames;
+
+  /// The iNat taxon [runtimeCommonNames] were fetched from.
+  final int taxonId;
   final Map<String, List<INatCommonName>> runtimeCommonNames;
 
   const RuntimeTaxonomyCommonNameRecord({
@@ -21,6 +25,7 @@ class RuntimeTaxonomyCommonNameRecord {
     required this.entityType,
     required this.scientificName,
     required this.referenceCommonNames,
+    required this.taxonId,
     required this.runtimeCommonNames,
   });
 }
@@ -31,6 +36,11 @@ class RuntimeTaxonomyCommonNameRecord {
 /// stable entity key:
 /// - species:  `species:<discere species id>`
 /// - taxonomy: `genus:barbus`, `family:cyprinidae`, ...
+///
+/// Every row carries the iNat taxon its names were fetched from
+/// (`inat_taxon_id`; null only on a no-result marker no taxon was found for),
+/// which `INatProvenanceReconciler` holds against the taxon the entity maps
+/// to now.
 class RuntimeCommonNameRepository {
   static final _log = Logger.forType(RuntimeCommonNameRepository);
   static const tableName = 'runtime_common_names';
@@ -88,7 +98,8 @@ class RuntimeCommonNameRepository {
   }
 
   /// Records that [entityKey] was looked up successfully but iNaturalist had
-  /// no common names for it.
+  /// no common names for it — for the taxon [taxonId], or for none at all
+  /// when it is null.
   ///
   /// We intentionally store a sentinel row in the same table instead of adding
   /// a second status table. Read paths ignore the synthetic language code, but
@@ -97,6 +108,7 @@ class RuntimeCommonNameRepository {
   Future<void> markNoCommonNames({
     required String entityKey,
     required String entityType,
+    required int? taxonId,
   }) async {
     final db = await _database;
     final existing = await db.query(
@@ -119,13 +131,18 @@ class RuntimeCommonNameRepository {
       'place_id': null,
       'place_position': null,
       'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      'inat_taxon_id': taxonId,
     });
   }
 
   Future<void> saveCommonNamesBatch(
     Map<
       String,
-      ({String entityType, Map<String, List<INatCommonName>> namesByLanguage})
+      ({
+        String entityType,
+        int taxonId,
+        Map<String, List<INatCommonName>> namesByLanguage,
+      })
     >
     commonNamesByEntity,
   ) async {
@@ -184,6 +201,7 @@ class RuntimeCommonNameRepository {
                   'place_id': null,
                   'place_position': null,
                   'fetched_at': timestamp,
+                  'inat_taxon_id': entityEntry.value.taxonId,
                 });
               } else {
                 // One row per place
@@ -197,6 +215,7 @@ class RuntimeCommonNameRepository {
                     'place_id': place.placeId,
                     'place_position': place.position,
                     'fetched_at': timestamp,
+                    'inat_taxon_id': entityEntry.value.taxonId,
                   });
                 }
               }
@@ -215,7 +234,7 @@ class RuntimeCommonNameRepository {
   }
 
   Future<void> saveSpeciesCommonNamesBatch(
-    Map<Species, Map<String, List<INatCommonName>>> commonNamesBySpecies,
+    Map<Species, INatTaxonCommonNames> commonNamesBySpecies,
   ) async {
     if (commonNamesBySpecies.isEmpty) return;
 
@@ -223,13 +242,15 @@ class RuntimeCommonNameRepository {
       for (final entry in commonNamesBySpecies.entries)
         speciesEntityKey(entry.key.id): (
           entityType: 'species',
-          namesByLanguage: entry.value,
+          taxonId: entry.value.taxonId,
+          namesByLanguage: entry.value.commonNames,
         ),
     });
 
     await _searchRepository.upsertDocuments(
       commonNamesBySpecies.entries.map(
-        (entry) => _buildSpeciesSearchDocument(entry.key, entry.value),
+        (entry) =>
+            _buildSpeciesSearchDocument(entry.key, entry.value.commonNames),
       ),
     );
   }
@@ -244,6 +265,7 @@ class RuntimeCommonNameRepository {
       for (final record in recordList)
         record.entityKey: (
           entityType: record.entityType,
+          taxonId: record.taxonId,
           namesByLanguage: record.runtimeCommonNames,
         ),
     });

@@ -6,7 +6,6 @@ import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repos
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 
@@ -75,8 +74,7 @@ class SpeciesCommonNameEnrichmentService {
 
     var enrichedSpeciesCount = 0;
     var commonNameCount = 0;
-    final pendingSpeciesCommonNames =
-        <Species, Map<String, List<INatCommonName>>>{};
+    final pendingSpeciesCommonNames = <Species, INatTaxonCommonNames>{};
 
     for (final speciesId in terminalSpeciesIds) {
       onSpeciesCompleted?.call(speciesId);
@@ -94,10 +92,11 @@ class SpeciesCommonNameEnrichmentService {
           if (outcome.isTerminal) {
             onSpeciesCompleted?.call(species.id);
           }
-          if (outcome.commonNames.isNotEmpty) {
-            pendingSpeciesCommonNames[species] = outcome.commonNames;
+          final names = outcome.names;
+          if (names != null) {
+            pendingSpeciesCommonNames[species] = names;
             enrichedSpeciesCount++;
-            commonNameCount += outcome.commonNames.values.fold(
+            commonNameCount += names.commonNames.values.fold(
               0,
               (sum, list) => sum + list.length,
             );
@@ -131,7 +130,7 @@ class SpeciesCommonNameEnrichmentService {
     Species species, {
     int? taxonId,
   }) async {
-    ({int taxonId, Map<String, List<INatCommonName>> commonNames})? result;
+    INatTaxonCommonNames? result;
     try {
       result = await _fetchCommonNamesByTaxonId(
         species,
@@ -141,17 +140,12 @@ class SpeciesCommonNameEnrichmentService {
       await _runtimeCommonNameRepository.markNoCommonNames(
         entityKey: speciesEntityKey(species.id),
         entityType: 'species',
+        taxonId: null,
       );
-      return const _SpeciesCommonNameFetchOutcome(
-        commonNames: {},
-        isTerminal: true,
-      );
+      return const _SpeciesCommonNameFetchOutcome(isTerminal: true);
     }
     if (result == null) {
-      return const _SpeciesCommonNameFetchOutcome(
-        commonNames: {},
-        isTerminal: false,
-      );
+      return const _SpeciesCommonNameFetchOutcome(isTerminal: false);
     }
 
     await _taxonResolver.persistResolvedTaxonId(
@@ -163,23 +157,20 @@ class SpeciesCommonNameEnrichmentService {
       await _runtimeCommonNameRepository.markNoCommonNames(
         entityKey: speciesEntityKey(species.id),
         entityType: 'species',
+        taxonId: result.taxonId,
       );
-      return const _SpeciesCommonNameFetchOutcome(
-        commonNames: {},
-        isTerminal: true,
-      );
+      return const _SpeciesCommonNameFetchOutcome(isTerminal: true);
     }
-    return _SpeciesCommonNameFetchOutcome(
-      commonNames: result.commonNames,
-      isTerminal: true,
-    );
+    return _SpeciesCommonNameFetchOutcome(names: result, isTerminal: true);
   }
 
   /// Fetches by the known [taxonId], else by the id a name search finds.
   /// Throws [TaxonNotFoundException] when the search settles that there is
   /// none ([INatTaxonResolver.searchTaxonId]).
-  Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
-  _fetchCommonNamesByTaxonId(Species species, {required int? taxonId}) async {
+  Future<INatTaxonCommonNames?> _fetchCommonNamesByTaxonId(
+    Species species, {
+    required int? taxonId,
+  }) async {
     final resolvedTaxonId =
         taxonId ?? await _taxonResolver.searchTaxonId(species);
     if (resolvedTaxonId == null) return null;
@@ -191,11 +182,10 @@ class SpeciesCommonNameEnrichmentService {
 }
 
 class _SpeciesCommonNameFetchOutcome {
-  final Map<String, List<INatCommonName>> commonNames;
+  /// The names fetched and the taxon they came from; null when there are
+  /// none to store.
+  final INatTaxonCommonNames? names;
   final bool isTerminal;
 
-  const _SpeciesCommonNameFetchOutcome({
-    required this.commonNames,
-    required this.isTerminal,
-  });
+  const _SpeciesCommonNameFetchOutcome({this.names, required this.isTerminal});
 }
