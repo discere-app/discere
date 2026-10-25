@@ -286,33 +286,66 @@ distribution_status_merged	SpecCode $speccode, country 404	$name	4 Zeilen (endem
     done
 }
 
-# Endemic neben einem anderen Status als native und ein Status, den die
-# Rangfolge nicht kennt, brechen den Export ab, sobald ihr Schlüssel mehrere
-# Zeilen hat; allein in seinem Schlüssel wird ein unbekannter Status
-# übernommen.
-test_distribution_fails_on_key_without_rule() {
+# endemic neben einem anderen Status ohne native, auch neben ohne Status:
+# native — die Art ist im Land heimisch, nur nicht als Ganzes endemisch. Die
+# Präsenz bleibt in 524 leer, weil die beiden Zeilen darin abweichen.
+test_distribution_endemic_beside_other_status_counts_as_native() {
     local plugin
     for plugin in $DISTRIBUTION_PLUGINS; do
-        create_distribution_source "$plugin"
-        write_distribution_rows "$plugin" country ASC "
-            (1, '404', 'endemic',    'present', 0, NULL, NULL, NULL),
-            (2, '404', 'introduced', 'present', 0, NULL, NULL, NULL)"
-        run_distribution_export "$plugin"
-        assert_status 1
-        assert_contains "$ERR" "Verbreitung: keine Regel für SpecCode $(distribution_speccode "$plugin"), country 404: endemic neben einem anderen Status als native"
+        assert_country_export "$plugin" "
+            (1, '404', 'introduced',   'present',  0, NULL, NULL, 'Lake Victoria'),
+            (2, '404', 'endemic',      'present',  0, NULL, NULL, 'Lake Baringo'),
+            (3, '524', 'endemic',      'present',  0, NULL, NULL, NULL),
+            (4, '524', 'questionable', 'possible', 0, NULL, NULL, NULL),
+            (5, '525', 'endemic',      'present',  0, NULL, NULL, NULL),
+            (6, '525', NULL,           'present',  0, NULL, NULL, NULL)" \
+            "country,404,present,native,0,,,
+country,524,,native,0,,,
+country,525,present,native,0,,,
+subregion,276:1,present,native,,,," "endemic + anderer Status"
+    done
+}
 
-        write_distribution_rows "$plugin" country ASC "
-            (1, '404', 'native',     'present', 0, NULL, NULL, NULL),
-            (2, '404', 'vagrant',    'present', 0, NULL, NULL, NULL)"
-        run_distribution_export "$plugin"
-        assert_status 1
-        assert_contains "$ERR" "country 404: unbekannter Status"
+# Ein Status, den die Rangfolge nicht kennt, steht hinter allen bekannten
+# und vor ohne Status; mehrere unbekannte alphabetisch, ohne Groß- und
+# Kleinschreibung.
+test_distribution_ranks_unknown_status_after_known_ones() {
+    local plugin
+    for plugin in $DISTRIBUTION_PLUGINS; do
+        assert_country_export "$plugin" "
+            (1, '101', 'vagrant',     'present', 0, NULL, NULL, NULL),
+            (2, '101', 'established', 'present', 0, NULL, NULL, NULL),
+            (3, '102', NULL,          'present', 0, NULL, NULL, NULL),
+            (4, '102', 'vagrant',     'present', 0, NULL, NULL, NULL),
+            (5, '103', 'Vagrant',     'present', 0, NULL, NULL, NULL),
+            (6, '103', 'accidental',  'present', 0, NULL, NULL, NULL)" \
+            "country,101,present,established,0,,,
+country,102,present,vagrant,0,,,
+country,103,present,accidental,0,,,
+subregion,276:1,present,native,,,," "unbekannter Status"
+    done
+}
 
-        write_distribution_rows "$plugin" country ASC "
-            (1, '404', 'vagrant',    'present', 0, NULL, NULL, NULL)"
-        run_distribution_export "$plugin"
-        assert_status 0
-        assert_eq "country,404,present,vagrant,0,,,
-subregion,276:1,present,native,,,," "$(distribution_rows "$plugin")" "unbekannter Status allein ($plugin)"
+# Jeder Schlüssel mit unbekanntem Status steht im Bericht, auch einer mit
+# nur einer Zeile, dessen Status unverändert bleibt.
+test_distribution_reports_unknown_status() {
+    local plugin name speccode
+    for plugin in $DISTRIBUTION_PLUGINS; do
+        case "$plugin" in
+            fishbase)    name="Amphiprion ocellaris" ;;
+            sealifebase) name="Abra alba" ;;
+        esac
+        speccode="$(distribution_speccode "$plugin")"
+        assert_country_export "$plugin" "
+            (1, '404', 'native',  'present', 0, NULL, NULL, NULL),
+            (2, '404', 'vagrant', 'present', 0, NULL, NULL, NULL),
+            (3, '405', 'vagrant', 'present', 0, NULL, NULL, NULL)" \
+            "country,404,present,native,0,,,
+country,405,present,vagrant,0,,,
+subregion,276:1,present,native,,,," "unbekannter Status"
+        assert_eq "distribution_status_merged	SpecCode $speccode, country 404	$name	2 Zeilen (native 1, vagrant 1) → native; leer: keine
+distribution_status_unknown	SpecCode $speccode, country 404	$name	Status vagrant
+distribution_status_unknown	SpecCode $speccode, country 405	$name	Status vagrant" \
+            "$(cat "$TEST_TMP/export/distribution_report.tsv")" "Bericht ($plugin)"
     done
 }

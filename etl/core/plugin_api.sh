@@ -251,7 +251,25 @@ plugin_report_distribution() {
     local report="$1"
     plugin_report < "$report"
     plugin_log "Verbreitung zusammengefasst: $(grep -c '^distribution_status_merged' "$report" || true)" \
-        "Schlüssel mit verschiedenem Status, $(grep -c '^distribution_rows_merged' "$report" || true) mit gleichem"
+        "Schlüssel mit verschiedenem Status, $(grep -c '^distribution_rows_merged' "$report" || true) mit gleichem;" \
+        "unbekannter Status: $(grep -c '^distribution_status_unknown' "$report" || true) Schlüssel"
+}
+
+# Zählung von core/sql/common_names.sql (common_names_summary.tsv eines
+# Exports) ins Log. Die Schlüssel selbst kommen nicht in den Build-Bericht:
+# Es sind einige tausend je Quelle, zusammengefasst nach fester Regel und so,
+# dass die App dasselbe zeigt — einzeln aufgeführt wären sie kein Signal.
+plugin_log_common_names() {
+    local summary="$1"
+    plugin_log "Volksnamen zusammengefasst: $(plugin_summary_count "$summary" common_names_merged) Schlüssel," \
+        "davon $(plugin_summary_count "$summary" common_names_preferred_over_rank) bevorzugt vor niedrigerem Rang," \
+        "$(plugin_summary_count "$summary" common_names_global) ohne Land"
+}
+
+# Anzahl zur <kategorie> aus einer Zählung (je Zeile Kategorie und Anzahl,
+# tabgetrennt).
+plugin_summary_count() {
+    awk -F '\t' -v category="$2" '$1 == category { print $2 }' "$1"
 }
 
 plugin_validate_min_count() {

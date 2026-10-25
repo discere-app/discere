@@ -473,9 +473,12 @@ WHERE external_source = '${PLUGIN_SOURCE}'
   AND status         != 'deprecated'
   AND external_id NOT IN (SELECT external_id FROM tmp_species);
 
--- Common Names: Bestehende Einträge dieser Quelle löschen und neu importieren
+-- Common Names: Bestehende Einträge dieser Quelle löschen und neu importieren.
+-- Ohne OR IGNORE: export.sql liefert je Schlüssel eine Zeile
+-- (core/sql/common_names.sql), eine Kollision ist ein Fehler im Export und
+-- bricht den Import ab.
 DELETE FROM common_names WHERE source = '${PLUGIN_SOURCE}';
-INSERT OR IGNORE INTO common_names (
+INSERT INTO common_names (
     entity_id, entity_type, language, country, name,
     source, rank, is_preferred, name_type
 ) SELECT
@@ -632,6 +635,7 @@ import_to_sqlite
 plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
 report_family_phylum
 plugin_report_distribution "${EXPORT_DIR}/distribution_report.tsv"
+plugin_log_common_names "${EXPORT_DIR}/common_names_summary.tsv"
 report_genus_resolution
 write_source_metadata
 validate

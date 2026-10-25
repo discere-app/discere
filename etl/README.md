@@ -40,6 +40,7 @@ build.sh                       ← Orchestrator
 │       ├── source_codes.sql   ← DuckDB, in den FishBase- und SeaLifeBase-Export
 │       │                         eingebunden: doppelte Codes der Quelle
 │       ├── distribution_regions.sql ← ebenso: Verbreitung je Art und Region
+│       ├── common_names.sql   ← ebenso: Volksnamen, je Schlüssel eine Zeile
 │       ├── rebuild_lookup.sql ← Regel für species_name_lookup (lookup_report.sql: Bericht)
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten
@@ -102,7 +103,9 @@ Name und Klasse gefundenen Ordnung (`family_order_resolved`) oder ohne
 sowie jede Art und Region mit mehreren Verbreitungszeilen, mit deren Status,
 dem gewählten und den wegen Widerspruchs leeren Spalten oder als ausgelassen
 bei widersprüchlicher Einführung (`distribution_status_merged` bei
-verschiedenem Status, sonst `distribution_rows_merged`; siehe
+verschiedenem Status, sonst `distribution_rows_merged`), und jede Art und
+Region mit einem Status, den die Rangfolge nicht kennt
+(`distribution_status_unknown`; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#mehrere-verbreitungszeilen-einer-art-und-region)), Stage 02d unter
 `placeholders` jeden Rang-Platzhalter mit Quelle und Anzahl aktiver Arten
 darunter, Stage 03 unter `lookup` jeden Namen aktiver Arten ohne Eintrag in

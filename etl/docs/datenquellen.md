@@ -426,23 +426,29 @@ Land als heimisch. Beide Exporte fassen die Zeilen deshalb nach derselben
 Regel zusammen (`core/sql/distribution_regions.sql`), den Status verglichen
 ohne Groß- und Kleinschreibung:
 
-1. **native**, sobald eine Zeile `native` sagt.
+1. **native**, sobald eine Zeile `native` oder `endemic` sagt und nicht
+   alle `endemic` sagen. `endemic` ist eine Form von `native`: Neben einem
+   anderen Status (etwa `endemic` und `introduced`) ist die Art im Land
+   heimisch, nur nicht als Ganzes endemisch.
 2. **endemic** nur, wenn alle Zeilen `endemic` sagen. Endemisch im Land ist
-   die Art nicht, wenn es nur eine ihrer Unterarten ist; neben `native`
-   gilt `native`.
+   die Art nicht, wenn es nur eine ihrer Unterarten ist.
 3. **introduced**, wenn keine Zeile `native` oder `endemic` sagt.
 4. **Sonst** der erste Status der Rangfolge `questionable`, `error`,
    `misidentification`, `extirpated`, `stray`, `not established`,
-   `reintroduced`, `established`, ohne Status. Vorn steht, was weniger über
-   die Präsenz der Art behauptet: ein Zweifel, dann ein als falsch erkannter
-   Nachweis, dann eine frühere Präsenz, dann eine gelegentliche oder
-   gescheiterte eingeführte, zuletzt eine dauerhafte. Ohne Status steht
-   hinten, weil die App eine Region ohne Status als heimisch zeigt.
+   `reintroduced`, `established`, unbekannter Status, ohne Status. Vorn
+   steht, was weniger über die Präsenz der Art behauptet: ein Zweifel, dann
+   ein als falsch erkannter Nachweis, dann eine frühere Präsenz, dann eine
+   gelegentliche oder gescheiterte eingeführte, zuletzt eine dauerhafte. Ein
+   Status außerhalb dieser Liste steht hinter allen bekannten, weil ein
+   bekannter mehr sagt; mehrere unbekannte gelten in alphabetischer Folge,
+   ohne Groß- und Kleinschreibung. Ohne Status steht ganz hinten, weil die
+   App eine Region ohne Status als heimisch zeigt, eine mit unbekanntem
+   Status nicht.
 
-`endemic` neben einem anderen Status als `native` (etwa `endemic` und
-`introduced`) sowie ein Status außerhalb dieser Liste brechen den Export ab,
-sobald sie in einem Schlüssel mit mehreren Zeilen stehen: Keine Regel sagt,
-was dann für die Art gilt. In v26.06 kommt beides nicht vor.
+Der Export bricht an keinem Schlüssel ab: Die Quellen korrigieren ihre
+Daten nicht verlässlich, und jede Kombination von Status hat so ein
+Ergebnis. Ein unbekannter Status allein in seinem Schlüssel bleibt, wie er
+ist. In v26.06 kennt die Rangfolge jeden Status der Quellen.
 
 Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar behalten ihren
 Wert nur, wenn alle Zeilen des Schlüssels ihn teilen; sonst bleiben sie
@@ -472,7 +478,11 @@ Jeder Schlüssel mit mehreren Zeilen steht im Build-Bericht, mit dem Status
 seiner Zeilen, dem Ergebnis und den Spalten, die wegen Widerspruchs leer
 bleiben, oder mit „ausgelassen: Einführung widersprüchlich“:
 `distribution_status_merged` bei verschiedenem Status, sonst
-`distribution_rows_merged`. In v26.06:
+`distribution_rows_merged`. Jeder Schlüssel mit einem unbekannten Status,
+auch einer mit nur einer Zeile, steht zusätzlich als
+`distribution_status_unknown` mit diesem Status darin: So zeigt der Bericht
+neues Vokabular der Quelle, und die Rangfolge lässt sich darum erweitern.
+In v26.06:
 
 | Status der Zeilen | FishBase | SeaLifeBase | Ergebnis |
 |---|---|---|---|
@@ -490,6 +500,42 @@ Population gilt. Die App liest eine leere Präsenz wie jede andere außer
 `absent` als vorkommend (Regionsfilter, Häufigkeit) und einen leeren
 threatened-Wert als nicht bedroht. *Salmo trutta* zählt damit in der
 Schweiz weiter als heimisch und vorkommend.
+
+### Mehrere Zeilen eines Volksnamens
+
+`comnames` führt einen Namen einer Art in derselben Sprache und demselben
+Land teils mehrmals, mit anderem Rang, anderem Vorzug (`PreferredName`) oder
+anderem Namenstyp (FAO neben Vernacular). Die DB hält je Entität, Name,
+Sprache, Quelle und Land eine Zeile (Index `idx_common_names_key` auf
+`common_names`). Ohne Land (C_Code 9999, global) zählt dabei als ein
+eigenes Land: Der Index vergleicht `IFNULL(country, '')`, weil ein UNIQUE
+zwei NULL nie gleich setzt.
+
+Beide Exporte wählen je Schlüssel dieselbe Zeile
+(`core/sql/common_names.sql`): die bevorzugte vor den übrigen, dann die mit
+dem niedrigsten Rang (ohne Rang zuerst), dann nach Namenstyp (ohne
+zuletzt) und `entity_type`. Vorzug vor Rang und ohne Rang zuerst, weil die
+App die Zeilen eines Namens in dieser Folge liest (SQLite sortiert NULL vor
+jeden Wert): Bleibt genau die Zeile, die sie unter allen
+zuerst gelesen hätte, zeigt sie dasselbe, als stünden alle da. Höchster
+Vorzug und niedrigster Rang aus verschiedenen Zeilen zusammengesetzt
+verschöben dagegen die Sortierung. Namenstyp und `entity_type` liest die
+App nicht; sie machen das Ergebnis unabhängig von der Reihenfolge der
+Eingabe. Die Plugins importieren ohne `OR IGNORE`: Eine Kollision ist ein
+Fehler im Export und bricht den Import ab.
+
+Die Volksnamen übernommener Entitäten (siehe [Lebenszyklus](#lebenszyklus))
+wählt die Identitäts-Stage nach derselben Regel (`carried_common_names_sql`
+in `core/identity.sh`): Ein Vorgänger kann mehrere Zeilen eines Schlüssels
+führen, und korrigieren lässt er sich so wenig wie eine Quelle. Die Zahl der dabei
+zusammengefassten Schlüssel steht im Log der Stage.
+
+In v26.06 fasst FishBase 1.814 Schlüssel zusammen (72 ohne Land),
+SeaLifeBase 4.067 (103 ohne Land). Bei 24 Schlüsseln von FishBase steht die
+bevorzugte Zeile nicht auf dem niedrigsten Rang; bei 38 von FishBase und 9
+von SeaLifeBase entscheidet erst der Namenstyp. Die Zahlen stehen je Plugin
+im Log („Volksnamen zusammengefasst: …“), nicht im Build-Bericht: Einzeln
+aufgeführt wären einige tausend Schlüssel kein Signal.
 
 ### Gattung und Familie einer Art widersprechen sich
 
