@@ -275,8 +275,10 @@ wie eine Orchidee, die Borstenwurm-Gattung *Megalomma* wie ein
 Sandlaufkäfer. Grundsatz: lieber keine Zuordnung als eine falsche, also
 keine Fotos und Namen eines anderen Lebewesens.
 
-Arten löst `INatTaxonResolver` auf, für den Foto-, den Volksnamen-Worker
-und den Live-Abruf der Artseite (`SpeciesPhotoService`); höhere Ränge
+Arten löst `INatTaxonResolver` auf, für den Foto-, den Volksnamen-Worker,
+den Live-Abruf der Artseite (`SpeciesPhotoService`) und die Vorschaubilder
+der Artlisten — Suche, Taxonomie-Listen, Arten hinzufügen
+(`SpeciesThumbnailService`, nach den schon gecachten Fotos); höhere Ränge
 (Gattung, Familie, Ordnung, Klasse) für `TaxonomyCommonNameEnrichmentService`
 löst `HigherTaxonIdResolver` auf. Beide fragen iNaturalist über
 `INatTaxonIdResolver` (`external/inaturalist/`):
@@ -491,13 +493,6 @@ neuere installiert hat, dessen Daten bekommen beim ersten Abgleich die ID der
 installierten Referenz-DB als Stempel, auch wenn sie unter einer anderen ID
 geholt wurden. Die Fotodateien verworfener Fotos bleiben unter
 `external_images/` liegen, ohne dass etwas auf sie verweist.
-
-**Bekannte Lücke: Vorschaubilder der Suche.** `INatPhotoApi.fetchThumbnailUrl`
-(Suchergebnisse, Taxonomie-Listen, Arten hinzufügen) sucht ein Vorschaubild
-nur über den Namen, ohne Referenz-DB-ID, Ablehnungen und Stammprüfung — mit
-denselben Regeln wie eine ältere Referenz-DB (kein erstes Ergebnis). Es
-speichert nichts, zeigt aber womöglich das Bild eines gleichnamigen
-Lebewesens ([#349](https://github.com/discere-app/discere/issues/349)).
 
 ## Referenz-DB-Version & Basisbild-Refresh
 

@@ -181,6 +181,11 @@ for the full design.
   `findSpeciesWithoutLocalImage` answers the narrower "does this species have a
   picture on disk at all" from the candidate URLs alone, without that taxonomy
   load.
+- `SpeciesThumbnailService` (`media/service/`) — the thumbnail of a species
+  row in the `catalog` and `learning` lists, behind `catalog`'s
+  `SpeciesThumbnailPort`: a cached iNaturalist photo if enrichment has one,
+  else the photo of the taxon `INatTaxonResolver` assigns, by the same rules
+  as enrichment and the species page
 - `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)

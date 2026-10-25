@@ -21,7 +21,7 @@ class SearchResultsGroupedList extends StatelessWidget {
 
   final List<SearchResult> results;
   final Language selectedLanguage;
-  final Future<String?> Function(String scientificName) resolveThumbnailUrl;
+  final Future<String?> Function(String speciesId) resolveThumbnailUrl;
   final void Function(SearchResult result) onResultTap;
 
   const SearchResultsGroupedList({

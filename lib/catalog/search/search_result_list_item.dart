@@ -19,7 +19,7 @@ class SearchResultListItem extends StatelessWidget {
 
   final SearchResult result;
   final Language selectedLanguage;
-  final Future<String?> Function(String scientificName) resolveThumbnailUrl;
+  final Future<String?> Function(String speciesId) resolveThumbnailUrl;
   final VoidCallback onTap;
 
   const SearchResultListItem({
@@ -40,7 +40,7 @@ class SearchResultListItem extends StatelessWidget {
         onTap: onTap,
         margin: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
         leading: SearchResultThumbnail(
-          scientificName: item.scientificName,
+          speciesId: result.id,
           resolveThumbnailUrl: resolveThumbnailUrl,
           size: 64,
           accentColor: Theme.of(context).colorScheme.tertiary,

@@ -1,11 +1,11 @@
 import 'package:discere/app/wiring/inat_taxon_id_wiring.dart';
+import 'package:discere/app/wiring/species_media_wiring.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/enrichment/media/service/local_species_image_service.dart';
+import 'package:discere/catalog/search/species_thumbnail_port.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
-import 'package:discere/enrichment/media/service/species_photo_service.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
@@ -81,16 +81,13 @@ buildEnrichmentServices({
     iNatTaxonIds: iNatTaxonIds,
   );
   final taxonResolver = taxonIdResolvers.species;
-  final speciesPhotoService = SpeciesPhotoService(
-    iNatCacheRepository,
+  final media = buildSpeciesMediaServices(
+    speciesRepository: speciesRepository,
+    imageService: imageService,
     iNatPhotos: iNatPhotos,
+    iNatCacheRepository: iNatCacheRepository,
     taxonResolver: taxonResolver,
     externalIdCacheRepository: externalIdCacheRepository,
-  );
-  final speciesMediaService = SpeciesMediaService(
-    speciesRepository,
-    speciesPhotoService,
-    LocalSpeciesImageService(imageService),
   );
   final runtimeCommonNameRepository = RuntimeCommonNameRepository(
     searchRepository: RuntimeCommonNameSearchRepository(),
@@ -196,7 +193,7 @@ buildEnrichmentServices({
   );
 
   return (
-    speciesMediaService: speciesMediaService,
+    speciesMediaService: media.speciesMediaService,
     nameResolutionService: nameResolutionService,
     iNatEnrichmentQueueService: iNatEnrichmentQueueService,
     healthSnapshotService: healthSnapshotService,
@@ -204,7 +201,10 @@ buildEnrichmentServices({
       Provider<EnrichmentHealthSnapshotService>.value(
         value: healthSnapshotService,
       ),
-      Provider<SpeciesMediaService>.value(value: speciesMediaService),
+      Provider<SpeciesMediaService>.value(value: media.speciesMediaService),
+      Provider<SpeciesThumbnailPort>.value(
+        value: media.speciesThumbnailService,
+      ),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: iNatEnrichmentQueueService,
       ),

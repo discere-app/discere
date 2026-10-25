@@ -14,8 +14,9 @@ import 'package:discere/shared/util/logger.dart';
 ///
 /// Every species-level capability that asks iNaturalist
 /// (`INatPhotoEnrichmentService`, `SpeciesCommonNameEnrichmentService`, the
-/// species detail page's live photo fetch) goes through here, so the rules
-/// for when a search may assign an id exist once.
+/// species detail page's live photo fetch, `SpeciesThumbnailService` for list
+/// thumbnails) goes through here, so the rules for when a search may assign
+/// an id exist once.
 class INatTaxonResolver {
   static final _log = Logger.forType(INatTaxonResolver);
 

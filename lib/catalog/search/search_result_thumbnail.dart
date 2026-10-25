@@ -8,10 +8,12 @@ import 'package:flutter/material.dart';
 ///
 /// The widget fetches a single remote iNaturalist thumbnail on demand and keeps
 /// a shared in-memory future cache so list rebuilds do not repeatedly trigger
-/// the same network request.
+/// the same network request. Both go by the species id, not its displayed
+/// name: two species can show the same name (homonyms, a species shown by
+/// its epithet alone) and must not share a picture.
 class SearchResultThumbnail extends StatefulWidget {
-  final String scientificName;
-  final Future<String?> Function(String scientificName) resolveThumbnailUrl;
+  final String speciesId;
+  final Future<String?> Function(String speciesId) resolveThumbnailUrl;
   final double size;
   final Color accentColor;
   final Color backgroundColor;
@@ -19,7 +21,7 @@ class SearchResultThumbnail extends StatefulWidget {
 
   const SearchResultThumbnail({
     super.key,
-    required this.scientificName,
+    required this.speciesId,
     required this.resolveThumbnailUrl,
     required this.size,
     required this.accentColor,
@@ -30,9 +32,9 @@ class SearchResultThumbnail extends StatefulWidget {
   /// Clears the process-wide thumbnail cache and fetch bookkeeping.
   ///
   /// That state is `static`, so it outlives a widget test and is shared by
-  /// every test in the same `flutter test` shard: a test that resolves a name
+  /// every test in the same `flutter test` shard: a test that resolves an id
   /// to `null` leaves that answer behind, and a later test resolving the same
-  /// name to a real URL silently gets the `null` and renders the placeholder —
+  /// id to a real URL silently gets the `null` and renders the placeholder —
   /// failing at the second test, which is not where the cause is.
   @visibleForTesting
   static void resetCacheForTesting() {
@@ -47,8 +49,8 @@ class SearchResultThumbnail extends StatefulWidget {
 
 class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   static final _log = Logger.forType(_SearchResultThumbnailState);
-  // LRU-ish cache: a search session can touch far more distinct scientific
-  // names than are ever shown again, so this is capped instead of growing
+  // LRU-ish cache: a search session can touch far more distinct species
+  // than are ever shown again, so this is capped instead of growing
   // unbounded for the process lifetime.
   static const int _maxCachedThumbnails = 300;
   static final LinkedHashMap<String, Future<String?>> _thumbnailCache =
@@ -68,7 +70,7 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   @override
   void didUpdateWidget(covariant SearchResultThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.scientificName != widget.scientificName) {
+    if (oldWidget.speciesId != widget.speciesId) {
       _thumbnailFuture = _resolveThumbnailFuture();
     }
   }
@@ -137,18 +139,18 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   }
 
   Future<String?> _resolveThumbnailFuture() {
-    final normalizedName = widget.scientificName.trim().toLowerCase();
+    final speciesId = widget.speciesId;
 
-    final cached = _thumbnailCache.remove(normalizedName);
+    final cached = _thumbnailCache.remove(speciesId);
     if (cached != null) {
       // Re-insert so it's ordered as most-recently-used and survives
       // eviction longer.
-      _thumbnailCache[normalizedName] = cached;
+      _thumbnailCache[speciesId] = cached;
       return cached;
     }
 
     final future = _fetchThumbnail();
-    _thumbnailCache[normalizedName] = future;
+    _thumbnailCache[speciesId] = future;
     while (_thumbnailCache.length > _maxCachedThumbnails) {
       _thumbnailCache.remove(_thumbnailCache.keys.first);
     }
@@ -160,16 +162,16 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
     await _acquireThumbnailSlot();
     waitStopwatch.stop();
     _log.debug(
-      'Search thumbnail: fetching remote image for "${widget.scientificName}" '
+      'Search thumbnail: fetching remote image for ${widget.speciesId} '
       '(queueWait=${waitStopwatch.elapsedMilliseconds}ms, '
       'active=$_activeThumbnailFetches)',
     );
     try {
-      final url = await widget.resolveThumbnailUrl(widget.scientificName);
+      final url = await widget.resolveThumbnailUrl(widget.speciesId);
       _log.debug(
         url == null || url.isEmpty
-            ? 'Search thumbnail: no image for "${widget.scientificName}"'
-            : 'Search thumbnail: resolved image for "${widget.scientificName}"',
+            ? 'Search thumbnail: no image for ${widget.speciesId}'
+            : 'Search thumbnail: resolved image for ${widget.speciesId}',
       );
       return url;
     } finally {
