@@ -23,6 +23,8 @@
 #   - Logs auf stderr, nichts auf stdout
 #   - Eigenes Cleanup (temporäre Dateien, geladene Quelldaten ohne --keep)
 #   - Idempotent: bestehende Daten der Quelle werden vor dem Import gelöscht
+#   - Aufräumen und Import in einer Transaktion unter .bail on: ein
+#     gescheiterter Import lässt die Daten der Quelle, wie sie waren
 #   - IDs werden ausschliesslich über discere_uuid() in export.sql erzeugt
 # =============================================================================
 
@@ -78,10 +80,9 @@ download_data() {
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
-clear_existing_data() {
-    plugin_log "Räume bestehende ${PLUGIN_SOURCE}-Daten auf..."
-    sqlite3 "$DB_PATH" << EOF
-PRAGMA foreign_keys = OFF;
+# Löscht die bestehenden Daten der Quelle, in der Transaktion des Imports.
+clear_existing_data_sql() {
+    cat << EOF
 -- Nur Tabellen löschen die kein Soft-Delete verwenden.
 -- species und genera nicht löschen (Soft-Delete / FK-Referenzen).
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
@@ -89,7 +90,6 @@ DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
-PRAGMA foreign_keys = ON;
 EOF
 }
 
@@ -111,10 +111,26 @@ export_to_csv() {
     plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
+# Aufräumen und Import laufen in einer Transaktion: Scheitert eine Anweisung,
+# bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie sie waren.
+# PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
-    # TODO: Import-Logik implementieren (analog zu fishbase/import.sh)
-    plugin_fail "Import noch nicht implementiert."
+    local import_script="${EXPORT_DIR}/import.sql"
+    cat > "$import_script" << EOF
+.bail on
+.mode csv
+PRAGMA foreign_keys = OFF;
+BEGIN;
+
+$(clear_existing_data_sql)
+
+-- TODO: Temp-Tabellen anlegen, CSVs per .import laden und in die Tabellen
+-- übernehmen (analog zu fishbase/import.sh)
+
+COMMIT;
+EOF
+    sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
 }
 
 # ---------------------------------------------------------------------------
@@ -150,7 +166,6 @@ plugin_log "DB: $DB_PATH"
 
 check_deps
 [[ "$DOWNLOAD" == true ]] && download_data
-clear_existing_data
 export_to_csv
 import_to_sqlite
 write_source_metadata
