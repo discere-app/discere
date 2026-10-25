@@ -126,15 +126,24 @@ eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
    Kandidaten, nicht `species_name_lookup`: Diese Tabelle ist schon
    disambiguiert (ein Gewinner je Name, für die Namensauflösung der App) und
    würde eine Mehrdeutigkeit verdecken, die der Abgleich sehen muss;
-3. ist das Ergebnis **mehrdeutig, gibt es keinen Treffer**, sondern einen
-   Eintrag im Build-Bericht. Geraten wird nie: Ein sichtbares Doppel lässt sich
+3. trifft ein Datensatz **mehrere Entitäten**, gilt die eine, bei der sein
+   Name der akzeptierte ist, sofern es genau eine solche gibt: Die Quelle führt
+   den Namen dort selbst als gültig, bei den übrigen nur als Synonym.
+   SeaLifeBase etwa führt manche Art zweimal, und der eine Eintrag nennt den
+   gültigen Namen des anderen als Synonym; ein Datensatz unter diesem Namen
+   meint den Eintrag, der ihn gültig führt. Ist der Name bei
+   keiner oder bei mehreren Entitäten der akzeptierte — bei höheren Taxa, die
+   nur ihren akzeptierten Namen haben, etwa zwei gleichnamige Gattungen —, ist
+   das Ergebnis **mehrdeutig: kein Treffer**, sondern ein Eintrag im
+   Build-Bericht. Geraten wird nie: Ein sichtbares Doppel lässt sich
    zusammenführen, zwei vermischte Arten lassen sich kaum wieder trennen.
 4. treffen **mehrere Datensätze einer Quelle dieselbe Entität** — auch einer,
    der selbst mehrdeutig ist —, behält sie nur der, der sie eindeutig über
    ihren akzeptierten Namen trifft; die übrigen sind mehrdeutig. Führt die
    Quelle den akzeptierten Namen einer Art als eigenen Datensatz, meint sie
    mit einem Synonym dieser Art ein anderes Taxon. So hat eine Entität je
-   Quelle höchstens einen Treffer.
+   Quelle höchstens einen Treffer. Gezählt wird nach Regel 3: Eine Entität,
+   die ein Datensatz dort an eine andere verloren hat, trifft er nicht mehr.
 
 Falsch angewandte Namen (`name_status = 'misapplied name'`) sind keine
 Kandidaten: Ein solcher Name meint per Definition ein anderes Taxon und belegt
@@ -184,7 +193,8 @@ SeaLifeBase-Art ohne Gattung trägt den Namen, den die Quelle ihr gibt (siehe
 gegen eine Gattung prüfen lässt er sich nicht.
 
 In `species_scientific_names` kommen nur Synonyme der Ebene `Species`
-(`TaxonLevel`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
+(`TaxonLevel`), in jeder Schreibweise: Die Quellen schreiben sie teils klein
+(`species`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
 auf einer anderen Ebene stehen (SeaLifeBase v26.06: *Aphroceras
 primigenium*, *Dyssycus primigenius*, *Lipostomella primigenia*). Ob ein Name
 mehrdeutig ist, zählt der Export deshalb über alle Ebenen: Jeder Name, den die
@@ -202,6 +212,12 @@ zweien bevorzugt — löst sie nicht auf, statt eine zu raten. Der Build-Bericht
 nennt jeden solchen Namen mit allen Arten (Quelle `lookup`, Kategorie
 `ambiguous`) und jeden, den aktive Arten nur als falsch angewandten führen
 (`misapplied`).
+
+Für die Suche der App führt `species_synonyms_fts` je aktive Art jedes
+Synonym, das sie in keiner Quelle bevorzugt führt, ohne falsch angewandte
+(`core/sql/rebuild_fts.sql`) — ein Synonym mehrerer Arten anders als in
+`species_name_lookup` bei jeder, denn die Suche soll alle Arten zeigen, die
+der Name meinen kann.
 
 ### Platzhalter der Quellen
 

@@ -44,6 +44,18 @@ HAVING SUM(is_preferred) = 1
     OR (SUM(is_preferred) = 0 AND COUNT(*) = 1
         AND normalized_name NOT IN (SELECT normalized_name FROM ambiguous_scientific_names));
 
+-- Namen, unter denen die Suche eine Art über ein Synonym findet
+-- (species_synonyms_fts, core/sql/rebuild_fts.sql), unabhängig davon
+-- formuliert: je aktive Art jeder Name, den sie als Synonym führt und in
+-- keiner Quelle als bevorzugten; falsch angewandte zählen nicht.
+CREATE TEMP VIEW validate_synonym_search_expected AS
+SELECT ssn.species_id, ssn.normalized_name
+FROM species_scientific_names ssn
+JOIN species s ON s.id = ssn.species_id
+WHERE s.status = 'active' AND ssn.name_status != 'misapplied name'
+GROUP BY ssn.species_id, ssn.normalized_name
+HAVING MAX(ssn.is_preferred) = 0;
+
 -- Höhere Taxa mit ihrem Namensschlüssel (genus:barbus, wie die
 -- iNaturalist-Zuordnung ihn ablegt) und ob ihre Kette bis zu einer Klasse
 -- mit Stamm reicht. Gattungen, Familien und Ordnungen nur, wenn an ihnen
@@ -86,6 +98,10 @@ SELECT 'common_names (de)',    COUNT(*), 10000,  'fishbase,sealifebase' FROM com
 SELECT 'taxonomy_traits',      COUNT(*), 10000,  'fishbase,sealifebase' FROM taxonomy_traits     UNION ALL
 SELECT 'taxonomy_distribution_regions', COUNT(*), 400000, 'fishbase,sealifebase' FROM taxonomy_distribution_regions UNION ALL
 SELECT 'locale_place_mappings',         COUNT(*), 70,     'enrich'               FROM locale_place_mappings         UNION ALL
+-- Synonym-Suche: FishBase allein bringt in v26.06 rund 53.000 Namen.
+-- Deutlich weniger heißt, ein Filter der Namen oder ihres Exports greift
+-- nicht mehr.
+SELECT 'species_synonyms_fts',          COUNT(*), 40000,  'fishbase'             FROM species_synonyms_fts          UNION ALL
 -- Rang-Platzhalter (Stage 02d): v26.06 hat 197, alle aus SeaLifeBase. Trifft
 -- die Namensregel kaum noch etwas, haben sich die Namen der Quelle geändert.
 SELECT 'rank placeholders',
@@ -196,6 +212,30 @@ SELECT 'species_name_lookup (targets)',
      JOIN species_name_lookup l
        ON l.normalized_name = e.normalized_name AND l.species_id = e.species_id),
     (SELECT COUNT(*) FROM validate_lookup_expected),
+    'always'
+UNION ALL
+
+-- species_synonyms_fts: genau die erwarteten Namen
+-- (validate_synonym_search_expected), jeder bei seiner Art — wie beim
+-- species_name_lookup gleiche Anzahl in beide Richtungen und jeder erwartete
+-- Name samt Art in der Tabelle.
+SELECT 'species_synonyms_fts (>= expected)',
+    (SELECT COUNT(*) FROM species_synonyms_fts),
+    (SELECT COUNT(*) FROM validate_synonym_search_expected),
+    'always'
+UNION ALL
+SELECT 'species_synonyms_fts (<= expected)',
+    (SELECT COUNT(*) FROM validate_synonym_search_expected),
+    (SELECT COUNT(*) FROM species_synonyms_fts),
+    'always'
+UNION ALL
+SELECT 'species_synonyms_fts (names)',
+    (SELECT COUNT(*) FROM (
+        SELECT DISTINCT e.species_id, e.normalized_name
+        FROM validate_synonym_search_expected e
+        JOIN species_synonyms_fts f
+          ON f.species_id = e.species_id AND LOWER(TRIM(f.name)) = e.normalized_name)),
+    (SELECT COUNT(*) FROM validate_synonym_search_expected),
     'always'
 UNION ALL
 

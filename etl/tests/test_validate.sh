@@ -49,6 +49,15 @@ INSERT INTO taxonomy_distribution_regions
     (entity_id, entity_type, source, region_scope, region_key, region_label)
 SELECT 'discere:species:' || (i % 30000 + 1), 'species', 'fishbase', 'country', 'r' || i, 'R'
 FROM n;
+-- Synonyme erst ab Art 11: Die Fälle unten schreiben die Namen der ersten
+-- Arten um.
+INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred)
+SELECT 'discere:species:' || (i % 29990 + 11), 'Syn s' || i, 'syn s' || i, 'synonym', 'fishbase', 0
+FROM n WHERE i <= 40000;
+INSERT INTO species_name_lookup (normalized_name, species_id)
+SELECT normalized_name, species_id FROM species_scientific_names;
+INSERT INTO species_synonyms_fts (species_id, name)
+SELECT species_id, name FROM species_scientific_names;
 SQL
 }
 
@@ -63,6 +72,13 @@ seed_locale_place_mappings() {
 
 validate() {
     run_capture "$ETL_DIR/core/validate.sh" --db "$DB" --plugins-dir "$ETL_DIR/plugins" "$@"
+}
+
+# Baut nach einer Änderung der Namen species_name_lookup und
+# species_synonyms_fts neu auf, wie Stage 03 und 04 des Builds.
+rebuild_name_indexes() {
+    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    sqlite3 "$DB" < "$ETL_DIR/core/sql/rebuild_fts.sql"
 }
 
 # Kopiert core/ nach $TEST_TMP/etl, damit ein Fall validate.sql ändern kann.
@@ -145,12 +161,12 @@ test_validate_fails_on_active_species_with_genus_without_preferred_name() {
         INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
             ('discere:species:1', 'G1 s1', 'g1 s1', 'valid', 'fishbase', 1),
             ('discere:species:2', 'G1 s2', 'g1 s2', 'valid', 'fishbase', 1);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 0
     sqlite3 "$DB" "UPDATE species_scientific_names SET is_preferred = 0, name_status = 'synonym'
                    WHERE species_id = 'discere:species:2';"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: species (preferred name) — 1 (erwartet >= 2)"
@@ -165,12 +181,12 @@ test_validate_fails_on_preferred_name_of_species_without_genus_with_other_epithe
         INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
             ('discere:species:1', 'Abra s1', 'abra s1', 'valid', 'sealifebase', 1),
             ('discere:species:2', 'Abra s2', 'abra s2', 'valid', 'sealifebase', 1);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 0
     sqlite3 "$DB" "UPDATE species_scientific_names SET name = 'Abra s22', normalized_name = 'abra s22'
                    WHERE species_id = 'discere:species:2';"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: species without genus (preferred name) — 1 (erwartet >= 2)"
@@ -192,7 +208,7 @@ test_validate_fails_on_preferred_name_other_than_own_binomial() {
             ('discere:species:1', 'Callista niger', 'callista niger', 'valid', 'fishbase', 1),
             ('discere:species:2', 'Callista chione', 'callista chione', 'valid', 'fishbase', 1),
             ('discere:species:2', 'Callista niger', 'callista niger', 'synonym', 'fishbase', 0);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     assert_eq "discere:species:1" \
         "$(sqlite3 "$DB" "SELECT species_id FROM species_name_lookup WHERE normalized_name = 'callista niger';")" \
         "Lookup callista niger"
@@ -211,7 +227,7 @@ test_validate_fails_on_two_preferred_names_of_one_species_in_one_source() {
             ('discere:species:1', 'G1 t1', 'g1 t1', 'valid', 'fishbase', 1),
             ('discere:species:2', 'G2 s2', 'g2 s2', 'valid', 'fishbase', 1),
             ('discere:species:2', 'G2 s2', 'g2 s2', 'valid', 'sealifebase', 1);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: preferred names (per source) — 3 (erwartet >= 4)"
@@ -233,7 +249,7 @@ test_validate_fails_on_inaturalist_mapping_without_chain() {
         INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id) VALUES
             ('discere:species:1', 'species', 'inaturalist', '1'),
             ('genus:g1',          'genera',  'inaturalist', '2');"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 0
     sqlite3 "$DB" "
@@ -286,6 +302,41 @@ test_validate_fails_on_parent_override_the_build_does_not_contain() {
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: source_parent_overrides — 0 (erwartet >= 1)"
+}
+
+# species_synonyms_fts enthält genau die Synonyme aktiver Arten, jedes bei
+# seiner Art: Eine fehlende Zeile fällt auf, auch wenn die Mindestzahl noch
+# erreicht ist.
+test_validate_fails_on_missing_synonym_search_row() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred)
+        VALUES ('discere:species:11', 'Syn x', 'syn x', 'synonym', 'fishbase', 0);
+        INSERT INTO species_name_lookup (normalized_name, species_id) VALUES ('syn x', 'discere:species:11');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species_synonyms_fts (>= expected) — 40000 (erwartet >= 40001)"
+}
+
+# Ebenso eine Zeile, die keinem Synonym einer aktiven Art entspricht.
+test_validate_fails_on_extra_synonym_search_row() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "INSERT INTO species_synonyms_fts (species_id, name) VALUES ('discere:species:11', 'Syn x');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species_synonyms_fts (<= expected) — 40000 (erwartet >= 40001)"
+}
+
+# Und ein Synonym, das bei einer anderen Art steht als der, die es führt.
+test_validate_fails_on_synonym_search_row_at_other_species() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "UPDATE species_synonyms_fts SET species_id = 'discere:species:11' WHERE name = 'Syn s1';"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species_synonyms_fts (names) — 39999 (erwartet >= 40000)"
 }
 
 test_validate_aborts_on_unknown_requirement() {

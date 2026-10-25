@@ -42,7 +42,7 @@ build.sh                       ← Orchestrator
 │       ├── distribution_regions.sql ← ebenso: Verbreitung je Art und Region
 │       ├── common_names.sql   ← ebenso: Volksnamen, je Schlüssel eine Zeile
 │       ├── rebuild_lookup.sql ← Regel für species_name_lookup (lookup_report.sql: Bericht)
-│       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
+│       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins, samt Suche über Synonyme
 │       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten
 ├── cache/releases/           ← Vorgänger-Releases je Version (gitignored)
 ├── plugins/
@@ -87,7 +87,7 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | 02c | `plugins/*/import.sh` | Ergänzende Quellen (heute `curated`, `inaturalist`) auf den endgültigen IDs |
 | 02d | `core/placeholders.sh` | Rang-Platzhalter der Quellen markieren (`is_placeholder`), für alle Quellen nach derselben Namensregel |
 | 03 | `core/lookup.sh` | `species_name_lookup` materialisieren: nur Namen, die genau eine aktive Art meinen |
-| 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
+| 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins), dazu `species_synonyms_fts` mit den Synonymen aktiver Arten |
 | — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
 | 05 | `core/check_references.sh`, `core/validate.sh` | Verweise auf Entitäten, Mindestzahlen und Invarianten prüfen |
 
@@ -148,7 +148,8 @@ Pflicht und sagt, was im Build gelaufen sein muss, damit die Zeile gilt:
   aktiver Art mit Gattung ein bevorzugter wissenschaftlicher Name, der ihr
   eigener ist (Gattung und Epitheton), bei einer Art ohne Gattung einer, der
   auf ihr Epitheton endet, und je Art und Quelle höchstens einer, `species_name_lookup` mit genau den eindeutig
-  auflösbaren Namen, jeder auf seine Art, und jede Familie in
+  auflösbaren Namen, jeder auf seine Art, `species_synonyms_fts` mit genau
+  den Synonymen aktiver Arten, jedes bei seiner Art, und jede Familie in
   `source_parent_overrides` unter der Ordnung, die dort steht;
 - `enrich` — Stage 01b, z. B. `locale_place_mappings` ≥ 70;
 - `inaturalist` — Invariante der iNaturalist-Zuordnung: Jede zugeordnete Art
@@ -337,6 +338,13 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 **ID-Vergabe:** Plugins erzeugen vorläufige IDs über `discere_uuid(source, entity, external_id)` (`discere:<source>_<entity>:<external_id>`) und verknüpfen damit ihre eigenen Tabellen. Die Identitäts-Stage ersetzt sie durch die endgültigen IDs aus `entity_source_keys`, dem ID-Register: je Quellenschlüssel (`source`, `entity_type`, `external_id`) die Entitäts-ID und ob die Quelle ihn in diesem Build geliefert hat (`active`). `entity_aliases` führt jede frühere ID, die keine Entität mehr bezeichnet, mit ihrer gültigen. Beide Tabellen reisen im Release mit.
 
+**Suche:** fts4-Tabellen (`*_fts`, `tokenize=unicode61`) über die Namen
+der Taxa und die Volksnamen; Stage 04 baut sie nach allen Plugins neu auf.
+`species_synonyms_fts` (`species_id`, `name`; `species_id` nicht indexiert)
+führt je aktive Art jedes Synonym ohne falsch angewandte, damit die Suche eine
+Art auch unter einem veralteten Namen findet. Ein Synonym mehrerer Arten
+steht bei jeder.
+
 **`metadata`** — eine Zeile pro importierter Quelle:
 
 ```
@@ -390,8 +398,8 @@ Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
 Erkennung der Rang-Platzhalter, die Exporte von FishBase und SeaLifeBase
 mit synthetischen Parquets (Platzhalter, eine Zeile je Art und Name, Gattung passend zur Familie der Art, eine Verbreitungszeile je Art und Region), die
-Namensauflösung über `species_name_lookup`,
-`plugins/curated/import.sh` und `plugins/inaturalist/import.sh` (samt
+Namensauflösung über `species_name_lookup`, die Suche über Synonyme
+(`species_synonyms_fts`), `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` (samt
 Prüfung gegen die eigene Kette) gegen eine Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
 Validierung mit ihren Voraussetzungen sowie das Laden des Vorgängers über
 `file://`-URLs. Eine Zeile je Fall, Exit-Code

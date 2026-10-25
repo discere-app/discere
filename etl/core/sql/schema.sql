@@ -472,9 +472,10 @@ CREATE INDEX IF NOT EXISTS idx_taxonomy_distribution_regions_status
 -- Verwendet fts4 — fts5 ist im sqflite SQLite-Build auf iOS/Android
 -- nicht zuverlässig verfügbar (nicht Teil des SQLite-Core).
 -- fts4 content tables vermeiden duplizierte Daten.
--- Erfordert nach jedem Import ein rebuild:
+-- Erfordert nach dem Import ein rebuild:
 --   INSERT INTO species_fts(species_fts) VALUES('rebuild');
--- Das übernimmt das jeweilige Plugin automatisch.
+-- Das übernimmt Stage 04 von build.sh (core/sql/rebuild_fts.sql) nach allen
+-- Plugins.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
@@ -488,6 +489,19 @@ CREATE VIRTUAL TABLE species_fts USING fts4(
     content='species',
     id,
     name,
+    tokenize=unicode61
+);
+
+-- Synonyme aktiver Arten, damit die Suche eine Art auch unter einem
+-- veralteten Namen findet. Keine content-Tabelle: Ein rebuild nähme jede
+-- Zeile von species_scientific_names, auch bevorzugte und falsch angewandte
+-- Namen; core/sql/rebuild_fts.sql befüllt sie gefiltert. species_id ist
+-- nicht indexiert, MATCH sucht nur im Namen.
+DROP TABLE IF EXISTS species_synonyms_fts;
+CREATE VIRTUAL TABLE species_synonyms_fts USING fts4(
+    species_id,
+    name,
+    notindexed=species_id,
     tokenize=unicode61
 );
 

@@ -107,17 +107,78 @@ test_match_keeps_quotes_as_part_of_the_name() {
     assert_eq "testquelle	none	50	\"Amphiprion\"	" "$REPORT" "Bericht"
 }
 
-# Die Quelle führt den akzeptierten Namen von species:5 als eigenen Datensatz
-# (der selbst mehrdeutig ist, weil er auch Synonym von species:6 ist). Ihr
-# Datensatz unter dem Synonym meint damit ein anderes Taxon und darf
+# Amphiprion frenatus ist der akzeptierte Name von species:5 und Synonym von
+# species:6. Die Quelle führt ihn bei species:5 als gültig, also gilt sie.
+test_match_prefers_entity_with_name_as_accepted() {
+    create_mini_reference_db
+    match_lines $'60\tspecies\tAmphiprion frenatus'
+    assert_eq "discere:fishbase_species:5|matched|name|" "$(result_of 60)" "Ergebnis"
+    assert_eq "" "$REPORT" "Bericht"
+}
+
+# Die Quelle führt den akzeptierten Namen von species:5 als eigenen Datensatz.
+# Ihr Datensatz unter dem Synonym meint damit ein anderes Taxon und darf
 # species:5 nicht bekommen.
-test_match_synonym_loses_to_record_with_accepted_name_even_if_ambiguous() {
+test_match_synonym_loses_to_record_with_accepted_name() {
     create_mini_reference_db
     match_lines $'60\tspecies\tAmphiprion frenatus' $'61\tspecies\tAmphiprion melanopus'
-    assert_eq "|ambiguous||mehrere Entitäten: discere:fishbase_species:5, discere:fishbase_species:6" \
-        "$(result_of 60)" "akzeptierter Name, zugleich Synonym"
+    assert_eq "discere:fishbase_species:5|matched|name|" "$(result_of 60)" "akzeptierter Name, zugleich Synonym"
     assert_eq "|ambiguous||weitere Datensätze treffen discere:fishbase_species:5: 60" \
         "$(result_of 61)" "Synonym"
+}
+
+# Zwei Datensätze treffen species:5 über ihren akzeptierten Namen, einer davon
+# erst, nachdem der Vorrang species:6 verworfen hat. Keiner trifft sie als
+# einziger über den akzeptierten Namen, also bekommt sie keiner.
+test_match_entity_with_two_records_by_accepted_name_goes_to_neither() {
+    create_mini_reference_db
+    match_lines $'60\tspecies\tAmphiprion frenatus' $'62\tspecies\tamphiprion FRENATUS'
+    assert_eq "|ambiguous||weitere Datensätze treffen discere:fishbase_species:5: 62" \
+        "$(result_of 60)" "erster Datensatz"
+    assert_eq "|ambiguous||weitere Datensätze treffen discere:fishbase_species:5: 60" \
+        "$(result_of 62)" "zweiter Datensatz"
+}
+
+# Ergänzt die Mini-DB um Namensvettern aus einer zweiten Quelle:
+#   species:7 Amphiprion clarkii (sealifebase), akzeptierter Name wie species:3,
+#             und Synonym von species:2
+#   Amphiprion xanthurus, Synonym nur von species:3
+#   genus:2 Amphiprion (sealifebase), gleichnamig mit genus:1
+add_namesakes_of_second_source() {
+    sqlite3 "$DB" << 'SQL'
+INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+    ('discere:sealifebase_genus:2', '2', 'sealifebase', 'Amphiprion', 'discere:fishbase_family:1');
+INSERT INTO species (id, external_id, external_source, name, genus, status) VALUES
+    ('discere:sealifebase_species:7', '7', 'sealifebase', 'clarkii', 'discere:sealifebase_genus:2', 'active');
+INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
+    ('discere:sealifebase_species:7', 'Amphiprion clarkii',   'amphiprion clarkii',   'valid',   'sealifebase', 1),
+    ('discere:fishbase_species:2',    'Amphiprion clarkii',   'amphiprion clarkii',   'synonym', 'fishbase',    0),
+    ('discere:fishbase_species:3',    'Amphiprion xanthurus', 'amphiprion xanthurus', 'synonym', 'fishbase',    0);
+SQL
+}
+
+# Ist ein Name bei zwei Entitäten der akzeptierte — zwei Arten oder zwei
+# gleichnamige Gattungen —, wird nicht gewählt, und der Datensatz behält alle
+# Kandidaten, auch die über ein Synonym.
+test_match_never_picks_among_several_entities_with_name_as_accepted() {
+    create_mini_reference_db
+    add_namesakes_of_second_source
+    match_lines $'63\tspecies\tAmphiprion clarkii' $'64\tgenus\tAmphiprion'
+    assert_eq "|ambiguous||mehrere Entitäten: discere:fishbase_species:2, discere:fishbase_species:3, discere:sealifebase_species:7" \
+        "$(result_of 63)" "Art"
+    assert_eq "|ambiguous||mehrere Entitäten: discere:fishbase_genus:1, discere:sealifebase_genus:2" \
+        "$(result_of 64)" "Gattung"
+}
+
+# Der Datensatz Amphiprion clarkii ist selbst mehrdeutig, trifft species:3
+# aber über ihren akzeptierten Namen. Der Datensatz unter ihrem Synonym
+# Amphiprion xanthurus bekommt species:3 deshalb nicht.
+test_match_synonym_loses_to_record_with_accepted_name_even_if_ambiguous() {
+    create_mini_reference_db
+    add_namesakes_of_second_source
+    match_lines $'63\tspecies\tAmphiprion clarkii' $'65\tspecies\tAmphiprion xanthurus'
+    assert_eq "|ambiguous||weitere Datensätze treffen discere:fishbase_species:3: 63" \
+        "$(result_of 65)" "Synonym"
 }
 
 # Amphiprion ocellaris ist der akzeptierte Name von species:1 und bei

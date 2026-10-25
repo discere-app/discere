@@ -79,12 +79,27 @@ class SpeciesRepository {
   Future<List<Species>> search(String query) async {
     final db = await DatabaseHelper.referenceDb;
 
-    // FTS4 Suche über alle Sprachen
+    // FTS4 Suche über alle Sprachen, die FTS-Tabelle nur im IN-Subquery
+    // (ARCH-14)
     final results = await db.rawQuery('''
       SELECT s.*
       FROM species s
-      JOIN species_fts fts ON s.id = fts.id
-      WHERE species_fts MATCH ?
+      WHERE s.id IN (SELECT id FROM species_fts WHERE species_fts MATCH ?)
+      ORDER BY s.name
+      LIMIT 50
+    ''', ['$query*']);
+
+    return results.map(Species.fromMap).toList();
+  }
+
+  // Suche über Synonyme aktiver Arten (species_synonyms_fts), ebenso.
+  Future<List<Species>> searchBySynonym(String query) async {
+    final db = await DatabaseHelper.referenceDb;
+    final results = await db.rawQuery('''
+      SELECT s.*
+      FROM species s
+      WHERE s.id IN (SELECT species_id FROM species_synonyms_fts
+                     WHERE species_synonyms_fts MATCH ?)
       ORDER BY s.name
       LIMIT 50
     ''', ['$query*']);
