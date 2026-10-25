@@ -149,13 +149,6 @@ class INatPhotoApi {
     }
   }
 
-  /// Fetches just the taxon-detail-derived metadata (Wikipedia URL, IUCN
-  /// status) for an already-known [taxonId] — no photo/observation calls.
-  ///
-  /// Intended for opportunistic backfill: species enriched before a field
-  /// like `iucnStatus` existed have a cached taxon ID but never had that
-  /// field fetched. This lets a caller top it up on demand with a single
-  /// lightweight call instead of a full re-enrichment.
   /// Warms the taxon-detail cache for a whole batch at once. Kept on the
   /// service because its callers hold this, not [INatTaxonDetails] — that
   /// changes when the four API areas get their own types.
