@@ -109,7 +109,7 @@ darunter, Stage 03 unter `lookup` jeden Namen aktiver Arten ohne Eintrag in
 `species_name_lookup`, weil er mehrere Arten meint (`ambiguous`, mit allen
 Arten) oder nur als falsch angewandter Name vorkommt (`misapplied`; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#wissenschaftliche-namen)), SeaLifeBase unter `sealifebase` jede Art ohne GenCode: aufgelöst
-über den eindeutigen Gattungsnamen (`genus_by_name`) oder offen
+über die einzige passende Gattung ihres Namens (`genus_by_name`) oder offen
 (`genus_unresolved`, mit Grund; siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#fehlende-codes-in-der-quelle)),
 jede Familie, deren Ordnungscode in einen anderen Stamm zeigt, als sie selbst
@@ -122,7 +122,9 @@ mit der Kette über den Code
 (siehe
 [`docs/datenquellen.md`](docs/datenquellen.md#stamm-einer-familie-gegen-ihren-ordnungscode)),
 und jede Art, deren Gattung nicht zu ihrer eigenen Familie passt: verworfen
-(`genus_rejected`, Grund `Name`, `Stamm`, `Klasse` oder `Ordnung unklar`)
+(`genus_rejected`, Grund `Name`, `Stamm`, `Klasse` oder `Ordnung unklar`),
+ersetzt durch die einzige passende Gattung mit dem Namen der Art
+(`genus_replaced_by_name`, mit beiden Gattungen)
 oder behalten, weil nur Familie bzw. Ordnung abweichen
 (`genus_kept_family_differs`, `genus_kept_order_differs`), je mit beiden
 Ketten (siehe

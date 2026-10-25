@@ -16,9 +16,10 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 /// `test/fixtures/discere_reference_test.db`, because these tests need both
 /// halves of every case — a taxon that *is* in the reference DB and one
 /// that deliberately is not — and the fixture's 27 curated species cannot
-/// guarantee either side. The schema is the five name columns this resolver
-/// actually queries (`genera`/`species` for the binomial join, plus the
-/// three higher-rank tables), not a copy of the FTS-heavy schema in
+/// guarantee either side. The schema is the name columns this resolver
+/// actually queries (`genera`/`species` for the binomial join,
+/// `species_scientific_names` for a species without a genus, plus the three
+/// higher-rank tables), not a copy of the FTS-heavy schema in
 /// `search_repository_test.dart`: the resolver runs no FTS at all, so
 /// sharing that helper would mean seeding seven virtual tables to test
 /// queries that never touch them.
@@ -69,10 +70,20 @@ Future<Database> _openReferenceDatabase() async {
   ''');
   await db.execute('''
     CREATE TABLE species (
-      id     TEXT NOT NULL PRIMARY KEY,
-      genus  TEXT NOT NULL,
-      name   TEXT NOT NULL,
-      status TEXT NOT NULL
+      id              TEXT NOT NULL PRIMARY KEY,
+      external_source TEXT,
+      genus           TEXT,
+      name            TEXT NOT NULL,
+      status          TEXT NOT NULL
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE species_scientific_names (
+      species_id      TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      normalized_name TEXT NOT NULL,
+      source          TEXT NOT NULL,
+      is_preferred    INTEGER NOT NULL
     )
   ''');
   // Each rank points at its parent, so a taxon can be told to have an
@@ -179,6 +190,34 @@ void main() {
 
       expect(rows, hasLength(1));
       expect(rows.single['id'], 'species-1');
+    });
+
+    test('a species without a genus is matched by its preferred scientific '
+        'name', () async {
+      await referenceDb.insert('species', {
+        'id': 'species-2',
+        'external_source': 'sealifebase',
+        'name': 'humilis',
+        'status': 'active',
+      });
+      await referenceDb.insert('species_scientific_names', {
+        'species_id': 'species-2',
+        'name': 'Gattya humilis',
+        'normalized_name': 'gattya humilis',
+        'source': 'sealifebase',
+        'is_preferred': 1,
+      });
+      final resolver = resolverFor(
+        _FakeINatSearchApi([
+          _iNatResult(scientificName: 'Gattya humilis', rank: 'species'),
+        ]),
+      );
+
+      final rows = await resolver.searchAndResolveINat('gattya');
+
+      expect(rows, hasLength(1));
+      expect(rows.single['id'], 'species-2');
+      expect(rows.single['scientific_name'], 'Gattya humilis');
     });
 
     test('a species the reference DB does not know yields no row', () async {

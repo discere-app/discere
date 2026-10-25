@@ -13,6 +13,7 @@ import 'package:discere/catalog/repository/binomial_name.dart';
 import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/repository/species_scientific_name_sql.dart';
 import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/util/continent_for_country.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
@@ -51,6 +52,8 @@ class SpeciesRepository {
   static const String columnSpeciesTrophicLevelFood = 'trophic_level_food';
   static const String columnSpeciesStatus = 'status';
   static const String columnSpeciesGenusId = 'genus'; // FK to Genera
+  static const String columnPreferredScientificName =
+      'preferred_scientific_name';
 
   static const String generaTableName = 'genera';
   static const String generaAlias = 'g';
@@ -117,6 +120,7 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesBodyShape AS ${speciesAlias}_$columnSpeciesBodyShape,
       $speciesAlias.$columnSpeciesTrophicLevelFood AS ${speciesAlias}_$columnSpeciesTrophicLevelFood,
       $speciesAlias.$columnSpeciesStatus AS ${speciesAlias}_$columnSpeciesStatus,
+      ${preferredScientificNameSql(species: speciesAlias, genus: generaAlias)} AS ${speciesAlias}_$columnPreferredScientificName,
 
       $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
       $generaAlias.$columnGenusName AS ${generaAlias}_$columnGenusName,
@@ -421,7 +425,7 @@ class SpeciesRepository {
       if (normalized.isEmpty || !seen.add(normalized)) {
         return;
       }
-      candidates.add(_displayScientificName(normalized));
+      candidates.add(displayBinomial(normalized));
     }
 
     addCandidate(preferredScientificName);
@@ -506,14 +510,6 @@ class SpeciesRepository {
     return resolvedNames;
   }
 
-  String _displayScientificName(String normalizedBinomial) {
-    final parts = normalizedBinomial.split(' ');
-    if (parts.length < 2) return normalizedBinomial;
-    final genus = parts.first;
-    final epithet = parts[1];
-    return '${genus[0].toUpperCase()}${genus.substring(1)} $epithet';
-  }
-
   Species _mapToSpecies(
     Map<String, dynamic> map,
     List<Picture> pictures,
@@ -534,6 +530,8 @@ class SpeciesRepository {
       commonNames,
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
+      preferredScientificName:
+          map['${speciesAlias}_$columnPreferredScientificName'] as String?,
       maxLengthCm: _parseDouble(
         map['${speciesAlias}_$columnSpeciesMaxLengthCm'],
       ),

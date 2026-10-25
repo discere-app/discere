@@ -12,7 +12,15 @@ class Species {
   final String id;
   final String externalId;
   final String externalSource;
+
+  /// The epithet, without the genus — see [binomialName] for the full name.
   final String scientificName;
+
+  /// The full scientific name the species' source prefers for it, such as
+  /// "Gattya humilis". Only needed — and only loaded — for a species without
+  /// a genus, whose epithet alone names nothing; with a genus, the full name
+  /// is genus and epithet.
+  final String? preferredScientificName;
   final Map<Language, List<String>> commonNames;
   final Classification classification;
   final List<Picture> pictures;
@@ -50,6 +58,7 @@ class Species {
     this.commonNames,
     this.classification,
     this.pictures, {
+    this.preferredScientificName,
     this.maxLengthCm,
     this.depthMinM,
     this.depthMaxM,
@@ -69,15 +78,16 @@ class Species {
 
   bool get isDeprecated => status == SpeciesStatus.deprecated;
 
-  /// "Genus epithet", or `null` for a species without a genus: its epithet
-  /// alone is no binomial, and a search by it would find whichever species
-  /// shares the epithet.
+  /// The species' full scientific name: "Genus epithet", or for a species
+  /// without a genus its [preferredScientificName]. `null` when it has
+  /// neither — its epithet alone is no binomial, and a search by it would
+  /// find whichever species shares the epithet.
   String? get binomialName {
     final genus = classification.genusScientificName;
-    return genus == null ? null : '$genus $scientificName';
+    return genus == null ? preferredScientificName : '$genus $scientificName';
   }
 
   /// The species' scientific name to show — its [binomialName], or the
-  /// epithet alone when it has no genus. Not a name to search a source by.
+  /// epithet alone when it has none. Not a name to search a source by.
   String getBinomialName() => binomialName ?? scientificName;
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/species_scientific_name_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
@@ -158,11 +159,15 @@ class INatReferenceResolver {
     }
   }
 
+  /// The local species each name in [normalizedBinomials] names: by genus
+  /// and epithet, or — for a species without a genus — by its preferred
+  /// scientific name.
   Future<List<Map<String, dynamic>>> _querySpeciesByBinomials(
     Database db,
     List<String> normalizedBinomials,
   ) async {
     final mergedById = <String, Map<String, dynamic>>{};
+    final speciesName = speciesScientificNameSql(species: 's', genus: 'g');
 
     for (final scientificName in normalizedBinomials) {
       final pair = _splitBinomial(scientificName);
@@ -173,17 +178,31 @@ class INatReferenceResolver {
       final rows = await db
           .rawQuery(
             '''
-      SELECT s.id,
-             g.name || ' ' || s.name AS scientific_name,
-             'species' AS entity_type
-      FROM species s
-      JOIN genera g ON g.id = s.genus
-      WHERE lower(trim(g.name)) = ?
-        AND lower(trim(s.name)) = ?
-        AND s.status = 'active'
+      SELECT id, scientific_name, entity_type FROM (
+        SELECT s.id,
+               $speciesName AS scientific_name,
+               'species' AS entity_type
+        FROM species s
+        JOIN genera g ON g.id = s.genus
+        WHERE lower(trim(g.name)) = ?
+          AND lower(trim(s.name)) = ?
+          AND s.status = 'active'
+        UNION ALL
+        SELECT s.id,
+               $speciesName AS scientific_name,
+               'species' AS entity_type
+        FROM species s
+        LEFT JOIN genera g ON g.id = s.genus
+        WHERE s.id IN (
+          SELECT species_id FROM species_scientific_names
+          WHERE normalized_name = ? AND is_preferred = 1
+        )
+          AND g.id IS NULL
+          AND s.status = 'active'
+      )
       LIMIT 1
     ''',
-            [pair.genus, pair.species],
+            [pair.genus, pair.species, scientificName],
           )
           .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 

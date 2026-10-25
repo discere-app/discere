@@ -158,14 +158,24 @@ Future<void> _createReferenceSearchSchema(Database db) async {
   ''');
   await db.execute('''
     CREATE TABLE species (
-      id             TEXT NOT NULL PRIMARY KEY,
-      genus          TEXT NOT NULL,
-      name           TEXT NOT NULL,
-      status         TEXT NOT NULL,
-      common_name_en TEXT,
-      common_name_de TEXT,
-      common_name_fr TEXT,
-      common_name_es TEXT
+      id              TEXT NOT NULL PRIMARY KEY,
+      external_source TEXT,
+      genus           TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      status          TEXT NOT NULL,
+      common_name_en  TEXT,
+      common_name_de  TEXT,
+      common_name_fr  TEXT,
+      common_name_es  TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE species_scientific_names (
+      species_id      TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      normalized_name TEXT NOT NULL,
+      source          TEXT NOT NULL,
+      is_preferred    INTEGER NOT NULL
     )
   ''');
   await db.execute('''

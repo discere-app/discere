@@ -10,3 +10,13 @@ String normalizeToBinomial(String name) {
   if (parts.length < 2) return '';
   return '${parts[0].toLowerCase()} ${parts[1].toLowerCase()}';
 }
+
+/// A [normalizeToBinomial] result as a name to show: the genus capitalized
+/// again ("carcharodon carcharias" → "Carcharodon carcharias").
+String displayBinomial(String normalizedBinomial) {
+  final parts = normalizedBinomial.split(' ');
+  if (parts.length < 2) return normalizedBinomial;
+  final genus = parts.first;
+  final epithet = parts[1];
+  return '${genus[0].toUpperCase()}${genus.substring(1)} $epithet';
+}
