@@ -739,12 +739,8 @@ void main() {
   });
 
   group('INatPhotoApi.fetchThumbnailUrl', () {
-    test('returns the first curated medium thumbnail', () async {
-      final searchBody = {
-        'results': [
-          {'name': 'Amphiprion ocellaris', 'id': 54321},
-        ],
-      };
+    test('returns the first curated medium thumbnail of the given taxon, '
+        'without a name search', () async {
       final detailBody = {
         'results': [
           {
@@ -763,21 +759,23 @@ void main() {
         ],
       };
 
+      final requests = <Uri>[];
       final client = MockClient((request) async {
+        requests.add(request.url);
         if (request.url.path == '/v2/taxa/54321') {
           return http.Response(jsonEncode(detailBody), 200);
-        }
-        if (request.url.path == '/v2/taxa') {
-          return http.Response(jsonEncode(searchBody), 200);
         }
         return http.Response('', 404);
       });
 
       final service = _photoApi(client);
-      final result = await service.fetchThumbnailUrl('Amphiprion ocellaris');
+      final result = await service.fetchThumbnailUrl(54321);
 
-      expect(result, isNotNull);
-      expect(result, contains('/medium.'));
+      expect(
+        result,
+        'https://static.inaturalist.org/photos/expert/medium.jpeg',
+      );
+      expect(requests.map((uri) => uri.path), ['/v2/taxa/54321']);
     });
   });
 

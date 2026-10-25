@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// round that failed — with results already on screen or without any.
 void main() {
   // The thumbnail cache is static and shared across every test in this
-  // shard, so a name resolved here must not leak into the next test.
+  // shard, so a thumbnail resolved here must not leak into the next test.
   setUp(SearchResultThumbnail.resetCacheForTesting);
 
   final octopus = SearchResult(

@@ -149,49 +149,30 @@ class INatPhotoApi {
     }
   }
 
-  /// Fetches just the taxon-detail-derived metadata (Wikipedia URL, IUCN
-  /// status) for an already-known [taxonId] — no photo/observation calls.
-  ///
-  /// Intended for opportunistic backfill: species enriched before a field
-  /// like `iucnStatus` existed have a cached taxon ID but never had that
-  /// field fetched. This lets a caller top it up on demand with a single
-  /// lightweight call instead of a full re-enrichment.
   /// Warms the taxon-detail cache for a whole batch at once. Kept on the
   /// service because its callers hold this, not [INatTaxonDetails] — that
   /// changes when the four API areas get their own types.
   Future<void> prefetchTaxonDetails(Iterable<int> taxonIds) =>
       _taxonDetails.prefetch(taxonIds);
 
-  /// Fetches a single remote thumbnail URL for a taxon.
+  /// Fetches a single remote thumbnail URL for the taxon [taxonId].
   ///
-  /// This lightweight helper is intended for search-result thumbnails where we
-  /// want to enrich the UI without downloading or persisting images locally.
-  /// It resolves the taxon, loads the curated taxon detail, and returns the
-  /// first available medium-sized photo URL when one exists.
-  Future<String?> fetchThumbnailUrl(
-    String scientificName, {
-    int? taxonId,
-  }) async {
+  /// This lightweight helper is intended for list thumbnails where we want to
+  /// enrich the UI without downloading or persisting images locally. It
+  /// takes an id rather than a name because only a caller that checked the
+  /// taxon belongs to its species may show its photo; a name search alone
+  /// would hand a homonym's picture to the list. Loads the curated taxon
+  /// detail and returns the first available medium-sized photo URL, null
+  /// when there is none or the fetch failed.
+  Future<String?> fetchThumbnailUrl(int taxonId) async {
     final stopwatch = Stopwatch()..start();
-    INatApiClient.logDebug('iNat thumbnail start for "$scientificName"');
+    INatApiClient.logDebug('iNat thumbnail start for taxon=$taxonId');
     try {
-      final resolvedTaxonId = await _taxonIds.resolve(
-        scientificName,
-        taxonId: taxonId,
-      );
-      if (resolvedTaxonId == null) {
-        INatApiClient.logDebug(
-          'iNat thumbnail no taxon for "$scientificName" '
-          '(${stopwatch.elapsedMilliseconds}ms)',
-        );
-        return null;
-      }
-
-      final taxonDetail = await _taxonDetails.fetch(resolvedTaxonId);
+      final taxonDetail = await _taxonDetails.fetch(taxonId);
       if (taxonDetail.taxonDetail == null) {
         INatApiClient.logDebug(
-          'iNat thumbnail no taxon detail for "$scientificName" '
-          '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
+          'iNat thumbnail no taxon detail for taxon=$taxonId '
+          '(${stopwatch.elapsedMilliseconds}ms)',
         );
         return null;
       }
@@ -199,20 +180,20 @@ class INatPhotoApi {
       final photos = usablePhotosOf(taxonDetail.taxonDetail!);
       if (photos.isEmpty) {
         INatApiClient.logDebug(
-          'iNat thumbnail no photos for "$scientificName" '
-          '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
+          'iNat thumbnail no photos for taxon=$taxonId '
+          '(${stopwatch.elapsedMilliseconds}ms)',
         );
         return null;
       }
 
       INatApiClient.logDebug(
-        'iNat thumbnail resolved for "$scientificName" '
-        '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
+        'iNat thumbnail resolved for taxon=$taxonId '
+        '(${stopwatch.elapsedMilliseconds}ms)',
       );
       return photos.first.mediumUrl;
     } catch (e) {
       INatApiClient.logDebug(
-        'iNat thumbnail fetch error for "$scientificName" '
+        'iNat thumbnail fetch error for taxon=$taxonId '
         '(${stopwatch.elapsedMilliseconds}ms): $e',
       );
       return null;
