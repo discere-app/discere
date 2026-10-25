@@ -86,7 +86,7 @@ test_curated_rejects_flag_of_another_plugin() {
     setup_curated
     run_capture "$CURATED_IMPORT" --db "$DB" --version v25.04
     assert_status 1
-    assert_contains "$ERR" "[ERROR] [curated] Unbekanntes Argument: --version"
+    assert_contains "$ERR" "[ERROR] [curated] Unbekanntes Argument: --version (siehe --help)"
     assert_eq 0 "$(curated_count)" "curated-Zeilen nach dem Abbruch"
 }
 

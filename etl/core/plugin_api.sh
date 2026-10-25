@@ -96,6 +96,13 @@ plugin_require_value() {
     [[ $# -ge 2 ]] || plugin_fail_as_script "$1 braucht einen Wert."
 }
 
+# plugin_fail_unknown_argument "$1" — im *)-Zweig jeder Argument-Schleife:
+# Ein unbekanntes Argument bricht ab, statt übergangen zu werden; ein
+# Tippfehler soll nicht still zum Default werden.
+plugin_fail_unknown_argument() {
+    plugin_fail_as_script "Unbekanntes Argument: $1 (siehe --help)"
+}
+
 # Gibt den Kopfkommentar eines Scripts als Hilfe aus: alles zwischen der
 # ersten und der zweiten Linie aus '# ===…'.
 plugin_print_help() {
@@ -145,8 +152,7 @@ plugin_parse_args() {
                     shift
                     break
                 done
-                [[ "$matched" == true ]] \
-                    || plugin_fail "Unbekanntes Argument: $1 (siehe --help)"
+                [[ "$matched" == true ]] || plugin_fail_unknown_argument "$1"
                 ;;
         esac
         shift

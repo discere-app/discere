@@ -93,7 +93,7 @@ test_build_flags_abort_on_unknown_argument_before_touching_the_db() {
     printf 'bestehend\n' > "$TEST_TMP/out.db"
     run_capture "$TEST_TMP/flags-etl/build.sh" --output "$TEST_TMP/out.db" --initial --force --no-dowload
     assert_status 1
-    assert_contains "$ERR" "[ERROR] [build] Unbekanntes Argument: --no-dowload"
+    assert_contains "$ERR" "[ERROR] [build] Unbekanntes Argument: --no-dowload (siehe --help)"
     assert_eq "bestehend" "$(cat "$TEST_TMP/out.db")" "bestehende DB"
     [[ ! -e "$TEST_TMP/source.args" && ! -e "$TEST_TMP/addon.args" ]] \
         || fail_case "Plugins liefen trotz Abbruch."
@@ -107,7 +107,7 @@ test_build_flags_reject_download_and_plugin_flags() {
     for flag in --download --version --fishbase-dir; do
         run_capture "$TEST_TMP/flags-etl/build.sh" --output "$TEST_TMP/out.db" --initial "$flag" x
         assert_status 1
-        assert_contains "$ERR" "[ERROR] [build] Unbekanntes Argument: $flag"
+        assert_contains "$ERR" "[ERROR] [build] Unbekanntes Argument: $flag (siehe --help)"
     done
     [[ ! -e "$TEST_TMP/out.db" ]] || fail_case "DB trotz Abbruch angelegt."
 }

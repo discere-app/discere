@@ -63,7 +63,7 @@ test_plugin_args_abort_on_unknown_flag() {
     create_probe_plugin
     run_capture "$PROBE" --no-dowload
     assert_status 1
-    assert_contains "$ERR" "[ERROR] [probe] Unbekanntes Argument: --no-dowload"
+    assert_contains "$ERR" "[ERROR] [probe] Unbekanntes Argument: --no-dowload (siehe --help)"
     assert_eq "" "$OUT" "stdout"
 }
 

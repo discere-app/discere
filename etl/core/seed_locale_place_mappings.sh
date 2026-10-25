@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
             plugin_print_help "$0"
             exit 0
             ;;
-        *) echo "[WARN] [seed_locale_place_mappings] Unbekanntes Argument: $1" >&2 ;;
+        *) plugin_fail_unknown_argument "$1" ;;
     esac
     shift
 done

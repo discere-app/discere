@@ -56,7 +56,8 @@ while [[ $# -gt 0 ]]; do
             plugin_print_help "$0"
             exit 0
             ;;
-        *) REQUESTED+=("$1") ;;
+        -*) plugin_fail_unknown_argument "$1" ;;
+        *)  REQUESTED+=("$1") ;;
     esac
     shift
 done

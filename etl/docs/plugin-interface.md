@@ -177,6 +177,9 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
   - im `case`-Zweig eines Flags mit Wert, vor `"$2"`: bricht ab, wenn der
     Wert fehlt (`<flag> braucht einen Wert.`); jede Argument-Schleife der
     ETL-Skripte nutzt es, auch `plugin_parse_args`
+- `plugin_fail_unknown_argument "$1"`
+  - im `*)`-Zweig jeder Argument-Schleife: bricht mit `Unbekanntes Argument:
+    <arg> (siehe --help)` ab
 - `plugin_fail_as_script "Nachricht"`
   - wie `plugin_fail`, ohne `PLUGIN_SOURCE` unter dem Dateinamen des Skripts
     (`[build]`, `[create_db]`)

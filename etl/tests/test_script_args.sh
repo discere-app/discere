@@ -3,7 +3,9 @@
 # zwischen den ersten beiden '# ===…'-Linien aus (plugin_print_help in
 # core/plugin_api.sh), vollständig und ohne die Linien; ein Flag ohne Wert
 # bricht mit eigener Meldung unter dem Kürzel des Skripts ab
-# (plugin_require_value). Die Skripte werden aus den Dateien ermittelt.
+# (plugin_require_value), ebenso ein unbekanntes Argument
+# (plugin_fail_unknown_argument). Die Skripte werden aus den Dateien
+# ermittelt.
 
 # Gibt die ausführbaren ETL-Skripte aus, eines je Zeile.
 etl_scripts() {
@@ -117,4 +119,32 @@ test_script_args_flag_without_value_aborts_in_every_script() {
     done <<< "$flags"
     [[ $count -ge 30 ]] || fail_case "Nur $count Flags mit Wert gefunden, erwartet mindestens 30."
     [[ -z "$failures" ]] || fail_case "Flag ohne Wert nicht abgefangen:$failures"
+}
+
+# Jedes Skript mit Argument-Schleife bricht an einem unbekannten Argument ab,
+# bevor es etwas tut, unter seinem Kürzel (bei Plugins dem Quellenschlüssel).
+# Es läuft in einem leeren Verzeichnis, OUTPUT_DB zeigt hinein (build.sh,
+# create_db.sh); danach muss es leer sein.
+test_script_args_unknown_argument_aborts_every_script_without_side_effect() {
+    local scripts script name tag work count=0 failures=""
+    scripts="$(help_scripts)"
+    while IFS= read -r script; do
+        [[ -n "$script" ]] || continue
+        count=$((count + 1))
+        name="${script#"$ETL_DIR"/}"
+        case "$name" in
+            plugins/*) tag="$(sed -n 's/^source: *\([a-z0-9_-]*\).*/\1/p' "$(dirname "$script")/plugin.yaml")" ;;
+            *)         tag="$(basename "$script" .sh)" ;;
+        esac
+        work="$TEST_TMP/work/$count"
+        mkdir -p "$work"
+        run_capture env OUTPUT_DB="$work/out.db" bash -c 'cd "$1" && shift && exec "$@"' _ "$work" \
+            "$script" --gibt-es-nicht
+        [[ "$STATUS" -eq 1 && "$ERR" == *"[ERROR] [$tag] Unbekanntes Argument: --gibt-es-nicht (siehe --help)"* ]] \
+            || failures+=$'\n'"$name: Exit $STATUS, ${ERR:0:200}"
+        [[ -z "$(ls -A "$work")" ]] \
+            || failures+=$'\n'"$name: hinterlässt $(ls -A "$work" | tr '\n' ' ')"
+    done <<< "$scripts"
+    [[ $count -ge 20 ]] || fail_case "Nur $count Skripte mit Argument-Schleife gefunden, erwartet mindestens 20."
+    [[ -z "$failures" ]] || fail_case "Unbekanntes Argument nicht abgewiesen:$failures"
 }
