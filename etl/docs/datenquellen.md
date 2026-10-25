@@ -491,6 +491,36 @@ Population gilt. Die App liest eine leere Präsenz wie jede andere außer
 threatened-Wert als nicht bedroht. *Salmo trutta* zählt damit in der
 Schweiz weiter als heimisch und vorkommend.
 
+### Mehrere Zeilen eines Volksnamens
+
+`comnames` führt einen Namen einer Art in derselben Sprache und demselben
+Land teils mehrmals, mit anderem Rang, anderem Vorzug (`PreferredName`) oder
+anderem Namenstyp (FAO neben Vernacular). Die DB hält je Entität, Name,
+Sprache, Quelle und Land eine Zeile (Index `idx_common_names_key` auf
+`common_names`). Ohne Land (C_Code 9999, global) zählt dabei als ein
+eigenes Land: Der Index vergleicht `IFNULL(country, '')`, weil ein UNIQUE
+zwei NULL nie gleich setzt.
+
+Beide Exporte wählen je Schlüssel dieselbe Zeile
+(`core/sql/common_names.sql`): die bevorzugte vor den übrigen, dann die mit
+dem niedrigsten Rang (ohne Rang zuerst), dann nach Namenstyp (ohne
+zuletzt) und `entity_type`. Vorzug vor Rang und ohne Rang zuerst, weil die
+App die Zeilen eines Namens in dieser Folge liest (SQLite sortiert NULL vor
+jeden Wert): Bleibt genau die Zeile, die sie unter allen
+zuerst gelesen hätte, zeigt sie dasselbe, als stünden alle da. Höchster
+Vorzug und niedrigster Rang aus verschiedenen Zeilen zusammengesetzt
+verschöben dagegen die Sortierung. Namenstyp und `entity_type` liest die
+App nicht; sie machen das Ergebnis unabhängig von der Reihenfolge der
+Eingabe. Die Plugins importieren ohne `OR IGNORE`: Eine Kollision ist ein
+Fehler im Export und bricht den Import ab.
+
+In v26.06 fasst FishBase 1.814 Schlüssel zusammen (72 ohne Land),
+SeaLifeBase 4.067 (103 ohne Land). Bei 24 Schlüsseln von FishBase steht die
+bevorzugte Zeile nicht auf dem niedrigsten Rang; bei 38 von FishBase und 9
+von SeaLifeBase entscheidet erst der Namenstyp. Die Zahlen stehen je Plugin
+im Log („Volksnamen zusammengefasst: …“), nicht im Build-Bericht: Einzeln
+aufgeführt wären einige tausend Schlüssel kein Signal.
+
 ### Gattung und Familie einer Art widersprechen sich
 
 Eine SeaLifeBase-Art nennt ihre Familie zweimal: über die Gattung (GenCode)

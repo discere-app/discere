@@ -153,10 +153,15 @@ CREATE TABLE IF NOT EXISTS common_names (
     source          TEXT    NOT NULL,
     rank            INTEGER,
     is_preferred    INTEGER NOT NULL DEFAULT 0,
-    name_type       TEXT,
-    UNIQUE (entity_id, name, language, source, country)
+    name_type       TEXT
 );
 
+-- Je Name einer Entität, Sprache, Quelle und Land eine Zeile. IFNULL, weil
+-- ein UNIQUE NULL nie gleich NULL setzt und country NULL (global) wie ein
+-- Land gilt: Zwei globale Zeilen desselben Namens wären sonst beide erlaubt.
+-- Welche Zeile eines Schlüssels bleibt, regelt core/sql/common_names.sql.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_common_names_key
+    ON common_names (entity_id, name, language, source, IFNULL(country, ''));
 CREATE INDEX IF NOT EXISTS idx_common_names_lookup ON common_names (entity_id, language);
 CREATE INDEX IF NOT EXISTS idx_common_names_source ON common_names (source);
 

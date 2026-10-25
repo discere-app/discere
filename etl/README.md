@@ -40,6 +40,7 @@ build.sh                       ← Orchestrator
 │       ├── source_codes.sql   ← DuckDB, in den FishBase- und SeaLifeBase-Export
 │       │                         eingebunden: doppelte Codes der Quelle
 │       ├── distribution_regions.sql ← ebenso: Verbreitung je Art und Region
+│       ├── common_names.sql   ← ebenso: Volksnamen, je Schlüssel eine Zeile
 │       ├── rebuild_lookup.sql ← Regel für species_name_lookup (lookup_report.sql: Bericht)
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindestzahlen (mit Voraussetzung) und Invarianten

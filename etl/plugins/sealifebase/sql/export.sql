@@ -678,8 +678,10 @@ TO '${EXPORT_DIR}/ambiguous_scientific_names.csv' (FORMAT csv, HEADER true);
 --   - NameType-Filter: historische/veraltete Typen werden ausgeschlossen
 --   - C_Code 9999 (global/FAO) → country = NULL
 --   - 'vernacular' (lowercase) wird zu 'Vernacular' normalisiert
+--
+-- Je Schlüssel eine Zeile wählt und schreibt core/sql/common_names.sql.
 -- ---------------------------------------------------------------------------
-COPY (
+CREATE TEMP TABLE t_common_name_rows AS (
     -- Species-Namen aus comnames.parquet
     SELECT
         discere_uuid('sealifebase', 'species', CAST(c.speccode AS VARCHAR)) AS entity_id,
@@ -783,10 +785,9 @@ COPY (
            TRIM(c.commonName), 'sealifebase', NULL, 1, NULL
     FROM src_classes c
     WHERE NULLIF(TRIM(c.commonName), '') IS NOT NULL
+);
 
-    ORDER BY entity_type, entity_id, language, country, rank, is_preferred DESC
-)
-TO '${EXPORT_DIR}/common_names.csv' (FORMAT csv, HEADER true);
+-- @include common_names.sql
 
 -- ---------------------------------------------------------------------------
 -- Taxonomy Traits (Species-Habitat-Tags)
