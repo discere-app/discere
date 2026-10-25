@@ -491,6 +491,19 @@ CREATE VIRTUAL TABLE species_fts USING fts4(
     tokenize=unicode61
 );
 
+-- Synonyme aktiver Arten, damit die Suche eine Art auch unter einem
+-- veralteten Namen findet. Keine content-Tabelle: Ein rebuild nähme jede
+-- Zeile von species_scientific_names, auch bevorzugte und falsch angewandte
+-- Namen; core/sql/rebuild_fts.sql befüllt sie gefiltert. species_id ist
+-- nicht indexiert, MATCH sucht nur im Namen.
+DROP TABLE IF EXISTS species_synonyms_fts;
+CREATE VIRTUAL TABLE species_synonyms_fts USING fts4(
+    species_id,
+    name,
+    notindexed=species_id,
+    tokenize=unicode61
+);
+
 DROP TABLE IF EXISTS common_names_fts;
 CREATE VIRTUAL TABLE common_names_fts USING fts4(
     content='common_names',

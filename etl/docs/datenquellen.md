@@ -213,6 +213,12 @@ nennt jeden solchen Namen mit allen Arten (Quelle `lookup`, Kategorie
 `ambiguous`) und jeden, den aktive Arten nur als falsch angewandten führen
 (`misapplied`).
 
+Für die Suche der App führt `species_synonyms_fts` je aktive Art jedes
+Synonym, das sie in keiner Quelle bevorzugt führt, ohne falsch angewandte
+(`core/sql/rebuild_fts.sql`) — ein Synonym mehrerer Arten anders als in
+`species_name_lookup` bei jeder, denn die Suche soll alle Arten zeigen, die
+der Name meinen kann.
+
 ### Platzhalter der Quellen
 
 Ein Datensatz, den eine Quelle nur als Platzhalter führt, ist keine Entität

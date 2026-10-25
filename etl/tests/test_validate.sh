@@ -49,6 +49,15 @@ INSERT INTO taxonomy_distribution_regions
     (entity_id, entity_type, source, region_scope, region_key, region_label)
 SELECT 'discere:species:' || (i % 30000 + 1), 'species', 'fishbase', 'country', 'r' || i, 'R'
 FROM n;
+-- Synonyme erst ab Art 11: Die Fälle unten schreiben die Namen der ersten
+-- Arten um.
+INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred)
+SELECT 'discere:species:' || (i % 29990 + 11), 'Syn s' || i, 'syn s' || i, 'synonym', 'fishbase', 0
+FROM n WHERE i <= 40000;
+INSERT INTO species_name_lookup (normalized_name, species_id)
+SELECT normalized_name, species_id FROM species_scientific_names;
+INSERT INTO species_synonyms_fts (species_id, name)
+SELECT species_id, name FROM species_scientific_names;
 SQL
 }
 
@@ -286,6 +295,41 @@ test_validate_fails_on_parent_override_the_build_does_not_contain() {
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: source_parent_overrides — 0 (erwartet >= 1)"
+}
+
+# species_synonyms_fts enthält genau die Synonyme aktiver Arten, jedes bei
+# seiner Art: Eine fehlende Zeile fällt auf, auch wenn die Mindestzahl noch
+# erreicht ist.
+test_validate_fails_on_missing_synonym_search_row() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "
+        INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred)
+        VALUES ('discere:species:11', 'Syn x', 'syn x', 'synonym', 'fishbase', 0);
+        INSERT INTO species_name_lookup (normalized_name, species_id) VALUES ('syn x', 'discere:species:11');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species_synonyms_fts (>= expected) — 40000 (erwartet >= 40001)"
+}
+
+# Ebenso eine Zeile, die keinem Synonym einer aktiven Art entspricht.
+test_validate_fails_on_extra_synonym_search_row() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "INSERT INTO species_synonyms_fts (species_id, name) VALUES ('discere:species:11', 'Syn x');"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species_synonyms_fts (<= expected) — 40000 (erwartet >= 40001)"
+}
+
+# Und ein Synonym, das bei einer anderen Art steht als der, die es führt.
+test_validate_fails_on_synonym_search_row_at_other_species() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "UPDATE species_synonyms_fts SET species_id = 'discere:species:11' WHERE name = 'Syn s1';"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: species_synonyms_fts (names) — 39999 (erwartet >= 40000)"
 }
 
 test_validate_aborts_on_unknown_requirement() {

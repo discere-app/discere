@@ -92,6 +92,22 @@ class SpeciesRepository {
     return results.map(Species.fromMap).toList();
   }
 
+  // Suche über Synonyme aktiver Arten (species_synonyms_fts), in der Form,
+  // die ARCH-14 verlangt: die FTS-Tabelle nur im IN-Subquery.
+  Future<List<Species>> searchBySynonym(String query) async {
+    final db = await DatabaseHelper.referenceDb;
+    final results = await db.rawQuery('''
+      SELECT s.*
+      FROM species s
+      WHERE s.id IN (SELECT species_id FROM species_synonyms_fts
+                     WHERE species_synonyms_fts MATCH ?)
+      ORDER BY s.name
+      LIMIT 50
+    ''', ['$query*']);
+
+    return results.map(Species.fromMap).toList();
+  }
+
   Future<Species?> findById(String id) async {
     final db = await DatabaseHelper.referenceDb;
     final results = await db.query(
