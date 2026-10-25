@@ -514,6 +514,12 @@ App nicht; sie machen das Ergebnis unabhängig von der Reihenfolge der
 Eingabe. Die Plugins importieren ohne `OR IGNORE`: Eine Kollision ist ein
 Fehler im Export und bricht den Import ab.
 
+Die Volksnamen übernommener Entitäten (siehe [Lebenszyklus](#lebenszyklus))
+wählt die Identitäts-Stage nach derselben Regel (`carried_common_names_sql`
+in `core/identity.sh`): Ein Vorgänger kann mehrere Zeilen eines Schlüssels
+führen, und korrigieren lässt er sich so wenig wie eine Quelle. Die Zahl der dabei
+zusammengefassten Schlüssel steht im Log der Stage.
+
 In v26.06 fasst FishBase 1.814 Schlüssel zusammen (72 ohne Land),
 SeaLifeBase 4.067 (103 ohne Land). Bei 24 Schlüsseln von FishBase steht die
 bevorzugte Zeile nicht auf dem niedrigsten Rang; bei 38 von FishBase und 9

@@ -333,6 +333,34 @@ fishbase species 51 0" "$(sqlite3 -separator ' ' "$TEST_TMP/build.db" "
     assert_contains "$ERR" "species: 6 Entitäten — 0 neue IDs, 0 aus mehreren Quellen zusammengeführt, 2 aus dem Vorgänger übernommen"
 }
 
+# Ein Vorgänger ohne den Index idx_common_names_key führt einen Volksnamen
+# der übernommenen Art 50 ohne Land dreimal. Übernommen wird eine Zeile, nach
+# der Regel des Exports (core/sql/common_names.sql): bevorzugt vor Rang, dann
+# der Namenstyp. Derselbe Name in Land 276 ist ein eigener Schlüssel.
+test_identity_carries_over_one_common_name_per_key() {
+    create_initial_release "$TEST_TMP/prev.db"
+    sqlite3 "$TEST_TMP/prev.db" << 'SQL'
+DROP INDEX idx_common_names_key;
+INSERT INTO species (id, external_id, external_source, name, genus, status) VALUES
+    ('discere:species:5', '50', 'fishbase', 'vetus', 'discere:genus:1', 'active');
+INSERT INTO common_names (entity_id, entity_type, language, country, name, source, rank, is_preferred, name_type) VALUES
+    ('discere:species:5', 'species', 'de', NULL,  'Alter Fisch', 'fishbase', 1, 0, 'Vernacular'),
+    ('discere:species:5', 'species', 'de', NULL,  'Alter Fisch', 'fishbase', 2, 1, 'Vernacular'),
+    ('discere:species:5', 'species', 'de', NULL,  'Alter Fisch', 'fishbase', 2, 1, 'FAO'),
+    ('discere:species:5', 'species', 'de', '276', 'Alter Fisch', 'fishbase', 1, 0, 'Vernacular');
+INSERT INTO entity_source_keys (source, entity_type, external_id, entity_id, active) VALUES
+    ('fishbase', 'species', '50', 'discere:species:5', 1);
+SQL
+    create_identity_build_db "$TEST_TMP/build.db"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 0
+    assert_eq "|Alter Fisch|2|1|FAO
+276|Alter Fisch|1|0|Vernacular" "$(sqlite3 "$TEST_TMP/build.db" "
+        SELECT country, name, rank, is_preferred, name_type FROM common_names
+        WHERE entity_id = 'discere:species:5' ORDER BY country;")" "übernommene Volksnamen"
+    assert_contains "$ERR" "Volksnamen übernommener Entitäten: Schlüssel mit mehreren Zeilen zusammengefasst: 1"
+}
+
 # Bilder einer übernommenen Art kommen mit. Der Build liefert eins davon
 # noch, aber ohne Art (die Quelle führt die Art 50 nicht mehr): Es weicht dem
 # übernommenen.

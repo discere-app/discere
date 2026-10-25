@@ -223,10 +223,12 @@ SQL
 }
 
 # Übernimmt die Zeilen von <tabelle> aus dem Vorgänger, deren <verknüpfung>
-# auf eine übernommene Entität zeigt. Spalten, die beide Schemata kennen;
-# Verweise auf Entitäten werden auf deren ID in diesem Build abgebildet.
+# auf eine übernommene Entität zeigt, mit <bedingung> nur die Zeilen, für die
+# sie gilt (ein SQL-Ausdruck über die Vorgängerzeile p). Spalten, die beide
+# Schemata kennen; Verweise auf Entitäten werden auf deren ID in diesem Build
+# abgebildet.
 carry_over_sql() {
-    local table="$1" link_column="$2"
+    local table="$1" link_column="$2" condition="${3:-TRUE}"
     local column columns="" expressions="" expression prev_columns fk_columns
     prev_columns="$(table_columns "$PREVIOUS_DB" "$table")"
     fk_columns="$(foreign_key_columns "$DB_PATH" | awk -v t="$table" '$1 == t { print $2 }')"
@@ -257,8 +259,35 @@ carry_over_sql() {
 INSERT INTO main."$table" (${columns#, })
 SELECT ${expressions#, }
 FROM prev."$table" p
-JOIN identity_carried c ON c.prev_id = p."$link_column";
+JOIN identity_carried c ON c.prev_id = p."$link_column"
+WHERE $condition;
 SQL
+}
+
+# Volksnamen übernommener Entitäten, je Schlüssel des Index
+# idx_common_names_key (core/sql/schema.sql) eine Zeile: Der Vorgänger kann
+# mehrere führen, die sich nur in Rang, Vorzug oder Namenstyp unterscheiden,
+# und korrigieren lässt er sich so wenig wie eine Quelle. Gewählt wird nach
+# der Regel des Exports, dort begründet (core/sql/common_names.sql); wer sie
+# ändert, ändert beide. Der Schlüssel gilt mit der ID in diesem Build.
+carried_common_names_sql() {
+    cat << 'SQL'
+CREATE TEMP TABLE identity_carried_common_names AS
+SELECT
+    p.rowid AS prev_rowid,
+    ROW_NUMBER() OVER (
+        PARTITION BY c.entity_id, p.name, p.language, p.source, p.country
+        ORDER BY COALESCE(p.is_preferred, 0) DESC, p.rank ASC NULLS FIRST,
+                 p.name_type ASC NULLS LAST, p.entity_type ASC
+    ) AS key_position
+FROM prev.common_names p
+JOIN identity_carried c ON c.prev_id = p.entity_id;
+INSERT INTO identity_counts (label, n)
+SELECT 'Volksnamen übernommener Entitäten: Schlüssel mit mehreren Zeilen zusammengefasst', COUNT(*)
+FROM identity_carried_common_names WHERE key_position = 2;
+SQL
+    carry_over_sql common_names entity_id \
+        "p.rowid IN (SELECT prev_rowid FROM identity_carried_common_names WHERE key_position = 1)"
 }
 
 # Bilder übernommener Arten: Ohne sie zeigte die App eine Karte, die schon
@@ -364,7 +393,7 @@ SQL
             carry_over_sql "$table" id
         done
         carry_over_sql species_scientific_names species_id
-        carry_over_sql common_names entity_id
+        carried_common_names_sql
         carried_pictures_sql
     fi
     echo ".read \"$SQL_DIR/identity_finish.sql\""
