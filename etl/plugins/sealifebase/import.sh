@@ -159,8 +159,7 @@ DELETE FROM source_parent_overrides WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
--- common_names wird weiter unten per source gelöscht (nach Species-Import,
--- damit entity_ids aus tmp_species bereits vorhanden sind)
+-- common_names löscht der Import direkt vor dem Neuimport der Namen.
 EOF
 }
 
