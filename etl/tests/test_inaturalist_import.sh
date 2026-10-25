@@ -145,8 +145,9 @@ OCELLARIS_MAPPING="discere:fishbase_species:1 species 100"
 
 run_inaturalist_import() {
     export DISCERE_REPORT_DIR="$TEST_TMP/report"
+    stub_curl
     run_capture "$ETL_DIR/plugins/inaturalist/import.sh" --db "$DB" \
-        --taxa-file "$TEST_TMP/taxa.csv.gz" --version v25.04
+        --taxa-file "$TEST_TMP/taxa.csv.gz"
 }
 
 # Zuordnungen und Bericht der Taxa eines Falls (IDs ab 100); die höheren
@@ -177,7 +178,6 @@ test_inaturalist_maps_unambiguous_taxa_and_reports_the_rest() {
     run_inaturalist_import
     assert_status 0
     assert_eq "" "$OUT" "stdout"
-    assert_contains "$ERR" "[WARN] [inaturalist] Unbekanntes Argument: --version"
     assert_eq "class:teleostei classes 107
 discere:fishbase_species:1 species 100
 discere:fishbase_species:2 species 102" "$(inaturalist_mappings)" "Zuordnungen"
@@ -221,9 +221,25 @@ test_inaturalist_reimport_replaces_its_mappings() {
 
 test_inaturalist_without_taxa_file_fails() {
     create_mini_reference_db
+    stub_curl
     run_capture "$ETL_DIR/plugins/inaturalist/import.sh" --db "$DB" --taxa-file "$TEST_TMP/missing.csv.gz"
     assert_status 1
     assert_contains "$ERR" "taxa.csv.gz nicht gefunden"
+    assert_curl_not_called
+}
+
+# Eine über INAT_TAXA_FILE angegebene Datei wird wie mit --taxa-file nur
+# gelesen: nicht geladen und nach dem Import nicht gelöscht.
+test_inaturalist_only_reads_taxa_file_given_by_environment() {
+    create_mini_reference_db
+    write_taxa_file "$OCELLARIS"
+    stub_curl
+    run_capture env INAT_TAXA_FILE="$TEST_TMP/taxa.csv.gz" \
+        "$ETL_DIR/plugins/inaturalist/import.sh" --db "$DB"
+    assert_status 0
+    assert_eq "$OCELLARIS_MAPPING" "$(inaturalist_mappings)" "Zuordnungen"
+    [[ -f "$TEST_TMP/taxa.csv.gz" ]] || fail_case "taxa.csv.gz nach dem Import gelöscht."
+    assert_curl_not_called
 }
 
 test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
@@ -608,6 +624,7 @@ assert text.count(os.environ["OLD"]) == 1, os.environ["OLD"]
 open(path, "w").write(text.replace(os.environ["OLD"], os.environ["NEW"]))' \
         "$TEST_TMP/etl/plugins/inaturalist/$file"
     export DISCERE_REPORT_DIR="$TEST_TMP/report"
+    stub_curl
     run_capture "$TEST_TMP/etl/plugins/inaturalist/import.sh" --db "$DB" --taxa-file "$TEST_TMP/taxa.csv.gz"
 }
 

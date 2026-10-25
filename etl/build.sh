@@ -9,9 +9,9 @@
 #
 # Usage:
 #   ./build.sh                                   # alle Plugins auto-discover, download + cleanup
-#   ./build.sh --plugin fishbase --download      # nur fishbase, explizit
-#   ./build.sh --plugin fishbase --keep          # parquets behalten
-#   ./build.sh --output /tmp/discere.db        # eigener Output-Pfad
+#   ./build.sh --plugin fishbase --keep          # nur fishbase, Parquets behalten
+#   ./build.sh --output /tmp/discere.db          # eigener Output-Pfad
+#   FISHBASE_DIR=~/fb/parquet ./build.sh         # lokale Parquets für fishbase
 #
 # Wird build.sh ohne --plugin aufgerufen, werden alle plugins/<n>/import.sh
 # automatisch gefunden und ausgeführt; mit --plugin laufen die genannten samt
@@ -23,11 +23,8 @@
 #   --force                  Bestehende DB überschreiben
 #   --plugin <n>             Plugin explizit angeben (wiederholbar), Abhängigkeiten
 #                            kommen mit. Ohne diesen Flag: alle Plugins in plugins/
-#   --download               An alle Plugins weitergegeben
+#   --no-download            Lokale Dateien verwenden (an alle Plugins)
 #   --keep                   Heruntergeladene Dateien behalten (an alle Plugins)
-#   --version <v26.06>       An alle Plugins weitergegeben
-#   --fishbase-dir <path>    An fishbase-Plugin weitergegeben
-#   --no-download            Download deaktivieren (lokale Dateien verwenden)
 #   --no-enrich              Stage 01b und optionale Plugins (samt Abhängigen)
 #                            überspringen, etwa inaturalist
 #   --previous-release <db>  Lokale Referenz-DB als Vorgänger statt des
@@ -39,8 +36,13 @@
 #                            (core/identity.sh, wiederholbar) — nur zum
 #                            Testen, der Build ist dann nicht veröffentlichbar
 #
+# Ein unbekanntes Argument bricht ab, bevor eine DB angefasst wird. An die
+# Plugins gehen nur die gemeinsamen Flags ihrer Aufruf-Schnittstelle
+# (docs/plugin-interface.md); eigene Einstellungen eines Plugins (Version,
+# lokale Pfade) erbt es als Umgebungsvariablen, aufgeführt in seinem Header.
+#
 # Umgebungsvariablen:
-#   OUTPUT_DB, FISHBASE_VERSION, FISHBASE_DIR
+#   OUTPUT_DB
 #   DISCERE_RELEASE_MANIFEST_URL  Manifest des Vorgängers (core/previous_release.sh)
 #
 # Pipeline-Stages:
@@ -85,38 +87,10 @@ PLUGINS=()
 ENTITY_PLUGINS=()
 CONTRIBUTING_PLUGINS=()
 PLUGIN_FLAGS=()
-EXPLICIT_DOWNLOAD=false   # wurde --download oder --no-download explizit gesetzt?
-NO_DOWNLOAD=false
 SKIP_ENRICHMENT=false
 PREVIOUS_RELEASE=""
 INITIAL=false
 ACCEPTED_LOSS=()
-
-# ---------------------------------------------------------------------------
-# Argumente
-# ---------------------------------------------------------------------------
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --output)        OUTPUT_DB="$2"; shift ;;
-        --force)         FORCE=true ;;
-        --plugin)        SELECTED_PLUGINS+=("$2"); shift ;;
-        --download)      PLUGIN_FLAGS+=("--download"); EXPLICIT_DOWNLOAD=true ;;
-        --no-download)   NO_DOWNLOAD=true; EXPLICIT_DOWNLOAD=true ;;
-        --no-enrich)     SKIP_ENRICHMENT=true ;;
-        --keep)          PLUGIN_FLAGS+=("--keep") ;;
-        --version)       PLUGIN_FLAGS+=("--version" "$2"); shift ;;
-        --fishbase-dir)  PLUGIN_FLAGS+=("--fishbase-dir" "$2"); shift ;;
-        --previous-release) PREVIOUS_RELEASE="$2"; shift ;;
-        --initial)       INITIAL=true ;;
-        --accept-species-loss) ACCEPTED_LOSS+=("$2"); shift ;;
-        --help|-h)
-            sed -n '2,72p' "$0" | sed 's/^# \{0,1\}//'
-            exit 0
-            ;;
-        *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
-    esac
-    shift
-done
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -126,6 +100,29 @@ fail() { echo "[ERROR] [build] $*" >&2; exit 1; }
 
 # shellcheck source=./core/plugin_api.sh
 source "$CORE_DIR/plugin_api.sh"
+
+# ---------------------------------------------------------------------------
+# Argumente
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --output)        plugin_require_value "$@"; OUTPUT_DB="$2"; shift ;;
+        --force)         FORCE=true ;;
+        --plugin)        plugin_require_value "$@"; SELECTED_PLUGINS+=("$2"); shift ;;
+        --no-download)   PLUGIN_FLAGS+=("--no-download") ;;
+        --no-enrich)     SKIP_ENRICHMENT=true ;;
+        --keep)          PLUGIN_FLAGS+=("--keep") ;;
+        --previous-release) plugin_require_value "$@"; PREVIOUS_RELEASE="$2"; shift ;;
+        --initial)       INITIAL=true ;;
+        --accept-species-loss) plugin_require_value "$@"; ACCEPTED_LOSS+=("$2"); shift ;;
+        --help|-h)
+            plugin_print_help "$0"
+            exit 0
+            ;;
+        *) plugin_fail_unknown_argument "$1" ;;
+    esac
+    shift
+done
 
 # ---------------------------------------------------------------------------
 # Main
@@ -212,12 +209,6 @@ else
         PREVIOUS_SHA256="$(jq -er '.sha256' "$PREVIOUS_MANIFEST")" \
             || fail "Manifest des Vorgängers ohne sha256: $PREVIOUS_MANIFEST"
     fi
-fi
-
-# Default: --download wenn weder --download noch --no-download explizit gesetzt
-if [[ "$EXPLICIT_DOWNLOAD" == false ]]; then
-    PLUGIN_FLAGS+=("--download")
-    log "Kein --download/--no-download angegeben — Default: --download (cleanup nach Import)"
 fi
 
 log "=== Discere Build ==="

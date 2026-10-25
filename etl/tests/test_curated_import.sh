@@ -57,10 +57,9 @@ assert_import_rejected() {
 
 test_curated_imports_every_row() {
     setup_curated
-    run_capture "$CURATED_IMPORT" --db "$DB" --download --version v25.04
+    run_capture "$CURATED_IMPORT" --db "$DB"
     assert_status 0
     assert_eq "" "$OUT" "stdout"
-    assert_contains "$ERR" "[WARN] [curated] Unbekanntes Argument: --version"
     assert_eq 15 "$(curated_count)" "curated-Zeilen"
     assert_eq 5 "$(curated_count "language = 'de'")" "de"
     assert_eq 5 "$(curated_count "language = 'fr'")" "fr"
@@ -71,6 +70,24 @@ test_curated_imports_every_row() {
         "Teleostei auf Deutsch"
     assert_eq "curated|CC BY-NC 4.0" "$(sqlite3 "$DB" "SELECT id, license_key FROM sources WHERE id = 'curated';")" \
         "sources-Eintrag"
+}
+
+# --no-download und --keep gehören zur gemeinsamen Aufruf-Schnittstelle; die
+# Quelle lädt nichts und nimmt sie still hin.
+test_curated_accepts_common_flags_silently() {
+    setup_curated
+    run_capture "$CURATED_IMPORT" --db "$DB" --no-download --keep
+    assert_status 0
+    assert_not_contains "$ERR" "[WARN]"
+    assert_eq 15 "$(curated_count)" "curated-Zeilen"
+}
+
+test_curated_rejects_flag_of_another_plugin() {
+    setup_curated
+    run_capture "$CURATED_IMPORT" --db "$DB" --version v25.04
+    assert_status 1
+    assert_contains "$ERR" "[ERROR] [curated] Unbekanntes Argument: --version (siehe --help)"
+    assert_eq 0 "$(curated_count)" "curated-Zeilen nach dem Abbruch"
 }
 
 test_curated_reimport_is_idempotent() {

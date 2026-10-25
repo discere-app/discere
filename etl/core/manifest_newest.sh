@@ -40,12 +40,12 @@ MANIFEST=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --manifest) MANIFEST="$2"; shift ;;
+        --manifest) plugin_require_value "$@"; MANIFEST="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 28
+            plugin_print_help "$0"
             exit 0
             ;;
-        *) plugin_fail "Unbekanntes Argument: $1" ;;
+        *) plugin_fail_unknown_argument "$1" ;;
     esac
     shift
 done

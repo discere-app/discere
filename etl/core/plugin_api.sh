@@ -3,8 +3,10 @@
 # plugin_api.sh — Gemeinsame Shell-API für Discere ETL Plugins
 #
 # Wird von plugins/*/import.sh und validate_plugin.sh gesourced.
-# Stellt einen kleinen, stabilen Vertrag für Plugin-Manifeste und
-# wiederverwendbare Helfer für Logging, Validierung und Source-Metadaten bereit.
+# Stellt einen kleinen, stabilen Vertrag für Plugin-Manifeste, den Parser der
+# Aufruf-Schnittstelle (plugin_parse_args, beschrieben in
+# docs/plugin-interface.md) und wiederverwendbare Helfer für Logging,
+# Validierung und Source-Metadaten bereit.
 # =============================================================================
 
 # Gibt den Wert eines skalaren Feldes aus (key: value), ohne Kommentar und
@@ -78,11 +80,95 @@ plugin_log()  { echo "[$(date '+%H:%M:%S')] [${PLUGIN_SOURCE:-plugin}] $*" >&2; 
 plugin_warn() { echo "[WARN] [${PLUGIN_SOURCE:-plugin}] $*" >&2; }
 plugin_fail() { echo "[ERROR] [${PLUGIN_SOURCE:-plugin}] $*" >&2; exit 1; }
 
-plugin_print_help_from_header() {
-    local script_path="$1"
-    local start_line="$2"
-    local end_line="$3"
-    sed -n "${start_line},${end_line}p" "$script_path" | sed 's/^# \{0,1\}//'
+# Bricht wie plugin_fail ab, unter dem Kürzel des Skripts: PLUGIN_SOURCE,
+# sonst der Dateiname ohne .sh — so heißt jedes Skript in seinen eigenen
+# Meldungen ([build], [create_db]), auch wenn es sein Kürzel nur in einem
+# eigenen fail() führt.
+plugin_fail_as_script() {
+    local PLUGIN_SOURCE="${PLUGIN_SOURCE:-$(basename "$0" .sh)}"
+    plugin_fail "$@"
+}
+
+# plugin_require_value "$@" — im case-Zweig eines Flags mit Wert, vor "$2":
+# Fehlt der Wert, bricht das Skript mit eigener Meldung ab statt mit
+# "$2: unbound variable" (set -u).
+plugin_require_value() {
+    [[ $# -ge 2 ]] || plugin_fail_as_script "$1 braucht einen Wert."
+}
+
+# plugin_fail_unknown_argument "$1" — im *)-Zweig jeder Argument-Schleife:
+# Ein unbekanntes Argument bricht ab, statt übergangen zu werden; ein
+# Tippfehler soll nicht still zum Default werden.
+plugin_fail_unknown_argument() {
+    plugin_fail_as_script "Unbekanntes Argument: $1 (siehe --help)"
+}
+
+# Gibt den Kopfkommentar eines Scripts als Hilfe aus: alles zwischen der
+# ersten und der zweiten Linie aus '# ===…'.
+plugin_print_help() {
+    awk '/^# =+$/ { if (++rules == 2) exit; next } rules == 1' "$1" | sed 's/^# \{0,1\}//'
+}
+
+# plugin_parse_args [<flag>=<VARIABLE> …] -- "$@"
+#
+# Liest die Aufruf-Schnittstelle eines Plugins (docs/plugin-interface.md):
+# die gemeinsamen Flags --db, --no-download, --keep und --help, dazu die
+# eigenen Flags des Plugins, je eines mit Wert, das <VARIABLE> setzt — etwa
+# --data-dir=EXAMPLE_DATA_DIR. Setzt DB_PATH (Vorgabe: die gleichnamige
+# Umgebungsvariable), DOWNLOAD (true, mit --no-download false) und
+# KEEP_FILES (mit --keep true). Ein unbekanntes Flag oder eines ohne Wert
+# bricht ab: Ein Tippfehler wie --no-dowload würde sonst still laden und
+# danach löschen.
+plugin_parse_args() {
+    local specs=() spec matched
+
+    while [[ $# -gt 0 && "$1" != -- ]]; do
+        specs+=("$1")
+        shift
+    done
+    [[ $# -gt 0 ]] || plugin_fail "plugin_parse_args: '--' vor den Argumenten fehlt."
+    shift
+
+    DB_PATH="${DB_PATH:-}"
+    DOWNLOAD=true
+    KEEP_FILES=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --db)          plugin_require_value "$@"; DB_PATH="$2"; shift ;;
+            --no-download) DOWNLOAD=false ;;
+            --keep)        KEEP_FILES=true ;;
+            --help|-h)
+                plugin_print_help "$0"
+                exit 0
+                ;;
+            *)
+                matched=false
+                for spec in ${specs[@]+"${specs[@]}"}; do
+                    [[ "$1" == "${spec%%=*}" ]] || continue
+                    plugin_require_value "$@"
+                    printf -v "${spec#*=}" '%s' "$2"
+                    matched=true
+                    shift
+                    break
+                done
+                [[ "$matched" == true ]] || plugin_fail_unknown_argument "$1"
+                ;;
+        esac
+        shift
+    done
+}
+
+# plugin_skip_download_for_local_path <pfad>
+# Ein ausdrücklich angegebener lokaler Pfad (eigenes Flag oder
+# Umgebungsvariable) gehört dem Nutzer: Das Plugin liest ihn nur, lädt nichts
+# und löscht nichts. Ist <pfad> nicht leer, setzt die Funktion deshalb
+# DOWNLOAD=false — ein Plugin löscht nur, was es selbst in seinen Cache
+# geladen hat. Aufruf nach plugin_parse_args.
+plugin_skip_download_for_local_path() {
+    if [[ -n "$1" ]]; then
+        DOWNLOAD=false
+    fi
 }
 
 plugin_init() {

@@ -208,8 +208,8 @@ Ein Release braucht von FishBase und SeaLifeBase mindestens die Datenstände
 seines Vorgängers, nie ältere: Einem älteren Stand fehlen Arten, die der
 Vorgänger schon hat; sie würden veraltet, und Lernstände hingen an veralteten
 Arten. Welche Stände der Vorgänger hat, steht in seiner `metadata`
-(`fishbase`, `sealifebase`). Die Standardwerte der Plugins (`--version`)
-sind der Stand des letzten Release.
+(`fishbase`, `sealifebase`). Die Standardwerte der Plugins (`FISHBASE_VERSION`,
+`SLB_VERSION`) sind der Stand des letzten Release.
 
 Maßgeblich ist der Inhalt, nicht der Name: source.coop führt heute als
 v26.06 dieselben Arten, die refdb-v2 als FishBase v26.07 und SeaLifeBase
@@ -226,9 +226,9 @@ curl -s 'https://data.source.coop/cboettig/?list-type=2&prefix=fishbase/fb/&deli
 # SeaLifeBase: prefix=fishbase/slb/
 ```
 
-Fehlt der Standardstand, mit `--version` den neuesten verfügbaren nehmen,
-sofern er nicht älter ist als der des Vorgängers, und den Standardwert im
-Plugin nachziehen.
+Fehlt der Standardstand, mit `FISHBASE_VERSION`/`SLB_VERSION` den neuesten
+verfügbaren nehmen, sofern er nicht älter ist als der des Vorgängers, und den
+Standardwert im Plugin nachziehen.
 
 ---
 
@@ -241,14 +241,17 @@ Plugin nachziehen.
 # Parquets behalten
 ./build.sh --keep
 
-# Kein Download — lokale Dateien verwenden
-./build.sh --no-download --fishbase-dir ~/data/fishbase/parquet
+# Kein Download — die Dateien im Cache der Plugins verwenden
+./build.sh --no-download
+
+# Eigene Parquets für fishbase: werden nur gelesen, nicht geladen oder gelöscht
+FISHBASE_DIR=~/data/fishbase/parquet ./build.sh
 
 # Nur ein Plugin (seine Abhängigkeiten laufen mit, hier fishbase)
 ./build.sh --plugin curated
 
 # Andere Version
-./build.sh --version v24.07
+FISHBASE_VERSION=v24.07 SLB_VERSION=v24.07 ./build.sh
 
 # Eigener Output-Pfad
 ./build.sh --output ~/dev/discere.db
@@ -264,17 +267,17 @@ Plugin nachziehen.
 | `--plugin <n>` | Plugin explizit angeben (wiederholbar), Abhängigkeiten aus `depends_on_sources` kommen mit. Ohne Flag: alle Plugins in `plugins/` |
 | `--output <path>` | Ziel-Datenbank |
 | `--force` | Bestehende DB überschreiben |
-| `--download` | Download explizit aktivieren (ist Default wenn kein Flag gesetzt) |
-| `--no-download` | Download deaktivieren — lokale Dateien verwenden |
-| `--keep` | Heruntergeladene Dateien behalten |
-| `--version <v26.06>` | An alle Plugins weitergegeben |
-| `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
+| `--no-download` | Nichts laden — die Dateien im Cache der Plugins verwenden (an alle Plugins) |
+| `--keep` | Heruntergeladene Dateien behalten (an alle Plugins) |
 | `--no-enrich` | Stage 01b und optionale Plugins (`optional: true`, heute `inaturalist`) samt ihren Abhängigen überspringen; die Validierung überspringt deren Mindestzahlen (siehe [Validierung](#validierung)) |
 | `--previous-release <db>` | Lokale Referenz-DB als Vorgänger statt des veröffentlichten Releases |
 | `--initial` | Ohne Vorgänger bauen, alle IDs neu — nur für Tests und einen allerersten Build |
 
-Alle Plugin-Flags gehen an jedes Plugin; ein Plugin ignoriert Flags, die es
-nicht kennt, mit einer Warnung.
+Ohne `--no-download` lädt jedes Plugin seine Quelldaten und löscht sie nach
+dem Import wieder, außer mit `--keep`. An die Plugins gehen nur diese
+gemeinsamen Flags ([Aufruf-Schnittstelle](docs/plugin-interface.md#aufruf-schnittstelle));
+eigene Einstellungen eines Plugins kommen über Umgebungsvariablen (unten). Ein
+unbekanntes Argument bricht ab, bevor eine DB angefasst wird.
 
 ### Umgebungsvariablen
 
@@ -296,9 +299,20 @@ Flags haben Vorrang vor Umgebungsvariablen.
 | Umgebungsvariable | Flag |
 |-------------------|------|
 | `OUTPUT_DB` | `--output` |
-| `FISHBASE_VERSION` | `--version` |
-| `FISHBASE_DIR` | `--fishbase-dir` |
 | `DISCERE_RELEASE_MANIFEST_URL` | Manifest des Vorgängers (kein Flag; Default: `discere-data`, `main`) |
+
+Die Plugins erben die Umgebung von `build.sh`. Ihre eigenen Einstellungen
+nimmt `build.sh` nur als Umgebungsvariable entgegen; das Flag daneben gilt
+beim Direktaufruf des Plugins. Ein angegebener lokaler Pfad wird nur gelesen:
+kein Download, kein Löschen.
+
+| Umgebungsvariable | Plugin | Flag | Bedeutung |
+|-------------------|--------|------|-----------|
+| `FISHBASE_VERSION` | fishbase | `--version` | FishBase-Stand (Default: der des letzten Release) |
+| `FISHBASE_DIR` | fishbase | `--fishbase-dir` | Lokale Parquets |
+| `SLB_VERSION` | sealifebase | `--version` | SeaLifeBase-Stand (Default: der des letzten Release) |
+| `SLB_DIR` | sealifebase | `--slb-dir` | Lokale Parquets |
+| `INAT_TAXA_FILE` | inaturalist | `--taxa-file` | Lokale `taxa.csv.gz` |
 
 ---
 
@@ -446,7 +460,7 @@ die Schritte sind deshalb Handarbeit:
 
 ```bash
 # 1. DB bauen und für die Veröffentlichung vorbereiten (wie publish_release.sh)
-./build.sh --version <quellversion> --output /tmp/test.db --force
+FISHBASE_VERSION=<quellversion> SLB_VERSION=<quellversion> ./build.sh --output /tmp/test.db --force
 sqlite3 /tmp/test.db "PRAGMA journal_mode = DELETE;"
 gzip --keep --stdout /tmp/test.db > /tmp/discere_reference.db.gz
 shasum -a 256 /tmp/discere_reference.db.gz; wc -c < /tmp/discere_reference.db.gz
@@ -484,7 +498,7 @@ neuer.
 
 - [`duckdb`](https://duckdb.org/docs/installation/) CLI
 - `sqlite3` CLI ab 3.47 (`RAISE` mit Ausdruck in der Identitäts-Stage; `build.sh` prüft die Version)
-- `curl` (Vorgänger-Release; Plugins nur bei `--download`)
+- `curl` (Vorgänger-Release; Plugins ohne `--no-download`)
 - `jq`, `gunzip` (Vorgänger-Release)
 
 ---

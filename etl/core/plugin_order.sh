@@ -49,14 +49,15 @@ REQUESTED=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --plugins-dir) PLUGINS_DIR="$2"; shift ;;
+        --plugins-dir) plugin_require_value "$@"; PLUGINS_DIR="$2"; shift ;;
         --no-enrich)   SKIP_OPTIONAL=true ;;
         --groups)      PRINT_GROUPS=true ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 35
+            plugin_print_help "$0"
             exit 0
             ;;
-        *) REQUESTED+=("$1") ;;
+        -*) plugin_fail_unknown_argument "$1" ;;
+        *)  REQUESTED+=("$1") ;;
     esac
     shift
 done

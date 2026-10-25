@@ -20,18 +20,22 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./plugin_api.sh
+source "$SCRIPT_DIR/plugin_api.sh"
+
 OUTPUT_DB="${OUTPUT_DB:-}"
 FORCE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --output) OUTPUT_DB="$2"; shift ;;
+        --output) plugin_require_value "$@"; OUTPUT_DB="$2"; shift ;;
         --force)  FORCE=true ;;
         --help|-h)
-            sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help "$0"
             exit 0
             ;;
-        *) echo "[WARN] [create_db] Unbekanntes Argument: $1" >&2 ;;
+        *) plugin_fail_unknown_argument "$1" ;;
     esac
     shift
 done

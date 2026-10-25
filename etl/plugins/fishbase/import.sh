@@ -6,24 +6,20 @@
 # in eine bestehende Discere-Datenbank.
 #
 # Usage:
-#   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --fishbase-dir ./cache/v26.06/parquet
+#   ./import.sh --db /path/to/discere.db
+#   ./import.sh --db /path/to/discere.db --fishbase-dir ~/data/fishbase/parquet
 #
-# Flags:
-#   --db <path>              Ziel-Datenbank (Pflichtfeld)
-#   --download               Parquets von Source Cooperative herunterladen
-#   --keep                   Heruntergeladene Parquets behalten
-#   --version <v26.06>       FishBase-Version
-#   --fishbase-dir <path>    Lokaler Parquet-Pfad (überschreibt --version)
+# Gemeinsame Flags (--db, --no-download, --keep, --help): siehe
+# docs/plugin-interface.md.
+# Eigene Flags und Umgebungsvariablen:
+#   --version <v26.06>       FISHBASE_VERSION  FishBase-Version
+#   --fishbase-dir <path>    FISHBASE_DIR      Lokaler Parquet-Pfad (überschreibt
+#                                              die Version)
 #
-# Umgebungsvariablen:
-#   DB_PATH, FISHBASE_VERSION, FISHBASE_DIR
-#
-# Wird das Script ohne expliziten lokalen Pfad aufgerufen, werden Parquets
-# standardmäßig relativ zum Plugin in ./cache/<version>/parquet gespeichert.
-#
-# Ohne --download/--no-download wird --download als Default gesetzt und
-# heruntergeladene Parquets werden nach dem Import gelöscht, außer mit --keep.
+# Ohne lokalen Pfad lädt das Plugin die Parquets nach ./cache/<version>/parquet
+# und löscht sie nach dem Import wieder, außer mit --keep; mit --no-download
+# verwendet es, was dort liegt. Ein lokaler Pfad (Flag oder
+# Umgebungsvariable) wird nur gelesen: nichts geladen, nichts gelöscht.
 #
 # Plugin-Konventionen:
 #   - Kein CREATE TABLE — Schema ist Aufgabe von core/create_db.sh
@@ -43,11 +39,8 @@ plugin_init "$PLUGIN_DIR"
 SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
-DB_PATH="${DB_PATH:-}"
 FISHBASE_VERSION="${FISHBASE_VERSION:-v26.06}"
 FISHBASE_DIR="${FISHBASE_DIR:-}"
-DOWNLOAD=false
-KEEP_PARQUETS=false
 
 SOURCE_COOP_BASE_URL="https://data.source.coop/cboettig/fishbase/fb"
 
@@ -60,34 +53,14 @@ REQUIRED_PARQUETS=(
 # ---------------------------------------------------------------------------
 # Argumente
 # ---------------------------------------------------------------------------
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --db)            DB_PATH="$2"; shift ;;
-        --download)      DOWNLOAD=true;  _EXPLICIT_DOWNLOAD=true ;;
-        --no-download)   DOWNLOAD=false; _EXPLICIT_DOWNLOAD=true ;;
-        --keep)          KEEP_PARQUETS=true ;;
-        --version)       FISHBASE_VERSION="$2"; shift ;;
-        --fishbase-dir)  FISHBASE_DIR="$2"; shift ;;
-        --help|-h)
-            plugin_print_help_from_header "$0" 2 20
-            exit 0
-            ;;
-        *) plugin_warn "Unbekanntes Argument: $1" ;;
-    esac
-    shift
-done
+plugin_parse_args --version=FISHBASE_VERSION --fishbase-dir=FISHBASE_DIR -- "$@"
 
+plugin_skip_download_for_local_path "$FISHBASE_DIR"
 FISHBASE_DIR="${FISHBASE_DIR:-$PLUGIN_DIR/cache/${FISHBASE_VERSION}/parquet}"
-
-# Default: --download wenn kein --download/--no-download und kein lokaler Pfad gesetzt.
-# Gilt nur wenn das Plugin direkt aufgerufen wird — build.sh übergibt --download explizit.
-if [[ "$DOWNLOAD" == false && "${_EXPLICIT_DOWNLOAD:-false}" == false ]]; then
-    DOWNLOAD=true
-fi
 
 cleanup() {
     plugin_cleanup_dir "$EXPORT_DIR"
-    if [[ "$DOWNLOAD" == true && "$KEEP_PARQUETS" == false && -d "$FISHBASE_DIR" ]]; then
+    if [[ "$DOWNLOAD" == true && "$KEEP_FILES" == false && -d "$FISHBASE_DIR" ]]; then
         plugin_log "Lösche Parquet-Verzeichnis: $FISHBASE_DIR"
         rm -rf "$FISHBASE_DIR"
     fi
@@ -111,7 +84,7 @@ check_parquet_files() {
     for name in "${REQUIRED_PARQUETS[@]}"; do
         [[ -f "$FISHBASE_DIR/${name}.parquet" ]] || missing+=("${name}.parquet")
     done
-    [[ ${#missing[@]} -eq 0 ]] || plugin_fail "Fehlende Parquets: ${missing[*]} — verwende --download"
+    [[ ${#missing[@]} -eq 0 ]] || plugin_fail "Fehlende Parquets: ${missing[*]} — ohne lokalen Pfad und ohne --no-download lädt das Plugin sie selbst"
     plugin_log "Alle Parquet-Dateien vorhanden (${FISHBASE_VERSION})"
 }
 

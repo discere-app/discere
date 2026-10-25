@@ -59,6 +59,10 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./core/plugin_api.sh
+source "$SCRIPT_DIR/core/plugin_api.sh"
+
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SOURCE_DB="$REPO_ROOT/assets/database/discere_reference.db"
@@ -73,17 +77,17 @@ fail() { echo "[ERROR] [publish_release] $*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --version) VERSION="$2"; shift ;;
+        --version) plugin_require_value "$@"; VERSION="$2"; shift ;;
         --schema-version)
             fail "--schema-version gibt es nicht mehr: Die Schemaversion wird aus der DB abgeleitet (core/schema_version.sh)." ;;
-        --source) SOURCE_DB="$2"; shift ;;
-        --data-repo) DATA_REPO="$2"; shift ;;
-        --tag) TAG="$2"; shift ;;
+        --source) plugin_require_value "$@"; SOURCE_DB="$2"; shift ;;
+        --data-repo) plugin_require_value "$@"; DATA_REPO="$2"; shift ;;
+        --tag) plugin_require_value "$@"; TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help "$0"
             exit 0
             ;;
-        *) fail "Unbekanntes Argument: $1" ;;
+        *) plugin_fail_unknown_argument "$1" ;;
     esac
     shift
 done

@@ -50,6 +50,20 @@ assert_not_contains() {
         || fail_case "nicht erwartet: [$needle]"$'\n'"in: $haystack"
 }
 
+# Ersetzt curl für den Rest des Falls durch einen Stub, der jeden Aufruf nach
+# $TEST_TMP/curl.log schreibt und fehlschlägt: Ein Plugin, das gegen seine
+# Regeln laden will, fällt so auf, ohne ins Netz zu gehen.
+stub_curl() {
+    mkdir -p "$TEST_TMP/bin"
+    printf '#!/usr/bin/env bash\necho "$*" >> "%s"\nexit 1\n' "$TEST_TMP/curl.log" > "$TEST_TMP/bin/curl"
+    chmod +x "$TEST_TMP/bin/curl"
+    export PATH="$TEST_TMP/bin:$PATH"
+}
+
+assert_curl_not_called() {
+    [[ ! -e "$TEST_TMP/curl.log" ]] || fail_case "curl aufgerufen: $(cat "$TEST_TMP/curl.log")"
+}
+
 # Legt ein Plugin an, das validate_plugin.sh besteht. Weitere Argumente
 # werden als Zeilen an plugin.yaml angehängt.
 make_plugin() {

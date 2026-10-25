@@ -99,8 +99,10 @@ Aus `_template/import.sh` kopieren und anpassen:
 
 1. `core/plugin_api.sh` sourcen
 2. `plugin_init "$PLUGIN_DIR"` aufrufen
-3. Download-Logik implementieren (oder weglassen wenn kein Download nötig)
-4. `DATA_DIR` oder andere quellspezifische Pfade definieren
+3. Eigene Flags und Umgebungsvariablen an `plugin_parse_args` geben; die
+   gemeinsamen Flags und die Regeln für Download und Löschen stehen in
+   [`plugin-interface.md`](plugin-interface.md#aufruf-schnittstelle)
+4. Download-Logik implementieren (oder weglassen wenn kein Download nötig)
 5. `export_to_csv()` — Datenpfade in den Sed-Ersetzungen ergänzen
 6. `import_to_sqlite()` — SQLite-Import-Script schreiben (analog fishbase)
 7. `validate()` — Plugin-spezifische Schnellprüfung

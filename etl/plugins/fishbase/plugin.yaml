@@ -14,17 +14,13 @@ provides:
 requires:
   - duckdb
   - sqlite3
-  - curl  # nur bei --download
+  - curl  # nur zum Herunterladen
 
+# Eigene Flags; die gemeinsamen stehen in docs/plugin-interface.md.
 flags:
-  - --db <path>           # Pflichtfeld
-  - --download            # Parquets von Source Cooperative laden
-  - --no-download         # Lokale Dateien verwenden
-  - --keep                # Parquets nach Import behalten
   - --version <v26.06>    # FishBase-Version (Default: v26.06)
-  - --fishbase-dir <path> # Lokaler Parquet-Pfad
+  - --fishbase-dir <path> # Lokaler Parquet-Pfad, ohne Download und Löschen
 
 env:
-  DB_PATH:          Entspricht --db
   FISHBASE_VERSION: Entspricht --version
   FISHBASE_DIR:     Entspricht --fishbase-dir

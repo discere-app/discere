@@ -37,14 +37,14 @@ PLUGINS_DIR=""
 RAN=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --db)          DB_PATH="$2"; shift ;;
-        --plugins-dir) PLUGINS_DIR="$2"; shift ;;
-        --ran)         RAN+=("$2"); shift ;;
+        --db)          plugin_require_value "$@"; DB_PATH="$2"; shift ;;
+        --plugins-dir) plugin_require_value "$@"; PLUGINS_DIR="$2"; shift ;;
+        --ran)         plugin_require_value "$@"; RAN+=("$2"); shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 24
+            plugin_print_help "$0"
             exit 0
             ;;
-        *) plugin_fail "Unbekanntes Argument: $1" ;;
+        *) plugin_fail_unknown_argument "$1" ;;
     esac
     shift
 done
