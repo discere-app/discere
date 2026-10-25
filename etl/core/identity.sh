@@ -72,7 +72,7 @@ while [[ $# -gt 0 ]]; do
         --initial)          INITIAL=true ;;
         --accept-species-loss) ACCEPTED_LOSS="$ACCEPTED_LOSS$2 "; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 48
+            plugin_print_help "$0"
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;

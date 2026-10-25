@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
         --no-enrich)   SKIP_OPTIONAL=true ;;
         --groups)      PRINT_GROUPS=true ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 35
+            plugin_print_help "$0"
             exit 0
             ;;
         *) REQUESTED+=("$1") ;;

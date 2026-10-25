@@ -80,13 +80,6 @@ plugin_log()  { echo "[$(date '+%H:%M:%S')] [${PLUGIN_SOURCE:-plugin}] $*" >&2; 
 plugin_warn() { echo "[WARN] [${PLUGIN_SOURCE:-plugin}] $*" >&2; }
 plugin_fail() { echo "[ERROR] [${PLUGIN_SOURCE:-plugin}] $*" >&2; exit 1; }
 
-plugin_print_help_from_header() {
-    local script_path="$1"
-    local start_line="$2"
-    local end_line="$3"
-    sed -n "${start_line},${end_line}p" "$script_path" | sed 's/^# \{0,1\}//'
-}
-
 # Gibt den Kopfkommentar eines Scripts als Hilfe aus: alles zwischen der
 # ersten und der zweiten Linie aus '# ===…'.
 plugin_print_help() {

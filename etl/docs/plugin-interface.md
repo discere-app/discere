@@ -171,9 +171,8 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
     lokaler Pfad wird nur gelesen
 - `plugin_print_help "$0"`
   - druckt den Kopfkommentar zwischen den ersten beiden `# ===`-Linien als
-    Hilfe; `plugin_parse_args` ruft es für `--help` auf
-- `plugin_print_help_from_header "$0" 2 20`
-  - druckt die angegebenen Zeilen eines Scripts als Hilfe
+    Hilfe; so beantwortet jedes ETL-Skript `--help`, bei den Plugins über
+    `plugin_parse_args`
 - `plugin_cleanup_dir "$EXPORT_DIR"`
   - löscht ein temporäres Verzeichnis
 

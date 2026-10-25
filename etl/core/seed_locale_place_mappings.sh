@@ -19,6 +19,10 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./plugin_api.sh
+source "$SCRIPT_DIR/plugin_api.sh"
+
 CSV_FILE="$SCRIPT_DIR/data/locale_iso_codes.csv"
 INAT_API="https://api.inaturalist.org/v1"
 API_SLEEP=0.4
@@ -28,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --db) DB_PATH="$2"; shift ;;
         --help|-h)
-            sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help "$0"
             exit 0
             ;;
         *) echo "[WARN] [seed_locale_place_mappings] Unbekanntes Argument: $1" >&2 ;;

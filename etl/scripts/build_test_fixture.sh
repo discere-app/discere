@@ -31,6 +31,10 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=../core/plugin_api.sh
+source "$SCRIPT_DIR/../core/plugin_api.sh"
+
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 SOURCE_DB="$REPO_ROOT/assets/database/discere_reference.db"
@@ -43,7 +47,7 @@ while [[ $# -gt 0 ]]; do
         --output) OUTPUT_DB="$2"; shift ;;
         --species-file) SPECIES_FILE="$2"; shift ;;
         --help|-h)
-            sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help "$0"
             exit 0
             ;;
         *) echo "[WARN] [build_test_fixture] Unbekanntes Argument: $1" >&2 ;;

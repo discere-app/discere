@@ -59,6 +59,10 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./core/plugin_api.sh
+source "$SCRIPT_DIR/core/plugin_api.sh"
+
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SOURCE_DB="$REPO_ROOT/assets/database/discere_reference.db"
@@ -80,7 +84,7 @@ while [[ $# -gt 0 ]]; do
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help "$0"
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
