@@ -426,23 +426,29 @@ Land als heimisch. Beide Exporte fassen die Zeilen deshalb nach derselben
 Regel zusammen (`core/sql/distribution_regions.sql`), den Status verglichen
 ohne Groß- und Kleinschreibung:
 
-1. **native**, sobald eine Zeile `native` sagt.
+1. **native**, sobald eine Zeile `native` oder `endemic` sagt und nicht
+   alle `endemic` sagen. `endemic` ist eine Form von `native`: Neben einem
+   anderen Status (etwa `endemic` und `introduced`) ist die Art im Land
+   heimisch, nur nicht als Ganzes endemisch.
 2. **endemic** nur, wenn alle Zeilen `endemic` sagen. Endemisch im Land ist
-   die Art nicht, wenn es nur eine ihrer Unterarten ist; neben `native`
-   gilt `native`.
+   die Art nicht, wenn es nur eine ihrer Unterarten ist.
 3. **introduced**, wenn keine Zeile `native` oder `endemic` sagt.
 4. **Sonst** der erste Status der Rangfolge `questionable`, `error`,
    `misidentification`, `extirpated`, `stray`, `not established`,
-   `reintroduced`, `established`, ohne Status. Vorn steht, was weniger über
-   die Präsenz der Art behauptet: ein Zweifel, dann ein als falsch erkannter
-   Nachweis, dann eine frühere Präsenz, dann eine gelegentliche oder
-   gescheiterte eingeführte, zuletzt eine dauerhafte. Ohne Status steht
-   hinten, weil die App eine Region ohne Status als heimisch zeigt.
+   `reintroduced`, `established`, unbekannter Status, ohne Status. Vorn
+   steht, was weniger über die Präsenz der Art behauptet: ein Zweifel, dann
+   ein als falsch erkannter Nachweis, dann eine frühere Präsenz, dann eine
+   gelegentliche oder gescheiterte eingeführte, zuletzt eine dauerhafte. Ein
+   Status außerhalb dieser Liste steht hinter allen bekannten, weil ein
+   bekannter mehr sagt; mehrere unbekannte gelten in alphabetischer Folge,
+   ohne Groß- und Kleinschreibung. Ohne Status steht ganz hinten, weil die
+   App eine Region ohne Status als heimisch zeigt, eine mit unbekanntem
+   Status nicht.
 
-`endemic` neben einem anderen Status als `native` (etwa `endemic` und
-`introduced`) sowie ein Status außerhalb dieser Liste brechen den Export ab,
-sobald sie in einem Schlüssel mit mehreren Zeilen stehen: Keine Regel sagt,
-was dann für die Art gilt. In v26.06 kommt beides nicht vor.
+Der Export bricht an keinem Schlüssel ab: Die Quellen korrigieren ihre
+Daten nicht verlässlich, und jede Kombination von Status hat so ein
+Ergebnis. Ein unbekannter Status allein in seinem Schlüssel bleibt, wie er
+ist. In v26.06 kennt die Rangfolge jeden Status der Quellen.
 
 Präsenz, threatened, Häufigkeit, Bedeutung und Kommentar behalten ihren
 Wert nur, wenn alle Zeilen des Schlüssels ihn teilen; sonst bleiben sie
@@ -472,7 +478,11 @@ Jeder Schlüssel mit mehreren Zeilen steht im Build-Bericht, mit dem Status
 seiner Zeilen, dem Ergebnis und den Spalten, die wegen Widerspruchs leer
 bleiben, oder mit „ausgelassen: Einführung widersprüchlich“:
 `distribution_status_merged` bei verschiedenem Status, sonst
-`distribution_rows_merged`. In v26.06:
+`distribution_rows_merged`. Jeder Schlüssel mit einem unbekannten Status,
+auch einer mit nur einer Zeile, steht zusätzlich als
+`distribution_status_unknown` mit diesem Status darin: So zeigt der Bericht
+neues Vokabular der Quelle, und die Rangfolge lässt sich darum erweitern.
+In v26.06:
 
 | Status der Zeilen | FishBase | SeaLifeBase | Ergebnis |
 |---|---|---|---|

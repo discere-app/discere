@@ -251,7 +251,8 @@ plugin_report_distribution() {
     local report="$1"
     plugin_report < "$report"
     plugin_log "Verbreitung zusammengefasst: $(grep -c '^distribution_status_merged' "$report" || true)" \
-        "Schlüssel mit verschiedenem Status, $(grep -c '^distribution_rows_merged' "$report" || true) mit gleichem"
+        "Schlüssel mit verschiedenem Status, $(grep -c '^distribution_rows_merged' "$report" || true) mit gleichem;" \
+        "unbekannter Status: $(grep -c '^distribution_status_unknown' "$report" || true) Schlüssel"
 }
 
 # Zählung von core/sql/common_names.sql (common_names_summary.tsv eines
