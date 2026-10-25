@@ -126,15 +126,24 @@ eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
    Kandidaten, nicht `species_name_lookup`: Diese Tabelle ist schon
    disambiguiert (ein Gewinner je Name, für die Namensauflösung der App) und
    würde eine Mehrdeutigkeit verdecken, die der Abgleich sehen muss;
-3. ist das Ergebnis **mehrdeutig, gibt es keinen Treffer**, sondern einen
-   Eintrag im Build-Bericht. Geraten wird nie: Ein sichtbares Doppel lässt sich
+3. trifft ein Datensatz **mehrere Entitäten**, gilt die eine, bei der sein
+   Name der akzeptierte ist, sofern es genau eine solche gibt: Die Quelle führt
+   den Namen dort selbst als gültig, bei den übrigen nur als Synonym.
+   SeaLifeBase etwa führt manche Art zweimal, unter dem alten Namen mit dem
+   neuen als Synonym und unter dem neuen als gültig; ein Datensatz unter dem
+   neuen Namen meint den Eintrag, der ihn gültig führt. Ist der Name bei
+   keiner oder bei mehreren Entitäten der akzeptierte — bei höheren Taxa, die
+   nur ihren akzeptierten Namen haben, etwa zwei gleichnamige Gattungen —, ist
+   das Ergebnis **mehrdeutig: kein Treffer**, sondern ein Eintrag im
+   Build-Bericht. Geraten wird nie: Ein sichtbares Doppel lässt sich
    zusammenführen, zwei vermischte Arten lassen sich kaum wieder trennen.
 4. treffen **mehrere Datensätze einer Quelle dieselbe Entität** — auch einer,
    der selbst mehrdeutig ist —, behält sie nur der, der sie eindeutig über
    ihren akzeptierten Namen trifft; die übrigen sind mehrdeutig. Führt die
    Quelle den akzeptierten Namen einer Art als eigenen Datensatz, meint sie
    mit einem Synonym dieser Art ein anderes Taxon. So hat eine Entität je
-   Quelle höchstens einen Treffer.
+   Quelle höchstens einen Treffer. Gezählt wird nach Regel 3: Eine Entität,
+   die ein Datensatz dort an eine andere verloren hat, trifft er nicht mehr.
 
 Falsch angewandte Namen (`name_status = 'misapplied name'`) sind keine
 Kandidaten: Ein solcher Name meint per Definition ein anderes Taxon und belegt

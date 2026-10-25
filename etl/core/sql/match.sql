@@ -23,12 +23,15 @@
 --     schon einen Gewinner gewählt hat und Mehrdeutigkeit verdecken würde.
 --     Ausgenommen ist name_status 'misapplied name': Ein falsch angewandter
 --     Name meint per Definition ein anderes Taxon und belegt deshalb keine
---     Identität. 'ambiguous synonym' bleibt Kandidat — er kann die Art meinen,
---     und trifft er zugleich eine andere, macht die Regel unten den Datensatz
---     ambiguous, statt zu wählen.
+--     Identität. 'ambiguous synonym' bleibt Kandidat — er kann die Art meinen;
+--     trifft er zugleich eine andere, gilt die Regel unten.
 --   - Höhere Taxa: der Name in der Tabelle ihres Rangs.
---   - Trifft ein Datensatz mehrere Entitäten, ist er ambiguous; gewählt wird
---     nie.
+--   - Trifft ein Datensatz mehrere Entitäten, und genau eine davon über ihren
+--     akzeptierten Namen, ist sie sein einziger Kandidat: Die Quelle führt den
+--     Namen dort als gültig, bei den übrigen nur als Synonym. Trifft er
+--     keine oder mehrere über den akzeptierten Namen, ist er ambiguous;
+--     geraten wird nie. Höhere Taxa treffen immer über ihren akzeptierten
+--     Namen, zwei gleichnamige bleiben also mehrdeutig.
 --   - Treffen mehrere Datensätze dieselbe Entität — auch einer, der selbst
 --     mehrdeutig ist —, behält sie nur der eine, der sie über ihren
 --     akzeptierten Namen trifft und dabei eindeutig ist; die übrigen sind
@@ -93,6 +96,17 @@ JOIN match_candidate_names n ON n.rank = r.rank AND n.normalized_name = r.normal
 GROUP BY r.record_key, n.entity_id;
 CREATE INDEX temp.idx_match_candidates ON match_candidates (record_key);
 CREATE INDEX temp.idx_match_candidates_entity ON match_candidates (entity_id);
+
+-- Trifft ein Datensatz mehrere Entitäten und genau eine über ihren
+-- akzeptierten Namen, bleibt nur sie Kandidat; alles Weitere zählt nur sie.
+DELETE FROM match_candidates
+WHERE by_accepted_name = 0
+  AND record_key IN (
+      SELECT record_key
+      FROM match_candidates
+      GROUP BY record_key
+      HAVING COUNT(*) > 1 AND SUM(by_accepted_name) = 1
+  );
 
 CREATE TEMP TABLE match_per_record AS
 SELECT
