@@ -88,7 +88,21 @@ void main() {
 
   test('the preferred name from the species\' own source outranks one from '
       'another source', () async {
-    // "catalogue" sorts before "fishbase", the species' own source.
+    // "catalogue" sorts before "fishbase", the species' own source. The own
+    // name is re-inserted after the other one, so a query that ignores the
+    // source would pick the other name first.
+    const ownPreferred =
+        "species_id = ? AND source = 'fishbase' AND is_preferred = 1";
+    final own = await referenceDb.query(
+      'species_scientific_names',
+      where: ownPreferred,
+      whereArgs: [_carcharodonCarcharias],
+    );
+    await referenceDb.delete(
+      'species_scientific_names',
+      where: ownPreferred,
+      whereArgs: [_carcharodonCarcharias],
+    );
     await referenceDb.insert('species_scientific_names', {
       'species_id': _carcharodonCarcharias,
       'name': 'Carcharias albus',
@@ -97,6 +111,7 @@ void main() {
       'source': 'catalogue',
       'is_preferred': 1,
     });
+    await referenceDb.insert('species_scientific_names', own.single);
 
     final species = await SpeciesRepository(
       database: referenceDb,
