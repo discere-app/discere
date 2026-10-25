@@ -148,26 +148,30 @@ discere:fishbase_species:2" "$(csv_column pictures 2)" "Bilder"
 
 # Ersetzt synonyms.parquet durch Synonyme von Amphiprion ocellaris (Art 2),
 # die mit ihrem kanonischen Namen oder untereinander denselben
-# normalisierten Namen tragen, in der Reihenfolge <ASC|DESC>:
+# normalisierten Namen tragen, in der Reihenfolge <ASC|DESC>; Ebene Species,
+# wo nicht anders genannt:
 #   amphiprion ocellaris  ambiguous synonym (Ref 5), synonym „Ocellaris “ (Ref 6)
 #   amphiprion bicolor    misapplied name (Ref 1), ambiguous synonym (Ref 2),
 #                         synonym (Ref 4)
-#   amphiprion melanurus  synonym (Ref 12), synonym (Ref 11)
+#   amphiprion melanurus  synonym (Ref 12), synonym auf der Ebene „species“
+#                         (Ref 11)
+#   amphiprion percula    synonym nur auf der Ebene „species“ (Ref 7)
 write_colliding_fishbase_synonyms() {
     duckdb << SQL
 COPY (
-    SELECT SpecCode, SynGenus, SynSpecies, NULL::VARCHAR AS Author, SynonymsRef, 'Species' AS TaxonLevel,
+    SELECT SpecCode, SynGenus, SynSpecies, NULL::VARCHAR AS Author, SynonymsRef, TaxonLevel,
            NULL::VARCHAR AS Comment, Status, 0 AS Valid, NULL::VARCHAR AS Synonymy,
            NULL::VARCHAR AS Combination, 0 AS Misspelling
     FROM (VALUES
-        (1, 2, 'Amphiprion', 'ocellaris',  5,  'ambiguous synonym'),
-        (2, 2, 'Amphiprion', 'Ocellaris ', 6,  'synonym'),
-        (3, 2, 'Amphiprion', 'bicolor',    1,  'misapplied name'),
-        (4, 2, 'Amphiprion', 'bicolor',    2,  'ambiguous synonym'),
-        (5, 2, 'Amphiprion', 'bicolor',    4,  'synonym'),
-        (6, 2, 'Amphiprion', 'melanurus',  12, 'synonym'),
-        (7, 2, 'Amphiprion', 'melanurus',  11, 'synonym')
-    ) AS t(pos, SpecCode, SynGenus, SynSpecies, SynonymsRef, Status)
+        (1, 2, 'Amphiprion', 'ocellaris',  5,  'Species', 'ambiguous synonym'),
+        (2, 2, 'Amphiprion', 'Ocellaris ', 6,  'Species', 'synonym'),
+        (3, 2, 'Amphiprion', 'bicolor',    1,  'Species', 'misapplied name'),
+        (4, 2, 'Amphiprion', 'bicolor',    2,  'Species', 'ambiguous synonym'),
+        (5, 2, 'Amphiprion', 'bicolor',    4,  'Species', 'synonym'),
+        (6, 2, 'Amphiprion', 'melanurus',  12, 'Species', 'synonym'),
+        (7, 2, 'Amphiprion', 'melanurus',  11, 'species', 'synonym'),
+        (8, 2, 'Amphiprion', 'percula',    7,  'species', 'synonym')
+    ) AS t(pos, SpecCode, SynGenus, SynSpecies, SynonymsRef, TaxonLevel, Status)
     ORDER BY pos $1
 ) TO '$TEST_TMP/fishbase/synonyms.parquet' (FORMAT parquet);
 SQL
@@ -181,11 +185,13 @@ fishbase_scientific_name_rows() {
 # Je Art und normalisiertem Namen eine Zeile: Der kanonische Name bleibt
 # bevorzugt, auch wenn die Quelle ihn zusätzlich als Synonym führt; unter
 # gleichnamigen Synonymen entscheidet erst der Status, dann source_ref — in
-# jeder Reihenfolge der Eingabe gleich.
+# jeder Reihenfolge der Eingabe gleich. Die Ebene Species zählt in jeder
+# Schreibweise, auch wenn derselbe Name auf beiden steht.
 test_fishbase_export_keeps_one_name_per_species_canonical_first() {
     local expected="amphiprion bicolor,synonym,4,0
 amphiprion melanurus,synonym,11,0
-amphiprion ocellaris,valid,2,1"
+amphiprion ocellaris,valid,2,1
+amphiprion percula,synonym,7,0"
     local order
     create_fishbase_parquets
     for order in ASC DESC; do

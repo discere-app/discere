@@ -864,25 +864,28 @@ test_sealifebase_export_compares_genus_through_family_moved_by_phylum() {
 
 # Ersetzt synonyms.parquet durch Synonyme von Abra alba (Art 10), die mit
 # ihrem kanonischen Namen oder untereinander denselben normalisierten Namen
-# tragen, in der Reihenfolge <ASC|DESC>:
+# tragen, in der Reihenfolge <ASC|DESC>; Ebene Species, wo nicht anders
+# genannt:
 #   abra alba     synonym (Ref 5), ambiguous synonym „Alba “ (Ref 6)
 #   abra nitida   misapplied name (Ref 1), ambiguous synonym (Ref 2),
 #                 synonym (Ref 4)
-#   abra ovata    synonym (Ref 12), synonym (Ref 11)
+#   abra ovata    synonym (Ref 12), synonym auf der Ebene „species“ (Ref 11)
+#   abra pura     synonym nur auf der Ebene „species“ (Ref 7)
 write_colliding_sealifebase_synonyms() {
     duckdb << SQL
 COPY (
-    SELECT SpecCode, SynGenus, SynSpecies, SynonymsRef, 'Species' AS TaxonLevel, Status,
+    SELECT SpecCode, SynGenus, SynSpecies, SynonymsRef, TaxonLevel, Status,
            NULL::VARCHAR AS Synonymy, NULL::VARCHAR AS Combination, 0 AS Misspelling
     FROM (VALUES
-        (1, 10, 'Abra', 'alba',   5,  'synonym'),
-        (2, 10, 'Abra', 'Alba ',  6,  'ambiguous synonym'),
-        (3, 10, 'Abra', 'nitida', 1,  'misapplied name'),
-        (4, 10, 'Abra', 'nitida', 2,  'ambiguous synonym'),
-        (5, 10, 'Abra', 'nitida', 4,  'synonym'),
-        (6, 10, 'Abra', 'ovata',  12, 'synonym'),
-        (7, 10, 'Abra', 'ovata',  11, 'synonym')
-    ) AS t(pos, SpecCode, SynGenus, SynSpecies, SynonymsRef, Status)
+        (1, 10, 'Abra', 'alba',   5,  'Species', 'synonym'),
+        (2, 10, 'Abra', 'Alba ',  6,  'Species', 'ambiguous synonym'),
+        (3, 10, 'Abra', 'nitida', 1,  'Species', 'misapplied name'),
+        (4, 10, 'Abra', 'nitida', 2,  'Species', 'ambiguous synonym'),
+        (5, 10, 'Abra', 'nitida', 4,  'Species', 'synonym'),
+        (6, 10, 'Abra', 'ovata',  12, 'Species', 'synonym'),
+        (7, 10, 'Abra', 'ovata',  11, 'species', 'synonym'),
+        (8, 10, 'Abra', 'pura',   7,  'species', 'synonym')
+    ) AS t(pos, SpecCode, SynGenus, SynSpecies, SynonymsRef, TaxonLevel, Status)
     ORDER BY pos $1
 ) TO '$TEST_TMP/sealifebase/synonyms.parquet' (FORMAT parquet);
 SQL
@@ -891,11 +894,13 @@ SQL
 # Je Art und normalisiertem Namen eine Zeile: Der kanonische Name bleibt
 # bevorzugt, auch wenn die Quelle ihn zusätzlich als Synonym führt; unter
 # gleichnamigen Synonymen entscheidet erst der Status, dann source_ref — in
-# jeder Reihenfolge der Eingabe gleich.
+# jeder Reihenfolge der Eingabe gleich. Die Ebene Species zählt in jeder
+# Schreibweise, auch wenn derselbe Name auf beiden steht.
 test_sealifebase_export_keeps_one_name_per_species_canonical_first() {
     local expected="abra alba,valid,10,1
 abra nitida,synonym,4,0
-abra ovata,synonym,11,0"
+abra ovata,synonym,11,0
+abra pura,synonym,7,0"
     local order
     create_sealifebase_parquets
     for order in ASC DESC; do
@@ -910,27 +915,31 @@ abra ovata,synonym,11,0"
 
 # Ersetzt synonyms.parquet durch Synonyme von Abra alba (10) und Abra tenuis
 # (11) auf verschiedenen Ebenen:
-#   abra prima    ambiguous synonym bei 10 (Species) und 11 (Other)
-#   abra secunda  Synonym bei 11 auf Species und Other — dieselbe Art
-#   abra tertia   Synonym bei 10 und beim Platzhalter 14, der keine Art ist
-#   abra quarta   falsch angewandt bei 10, Synonym bei 11
-#   abra quinta   bei 11 nur als Varietät (kein Binom), Synonym bei 10
+#   abra prima            ambiguous synonym bei 10 (Species) und 11 (Other)
+#   abra secunda          Synonym bei 11 auf Species und Other — dieselbe Art
+#   abra tertia           Synonym bei 10 und beim Platzhalter 14, der keine Art ist
+#   abra quarta           falsch angewandt bei 10, Synonym bei 11
+#   abra quinta           bei 11 nur als Varietät (kein Binom), Synonym bei 10
+#   abra sexta minor      Synonym bei 11 auf der Ebene Subspecies
+#   abra septima f. nana  Synonym bei 11 ohne Ebene (NULL)
 write_sealifebase_synonyms_across_levels() {
     duckdb << SQL
 COPY (
     SELECT SpecCode, SynGenus, SynSpecies, 1 AS SynonymsRef, TaxonLevel, Status,
            NULL::VARCHAR AS Synonymy, NULL::VARCHAR AS Combination, 0 AS Misspelling
     FROM (VALUES
-        (10, 'Abra', 'prima',          'Species', 'ambiguous synonym'),
-        (11, 'Abra', 'prima',          'Other',   'ambiguous synonym'),
-        (11, 'Abra', 'secunda',        'Species', 'synonym'),
-        (11, 'Abra', 'secunda',        'Other',   'synonym'),
-        (10, 'Abra', 'tertia',         'Species', 'synonym'),
-        (14, 'Abra', 'tertia',         'Species', 'synonym'),
-        (10, 'Abra', 'quarta',         'Species', 'misapplied name'),
-        (11, 'Abra', 'quarta',         'Species', 'synonym'),
-        (10, 'Abra', 'quinta',         'Species', 'synonym'),
-        (11, 'Abra', 'quinta var. x',  'Variety', 'synonym')
+        (10, 'Abra', 'prima',           'Species',    'ambiguous synonym'),
+        (11, 'Abra', 'prima',           'Other',      'ambiguous synonym'),
+        (11, 'Abra', 'secunda',         'Species',    'synonym'),
+        (11, 'Abra', 'secunda',         'Other',      'synonym'),
+        (10, 'Abra', 'tertia',          'Species',    'synonym'),
+        (14, 'Abra', 'tertia',          'Species',    'synonym'),
+        (10, 'Abra', 'quarta',          'Species',    'misapplied name'),
+        (11, 'Abra', 'quarta',          'Species',    'synonym'),
+        (10, 'Abra', 'quinta',          'Species',    'synonym'),
+        (11, 'Abra', 'quinta var. x',   'Variety',    'synonym'),
+        (11, 'Abra', 'sexta minor',     'Subspecies', 'synonym'),
+        (11, 'Abra', 'septima f. nana', NULL,         'synonym')
     ) AS t(SpecCode, SynGenus, SynSpecies, TaxonLevel, Status)
 ) TO '$TEST_TMP/sealifebase/synonyms.parquet' (FORMAT parquet);
 SQL
@@ -949,4 +958,18 @@ test_sealifebase_export_lists_names_that_are_synonyms_of_several_species() {
     assert_eq "abra prima,sealifebase,2" "$(slb_csv_columns ambiguous_scientific_names 1-3)" "mehrdeutige Namen"
     assert_eq "discere:sealifebase_species:10,abra prima" \
         "$(slb_csv_columns species_scientific_names 1,3 | grep 'abra prima')" "Name nur auf der Ebene Species"
+}
+
+# In species_scientific_names kommen nur Synonyme der Ebene Species: Abra
+# tenuis (11) behält von den Zeilen oben nur abra quarta und abra secunda,
+# nicht die Namen auf den Ebenen Other, Variety und Subspecies und nicht den
+# ohne Ebene.
+test_sealifebase_export_takes_synonyms_only_from_species_level() {
+    create_sealifebase_parquets
+    write_sealifebase_synonyms_across_levels
+    run_sealifebase_export
+    assert_status 0
+    assert_eq "abra quarta
+abra secunda" "$(slb_csv_columns species_scientific_names 1,3,7 \
+        | sed -n 's/^discere:sealifebase_species:11,\(.*\),0$/\1/p')" "Synonyme von Abra tenuis"
 }
