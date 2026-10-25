@@ -22,16 +22,28 @@ String speciesScientificNameSql({
 ///
 /// `species_scientific_names` holds at most one preferred name per source.
 /// The one from the species' own source wins, then the first by source and
-/// name, so every query picks the same one.
+/// name, so every query picks the same one. That precedence takes two
+/// subqueries rather than one `ORDER BY` ranking the own source first, because
+/// older Android SQLite (3.28 on API 30) does not resolve an outer column in a
+/// subquery's `ORDER BY`.
 String preferredScientificNameSql({
   required String species,
   required String genus,
 }) =>
     '''
-CASE WHEN $genus.id IS NULL THEN (
-  SELECT ssn.name
-  FROM species_scientific_names ssn
-  WHERE ssn.species_id = $species.id AND ssn.is_preferred = 1
-  ORDER BY ssn.source = $species.external_source DESC, ssn.source, ssn.name
-  LIMIT 1
+CASE WHEN $genus.id IS NULL THEN COALESCE(
+  (
+    SELECT ssn.name
+    FROM species_scientific_names ssn
+    WHERE ssn.species_id = $species.id AND ssn.is_preferred = 1
+      AND ssn.source = $species.external_source
+    LIMIT 1
+  ),
+  (
+    SELECT ssn.name
+    FROM species_scientific_names ssn
+    WHERE ssn.species_id = $species.id AND ssn.is_preferred = 1
+    ORDER BY ssn.source, ssn.name
+    LIMIT 1
+  )
 ) END''';
