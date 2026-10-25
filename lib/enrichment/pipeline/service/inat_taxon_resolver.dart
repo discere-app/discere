@@ -40,9 +40,17 @@ class INatTaxonResolver {
   /// Reference-DB entries take precedence over cached ones.
   Future<Map<String, int>> batchResolveKnownTaxonIds(
     List<Species> speciesList,
-  ) async {
-    if (speciesList.isEmpty) return const {};
-    final ids = speciesList.map((s) => s.id).toSet();
+  ) => _knownTaxonIds(speciesList.map((s) => s.id).toSet());
+
+  /// The id on record for the species [speciesId] without asking
+  /// iNaturalist: the reference database's, else one found earlier. Null
+  /// when neither has one. Takes the id alone so a caller that has not
+  /// loaded the species need not load it just to ask.
+  Future<int?> knownTaxonId(String speciesId) async =>
+      (await _knownTaxonIds({speciesId}))[speciesId];
+
+  Future<Map<String, int>> _knownTaxonIds(Set<String> ids) async {
+    if (ids.isEmpty) return const {};
     final refIds = await _externalIdRepository.getExternalIdsForProvider(
       ids,
       ExternalIdProvider.inaturalist,
@@ -56,12 +64,6 @@ class INatTaxonResolver {
           );
     return {...cacheIds, ...refIds};
   }
-
-  /// The id on record for [species] without asking iNaturalist: the
-  /// reference database's, else one found earlier. Null when neither has
-  /// one.
-  Future<int?> knownTaxonId(Species species) async =>
-      (await batchResolveKnownTaxonIds([species]))[species.id];
 
   /// Searches iNaturalist by name for the taxon id of [species], which has
   /// none on record. Null when a search failed and is worth retrying.

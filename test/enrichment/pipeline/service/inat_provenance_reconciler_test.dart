@@ -1,5 +1,3 @@
-import 'package:discere/catalog/model/classification.dart';
-import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_rejection_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
@@ -20,27 +18,6 @@ import '../../../mocks.mocks.dart';
 import '../../../support/in_memory_user_database.dart';
 
 const _version = 3;
-
-Species _species(String id) => Species(
-  id,
-  id,
-  'sealifebase',
-  'pusilla',
-  const {},
-  Classification(
-    'Triphora',
-    const {},
-    null,
-    null,
-    const {},
-    null,
-    const {},
-    null,
-    const {},
-    null,
-  ),
-  const [],
-);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -240,7 +217,7 @@ void main() {
       for (final entityId in entities) {
         final knownTaxonId = entityId.startsWith('genus:')
             ? await higherResolver.knownTaxonId(entityId)
-            : await speciesResolver.knownTaxonId(_species(entityId));
+            : await speciesResolver.knownTaxonId(entityId);
         expect(
           kept.containsKey(entityId),
           knownTaxonId == 1,

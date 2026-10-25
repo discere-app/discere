@@ -81,7 +81,7 @@ class SpeciesPhotoService {
         return refPictures;
       }
 
-      final knownTaxonId = await taxonResolver.knownTaxonId(species);
+      final knownTaxonId = await taxonResolver.knownTaxonId(species.id);
       final taxonId =
           knownTaxonId ?? await taxonResolver.searchTaxonId(species);
       if (taxonId == null) {

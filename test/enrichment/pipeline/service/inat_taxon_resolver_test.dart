@@ -41,6 +41,8 @@ Species _species({required String? genus, String? classId = _gastropoda}) =>
 
 void main() {
   late MockSpeciesRepository speciesRepository;
+  late MockExternalIdRepository externalIds;
+  late MockExternalIdCacheRepository cachedIds;
   late MockExternalIdRejectionRepository rejections;
   late MockINatAllowedAncestorRepository allowedAncestors;
   late MockINatTaxonIdResolver taxonIds;
@@ -48,13 +50,15 @@ void main() {
 
   setUp(() {
     speciesRepository = MockSpeciesRepository();
+    externalIds = MockExternalIdRepository();
+    cachedIds = MockExternalIdCacheRepository();
     rejections = MockExternalIdRejectionRepository();
     allowedAncestors = MockINatAllowedAncestorRepository();
     taxonIds = MockINatTaxonIdResolver();
     resolver = INatTaxonResolver(
       speciesRepository,
-      MockExternalIdRepository(),
-      MockExternalIdCacheRepository(),
+      externalIds,
+      cachedIds,
       rejections,
       allowedAncestors,
       taxonIds,
@@ -89,6 +93,40 @@ void main() {
       await resolver.scientificNameCandidates(_species(genus: null)),
       isEmpty,
     );
+  });
+
+  group('knownTaxonId', () {
+    void givenReferenceIds(Map<String, int> ids) => when(
+      externalIds.getExternalIdsForProvider(
+        any,
+        ExternalIdProvider.inaturalist,
+      ),
+    ).thenAnswer((_) async => ids);
+
+    void givenCachedIds(Map<String, int> ids) => when(
+      cachedIds.getExternalIdsForProvider(any, ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => ids);
+
+    test('prefers the reference database over the cache', () async {
+      givenReferenceIds({'sp1': 47});
+      givenCachedIds({'sp1': 48});
+
+      expect(await resolver.knownTaxonId('sp1'), 47);
+    });
+
+    test('falls back to an id found earlier', () async {
+      givenReferenceIds(const {});
+      givenCachedIds({'sp1': 48});
+
+      expect(await resolver.knownTaxonId('sp1'), 48);
+    });
+
+    test('is null when neither has one', () async {
+      givenReferenceIds(const {});
+      givenCachedIds(const {});
+
+      expect(await resolver.knownTaxonId('sp1'), isNull);
+    });
   });
 
   group('searchTaxonId', () {
