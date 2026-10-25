@@ -119,15 +119,14 @@ download_parquets() {
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
-clear_existing_data() {
-    # classes / orders / families: hart löschen und neu importieren.
-    # genera: NICHT löschen — deprecated Species können noch darauf zeigen
-    #         (species.genus FK). Stattdessen: INSERT OR IGNORE + UPDATE.
-    # species: NICHT löschen — Soft Delete via status='deprecated'.
-    # pictures: hart löschen und neu importieren (keine User-Referenzen).
-    plugin_log "Räume bestehende ${PLUGIN_SOURCE}-Daten auf..."
-    sqlite3 "$DB_PATH" << EOF
-PRAGMA foreign_keys = OFF;
+# Löscht die bestehenden Daten der Quelle, in der Transaktion des Imports.
+# classes / orders / families: hart löschen und neu importieren.
+# genera: NICHT löschen — deprecated Species können noch darauf zeigen
+#         (species.genus FK). Stattdessen: INSERT OR IGNORE + UPDATE.
+# species: NICHT löschen — Soft Delete via status='deprecated'.
+# pictures: hart löschen und neu importieren (keine User-Referenzen).
+clear_existing_data_sql() {
+    cat << EOF
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_distribution_regions WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
@@ -137,7 +136,6 @@ DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
-PRAGMA foreign_keys = ON;
 EOF
 }
 
@@ -161,12 +159,19 @@ export_to_csv() {
     plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
+# Aufräumen und Import laufen in einer Transaktion: Scheitert eine Anweisung,
+# bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie sie waren.
+# PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
     cat > "$import_script" << EOF
-PRAGMA foreign_keys = OFF;
+.bail on
 .mode csv
+PRAGMA foreign_keys = OFF;
+BEGIN;
+
+$(clear_existing_data_sql)
 
 -- Temp-Tabellen für den Import
 CREATE TEMP TABLE tmp_classes (
@@ -299,9 +304,9 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
 .import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
 
--- classes / orders / families: frisch importiert (wurden in clear_existing_data
--- gelöscht). Ohne OR IGNORE: export.sql liefert je Code eine Zeile, eine
--- Kollision ist ein Fehler im Export und bricht den Import ab.
+-- classes / orders / families: frisch importiert (oben gelöscht). Ohne OR
+-- IGNORE: export.sql liefert je Code eine Zeile, eine Kollision ist ein
+-- Fehler im Export und bricht den Import ab.
 INSERT INTO classes (
     id, external_id, external_source, name, body_shape, super_class
 ) SELECT
@@ -414,7 +419,7 @@ WHERE species_id != '' AND name != '' AND normalized_name != '';
 INSERT INTO ambiguous_scientific_names (normalized_name, source, species_count)
 SELECT normalized_name, source, species_count FROM tmp_ambiguous_scientific_names;
 
--- Pictures: INSERT OR IGNORE (neu importiert nach clear_existing_data)
+-- Pictures: INSERT OR IGNORE (oben gelöscht, neu importiert)
 INSERT OR IGNORE INTO pictures (
     id, species, picname, picturetype, lifestage, author,
     copyright, url, origin, license_key, is_usable
@@ -442,7 +447,7 @@ INSERT INTO taxonomy_distribution_regions (
     importance, comment
 FROM tmp_taxonomy_distribution_regions;
 
-PRAGMA foreign_keys = ON;
+COMMIT;
 EOF
     sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
 }
@@ -494,7 +499,6 @@ plugin_log "DB      : $DB_PATH"
 check_deps
 [[ "$DOWNLOAD" == true ]] && download_parquets
 check_parquet_files
-clear_existing_data
 export_to_csv
 import_to_sqlite
 plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
