@@ -12,6 +12,3 @@ requires:
 
 depends_on_sources:
   - fishbase
-
-flags:
-  - --db <path>  # Pflichtfeld — wird von build.sh übergeben

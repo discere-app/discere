@@ -13,9 +13,10 @@
 # Usage:
 #   ./import.sh --db /path/to/discere.db
 #
-# Flags:
-#   --db <path>    Ziel-Datenbank (Pflichtfeld)
-#   Alle anderen Flags von build.sh werden mit Warnung ignoriert.
+# Nur die gemeinsamen Flags (--db, --no-download, --keep, --help): siehe
+# docs/plugin-interface.md.
+# Die Quelle lädt nichts herunter; --no-download und --keep ändern deshalb
+# nichts.
 #
 # Daten:
 #   data/class_common_names.csv — Volksnamen für Klassen, je Zeile
@@ -36,24 +37,13 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$PLUGIN_DIR/../../core/plugin_api.sh"
 plugin_init "$PLUGIN_DIR"
 
-DB_PATH="${DB_PATH:-}"
 CLASS_NAMES_CSV="$PLUGIN_DIR/data/class_common_names.csv"
 CSV_COLUMNS=(taxon_source external_id class language name source_url)
 
 # ---------------------------------------------------------------------------
 # Argumente
 # ---------------------------------------------------------------------------
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --db) DB_PATH="$2"; shift ;;
-        --help|-h)
-            plugin_print_help_from_header "$0" 2 25
-            exit 0
-            ;;
-        *) plugin_warn "Unbekanntes Argument: $1" ;;
-    esac
-    shift
-done
+plugin_parse_args -- "$@"
 
 # ---------------------------------------------------------------------------
 # Validierung

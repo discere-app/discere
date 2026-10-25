@@ -10,7 +10,7 @@ provides:
 requires:
   - duckdb
   - sqlite3
-  - curl  # nur bei --download
+  - curl  # nur zum Herunterladen
 
 depends_on_sources:
   - fishbase
@@ -18,9 +18,9 @@ depends_on_sources:
 
 optional: true  # ergänzt nur; --no-enrich überspringt die Quelle
 
+# Eigene Flags; die gemeinsamen stehen in docs/plugin-interface.md.
 flags:
-  - --db <path>         # Pflichtfeld — wird von build.sh übergeben
-  - --download          # taxa.csv.gz herunterladen (Default)
-  - --no-download       # vorhandene Datei im Cache verwenden
-  - --keep              # heruntergeladene Datei behalten
-  - --taxa-file <path>  # vorhandene taxa.csv.gz verwenden (ohne Download)
+  - --taxa-file <path>  # vorhandene taxa.csv.gz, ohne Download und Löschen
+
+env:
+  INAT_TAXA_FILE: Entspricht --taxa-file

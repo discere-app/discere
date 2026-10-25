@@ -10,13 +10,15 @@
 #   ./import.sh --db /path/to/discere.db
 #   ./import.sh --db /path/to/discere.db --taxa-file /path/to/taxa.csv.gz
 #
-# Flags:
-#   --db <path>          Ziel-Datenbank (Pflichtfeld)
-#   --download           taxa.csv.gz von iNaturalist Open Data laden (Default)
-#   --no-download        taxa.csv.gz aus ./cache verwenden
-#   --keep               Heruntergeladene taxa.csv.gz behalten
-#   --taxa-file <path>   Vorhandene taxa.csv.gz verwenden (ohne Download)
-#   Alle anderen Flags von build.sh werden mit Warnung ignoriert.
+# Gemeinsame Flags (--db, --no-download, --keep, --help): siehe
+# docs/plugin-interface.md.
+# Eigenes Flag und Umgebungsvariable:
+#   --taxa-file <path>   INAT_TAXA_FILE  Vorhandene taxa.csv.gz
+#
+# Ohne --taxa-file lädt das Plugin taxa.csv.gz von iNaturalist Open Data nach
+# ./cache und löscht sie nach dem Import wieder, außer mit --keep; mit
+# --no-download verwendet es, was dort liegt. Eine angegebene Datei (Flag
+# oder Umgebungsvariable) wird nur gelesen: nichts geladen, nichts gelöscht.
 #
 # Zuordnung über core/match.sh: Arten über alle wissenschaftlichen Namen
 # aktiver Arten samt Synonymen, höhere Taxa über ihre Rangtabelle. Vorher
@@ -47,30 +49,16 @@ source "$PLUGIN_CORE_DIR/match.sh"
 
 WORK_DIR="$(mktemp -d)"
 
-DB_PATH="${DB_PATH:-}"
-DOWNLOAD=true
-KEEP_FILES=false
-TAXA_FILE="$PLUGIN_DIR/cache/taxa.csv.gz"
+INAT_TAXA_FILE="${INAT_TAXA_FILE:-}"
 TAXA_URL="https://inaturalist-open-data.s3.amazonaws.com/taxa.csv.gz"
 
 # ---------------------------------------------------------------------------
 # Argumente
 # ---------------------------------------------------------------------------
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --db)          DB_PATH="$2"; shift ;;
-        --download)    DOWNLOAD=true ;;
-        --no-download) DOWNLOAD=false ;;
-        --keep)        KEEP_FILES=true ;;
-        --taxa-file)   TAXA_FILE="$2"; DOWNLOAD=false; shift ;;
-        --help|-h)
-            plugin_print_help_from_header "$0" 2 32
-            exit 0
-            ;;
-        *) plugin_warn "Unbekanntes Argument: $1" ;;
-    esac
-    shift
-done
+plugin_parse_args --taxa-file=INAT_TAXA_FILE -- "$@"
+
+plugin_skip_download_for_local_path "$INAT_TAXA_FILE"
+TAXA_FILE="${INAT_TAXA_FILE:-$PLUGIN_DIR/cache/taxa.csv.gz}"
 
 cleanup() {
     plugin_cleanup_dir "$WORK_DIR"
@@ -93,7 +81,7 @@ check_deps() {
 }
 
 check_taxa_file() {
-    [[ -f "$TAXA_FILE" ]] || plugin_fail "taxa.csv.gz nicht gefunden: $TAXA_FILE — verwende --download oder --taxa-file"
+    [[ -f "$TAXA_FILE" ]] || plugin_fail "taxa.csv.gz nicht gefunden: $TAXA_FILE — ohne --taxa-file und ohne --no-download lädt das Plugin sie selbst"
 }
 
 # ---------------------------------------------------------------------------

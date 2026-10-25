@@ -5,18 +5,23 @@
 # Kurze Beschreibung: woher kommen die Daten, was wird importiert.
 #
 # Usage:
-#   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --no-download
+#   ./import.sh --db /path/to/discere.db
+#   ./import.sh --db /path/to/discere.db --data-dir ~/data/example
 #
-# Flags:
-#   --db <path>    Ziel-Datenbank (Pflichtfeld)
-#   --download     Quelldaten herunterladen
-#   --keep         Heruntergeladene Dateien behalten
+# Gemeinsame Flags (--db, --no-download, --keep, --help): siehe
+# docs/plugin-interface.md.
+# Eigene Flags und Umgebungsvariablen:
+#   --data-dir <path>    EXAMPLE_DATA_DIR  Lokales Verzeichnis der Quelldaten
+#
+# Ohne lokalen Pfad lädt das Plugin die Quelldaten nach ./cache und löscht sie
+# nach dem Import wieder, außer mit --keep; mit --no-download verwendet es,
+# was dort liegt. Ein lokaler Pfad (Flag oder Umgebungsvariable) wird nur
+# gelesen: nichts geladen, nichts gelöscht.
 #
 # Plugin-Konventionen:
 #   - Kein CREATE TABLE — Schema ist Aufgabe von core/create_db.sh
 #   - Logs auf stderr, nichts auf stdout
-#   - Eigenes Cleanup (temporäre Dateien ohne --keep)
+#   - Eigenes Cleanup (temporäre Dateien, geladene Quelldaten ohne --keep)
 #   - Idempotent: bestehende Daten der Quelle werden vor dem Import gelöscht
 #   - IDs werden ausschliesslich über discere_uuid() in export.sql erzeugt
 # =============================================================================
@@ -32,32 +37,21 @@ plugin_init "$PLUGIN_DIR"
 SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
-DB_PATH="${DB_PATH:-}"
-DOWNLOAD=false
-KEEP_FILES=false
-DATA_DIR="${DATA_DIR:-$PLUGIN_DIR/cache}"
+# Umgebungsvariablen tragen den Quellenschlüssel als Präfix: build.sh gibt
+# seine Umgebung an alle Plugins weiter.
+EXAMPLE_DATA_DIR="${EXAMPLE_DATA_DIR:-}"
 
 # ---------------------------------------------------------------------------
 # Argumente
 # ---------------------------------------------------------------------------
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --db)          DB_PATH="$2"; shift ;;
-        --download)    DOWNLOAD=true ;;
-        --no-download) DOWNLOAD=false ;;
-        --keep)        KEEP_FILES=true ;;
-        --help|-h)
-            plugin_print_help_from_header "$0" 2 18
-            exit 0
-            ;;
-        *) plugin_warn "Unbekanntes Argument: $1" ;;
-    esac
-    shift
-done
+plugin_parse_args --data-dir=EXAMPLE_DATA_DIR -- "$@"
+
+plugin_skip_download_for_local_path "$EXAMPLE_DATA_DIR"
+DATA_DIR="${EXAMPLE_DATA_DIR:-$PLUGIN_DIR/cache}"
 
 cleanup() {
     plugin_cleanup_dir "$EXPORT_DIR"
-    # Bei --keep: Quelldateien behalten. Sonst löschen.
+    # Selbst geladene Quelldaten löschen, außer mit --keep.
     # if [[ "$DOWNLOAD" == true && "$KEEP_FILES" == false ]]; then
     #     rm -rf "$DATA_DIR"
     # fi
