@@ -184,7 +184,8 @@ SeaLifeBase-Art ohne Gattung trägt den Namen, den die Quelle ihr gibt (siehe
 gegen eine Gattung prüfen lässt er sich nicht.
 
 In `species_scientific_names` kommen nur Synonyme der Ebene `Species`
-(`TaxonLevel`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
+(`TaxonLevel`), in jeder Schreibweise: Die Quellen schreiben sie teils klein
+(`species`). Derselbe Name kann in der Quelle aber bei einer zweiten Art
 auf einer anderen Ebene stehen (SeaLifeBase v26.06: *Aphroceras
 primigenium*, *Dyssycus primigenius*, *Lipostomella primigenia*). Ob ein Name
 mehrdeutig ist, zählt der Export deshalb über alle Ebenen: Jeder Name, den die
