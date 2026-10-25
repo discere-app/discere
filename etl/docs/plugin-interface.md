@@ -25,6 +25,53 @@ Danach stehen Manifest-Daten und Helper-Funktionen zur Verfügung.
 
 ---
 
+## Aufruf-Schnittstelle
+
+Jedes Plugin versteht dieselben gemeinsamen Flags, ohne Ausnahme:
+
+| Flag | Bedeutung |
+|------|-----------|
+| `--db <path>` | Ziel-Datenbank, Pflicht; ersatzweise die Umgebungsvariable `DB_PATH` |
+| `--no-download` | Nichts laden, die Dateien im eigenen Cache verwenden |
+| `--keep` | Selbst geladene Dateien nach dem Import behalten |
+| `--help` | Kopfkommentar des Plugins ausgeben |
+
+- Herunterladen ist der Default: Ohne `--no-download` lädt ein Plugin seine
+  Quelldaten in seinen Cache (`plugins/<name>/cache/`) und löscht sie nach
+  dem Import, außer mit `--keep`. Ein Plugin, das nichts lädt (`curated`),
+  nimmt `--no-download` und `--keep` still hin.
+- Eigene Einstellungen eines Plugins (Version, lokale Pfade) kommen über
+  Umgebungsvariablen mit dem Quellenschlüssel als Präfix (`FISHBASE_DIR`,
+  `INAT_TAXA_FILE`) und für den Direktaufruf zusätzlich über eigene Flags mit
+  Wert; das Flag hat Vorrang. `build.sh` gibt nur die gemeinsamen Flags
+  weiter, die Umgebung erbt jedes Plugin — das Präfix hält die Variablen der
+  Plugins auseinander.
+- Ein ausdrücklich angegebener lokaler Pfad, ob Flag oder Umgebungsvariable,
+  wird nur gelesen: kein Download, kein Löschen. Ein Plugin löscht nur, was
+  es selbst in seinen Cache geladen hat.
+- Ein unbekanntes Flag bricht ab. Ein Tippfehler wie `--no-dowload` würde
+  sonst still laden und danach löschen.
+
+Gelesen werden alle Flags von `plugin_parse_args` in `core/plugin_api.sh`;
+kein Plugin parst sie selbst. Das Plugin nennt seine eigenen Flags samt der
+Variablen, die sie setzen, und gibt danach seinen lokalen Pfad an
+`plugin_skip_download_for_local_path` (aus
+[`plugins/_template/import.sh`](../plugins/_template/import.sh)):
+
+```bash
+EXAMPLE_DATA_DIR="${EXAMPLE_DATA_DIR:-}"
+plugin_parse_args --data-dir=EXAMPLE_DATA_DIR -- "$@"
+plugin_skip_download_for_local_path "$EXAMPLE_DATA_DIR"
+DATA_DIR="${EXAMPLE_DATA_DIR:-$PLUGIN_DIR/cache}"
+```
+
+Danach gelten `DB_PATH`, `DOWNLOAD` (`true`, mit `--no-download` `false`)
+und `KEEP_FILES` (mit `--keep` `true`). Der Header des Plugins nennt nur seine
+eigenen Flags und Umgebungsvariablen, `plugin.yaml` ebenso (`flags:`/`env:`,
+reine Dokumentation).
+
+---
+
 ## Manifest-Kontrakt
 
 Jedes Plugin braucht ein `plugin.yaml` mit mindestens:
@@ -117,8 +164,16 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
 
 ### CLI / Setup
 
+- `plugin_parse_args [<flag>=<VARIABLE> …] -- "$@"`
+  - liest die [Aufruf-Schnittstelle](#aufruf-schnittstelle)
+- `plugin_skip_download_for_local_path "$EXAMPLE_DATA_DIR"`
+  - setzt `DOWNLOAD=false`, wenn der Pfad nicht leer ist: Ein angegebener
+    lokaler Pfad wird nur gelesen
+- `plugin_print_help "$0"`
+  - druckt den Kopfkommentar zwischen den ersten beiden `# ===`-Linien als
+    Hilfe; `plugin_parse_args` ruft es für `--help` auf
 - `plugin_print_help_from_header "$0" 2 20`
-  - druckt den Header-Kommentar eines Scripts als Hilfe
+  - druckt die angegebenen Zeilen eines Scripts als Hilfe
 - `plugin_cleanup_dir "$EXPORT_DIR"`
   - löscht ein temporäres Verzeichnis
 
@@ -168,7 +223,7 @@ den datenquellenspezifischen Teil des Plugins.
 
 Plugin-Autoren bleiben verantwortlich für:
 
-- Argumente und Defaults für ihre Quelle
+- eigene Flags, Umgebungsvariablen und Defaults für ihre Quelle
 - Download-Logik
 - `sql/export.sql`, sofern die Quelle Parquets per DuckDB exportiert
 - SQLite-Import

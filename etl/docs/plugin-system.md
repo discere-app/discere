@@ -109,11 +109,11 @@ Danach kommen `PLUGIN_SOURCE`, `PLUGIN_SQL_DIR` und die gemeinsamen Helper aus
 der Core-API. Externe Entwickler sollen diese API verwenden statt Logging,
 Manifest-Parsing oder `metadata`-Writes neu zu implementieren.
 
-### Pflicht-Parameter
+### Aufruf
 
-```bash
---db <path>    # Pfad zur SQLite-Datenbank — wird von build.sh übergeben
-```
+Gemeinsame Flags (`--db`, `--no-download`, `--keep`, `--help`), eigene
+Einstellungen über Umgebungsvariablen und Abbruch bei unbekannten Flags:
+[`plugin-interface.md`](plugin-interface.md#aufruf-schnittstelle).
 
 ### Logs
 
