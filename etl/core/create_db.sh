@@ -29,7 +29,7 @@ FORCE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --output) OUTPUT_DB="$2"; shift ;;
+        --output) plugin_require_value "$@"; OUTPUT_DB="$2"; shift ;;
         --force)  FORCE=true ;;
         --help|-h)
             plugin_print_help "$0"

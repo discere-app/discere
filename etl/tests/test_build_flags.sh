@@ -111,3 +111,11 @@ test_build_flags_reject_download_and_plugin_flags() {
     done
     [[ ! -e "$TEST_TMP/out.db" ]] || fail_case "DB trotz Abbruch angelegt."
 }
+
+test_build_flags_abort_on_flag_without_value() {
+    create_flag_recording_etl
+    run_capture "$TEST_TMP/flags-etl/build.sh" --initial --output
+    assert_status 1
+    assert_contains "$ERR" "[ERROR] [build] --output braucht einen Wert."
+    assert_not_contains "$ERR" "unbound variable"
+}

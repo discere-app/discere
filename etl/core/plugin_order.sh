@@ -49,7 +49,7 @@ REQUESTED=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --plugins-dir) PLUGINS_DIR="$2"; shift ;;
+        --plugins-dir) plugin_require_value "$@"; PLUGINS_DIR="$2"; shift ;;
         --no-enrich)   SKIP_OPTIONAL=true ;;
         --groups)      PRINT_GROUPS=true ;;
         --help|-h)

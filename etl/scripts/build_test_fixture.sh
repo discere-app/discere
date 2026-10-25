@@ -43,9 +43,9 @@ SPECIES_FILE="$SCRIPT_DIR/test_fixture_species.txt"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --source) SOURCE_DB="$2"; shift ;;
-        --output) OUTPUT_DB="$2"; shift ;;
-        --species-file) SPECIES_FILE="$2"; shift ;;
+        --source) plugin_require_value "$@"; SOURCE_DB="$2"; shift ;;
+        --output) plugin_require_value "$@"; OUTPUT_DB="$2"; shift ;;
+        --species-file) plugin_require_value "$@"; SPECIES_FILE="$2"; shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0

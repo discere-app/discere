@@ -80,6 +80,22 @@ plugin_log()  { echo "[$(date '+%H:%M:%S')] [${PLUGIN_SOURCE:-plugin}] $*" >&2; 
 plugin_warn() { echo "[WARN] [${PLUGIN_SOURCE:-plugin}] $*" >&2; }
 plugin_fail() { echo "[ERROR] [${PLUGIN_SOURCE:-plugin}] $*" >&2; exit 1; }
 
+# Bricht wie plugin_fail ab, unter dem Kürzel des Skripts: PLUGIN_SOURCE,
+# sonst der Dateiname ohne .sh — so heißt jedes Skript in seinen eigenen
+# Meldungen ([build], [create_db]), auch wenn es sein Kürzel nur in einem
+# eigenen fail() führt.
+plugin_fail_as_script() {
+    local PLUGIN_SOURCE="${PLUGIN_SOURCE:-$(basename "$0" .sh)}"
+    plugin_fail "$@"
+}
+
+# plugin_require_value "$@" — im case-Zweig eines Flags mit Wert, vor "$2":
+# Fehlt der Wert, bricht das Skript mit eigener Meldung ab statt mit
+# "$2: unbound variable" (set -u).
+plugin_require_value() {
+    [[ $# -ge 2 ]] || plugin_fail_as_script "$1 braucht einen Wert."
+}
+
 # Gibt den Kopfkommentar eines Scripts als Hilfe aus: alles zwischen der
 # ersten und der zweiten Linie aus '# ===…'.
 plugin_print_help() {
@@ -112,11 +128,7 @@ plugin_parse_args() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --db)
-                [[ $# -ge 2 ]] || plugin_fail "--db braucht einen Wert."
-                DB_PATH="$2"
-                shift
-                ;;
+            --db)          plugin_require_value "$@"; DB_PATH="$2"; shift ;;
             --no-download) DOWNLOAD=false ;;
             --keep)        KEEP_FILES=true ;;
             --help|-h)
@@ -127,7 +139,7 @@ plugin_parse_args() {
                 matched=false
                 for spec in ${specs[@]+"${specs[@]}"}; do
                     [[ "$1" == "${spec%%=*}" ]] || continue
-                    [[ $# -ge 2 ]] || plugin_fail "$1 braucht einen Wert."
+                    plugin_require_value "$@"
                     printf -v "${spec#*=}" '%s' "$2"
                     matched=true
                     shift

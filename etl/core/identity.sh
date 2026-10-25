@@ -66,9 +66,9 @@ ACCEPTED_LOSS=" "
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --db)               DB_PATH="$2"; shift ;;
-        --plugins-dir)      PLUGINS_DIR="$2"; shift ;;
-        --previous-release) PREVIOUS_DB="$2"; shift ;;
+        --db)               plugin_require_value "$@"; DB_PATH="$2"; shift ;;
+        --plugins-dir)      plugin_require_value "$@"; PLUGINS_DIR="$2"; shift ;;
+        --previous-release) plugin_require_value "$@"; PREVIOUS_DB="$2"; shift ;;
         --initial)          INITIAL=true ;;
         --accept-species-loss) ACCEPTED_LOSS="$ACCEPTED_LOSS$2 "; shift ;;
         --help|-h)

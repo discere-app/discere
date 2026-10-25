@@ -40,7 +40,7 @@ MANIFEST=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --manifest) MANIFEST="$2"; shift ;;
+        --manifest) plugin_require_value "$@"; MANIFEST="$2"; shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0

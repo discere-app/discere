@@ -106,15 +106,15 @@ source "$CORE_DIR/plugin_api.sh"
 # ---------------------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --output)        OUTPUT_DB="$2"; shift ;;
+        --output)        plugin_require_value "$@"; OUTPUT_DB="$2"; shift ;;
         --force)         FORCE=true ;;
-        --plugin)        SELECTED_PLUGINS+=("$2"); shift ;;
+        --plugin)        plugin_require_value "$@"; SELECTED_PLUGINS+=("$2"); shift ;;
         --no-download)   PLUGIN_FLAGS+=("--no-download") ;;
         --no-enrich)     SKIP_ENRICHMENT=true ;;
         --keep)          PLUGIN_FLAGS+=("--keep") ;;
-        --previous-release) PREVIOUS_RELEASE="$2"; shift ;;
+        --previous-release) plugin_require_value "$@"; PREVIOUS_RELEASE="$2"; shift ;;
         --initial)       INITIAL=true ;;
-        --accept-species-loss) ACCEPTED_LOSS+=("$2"); shift ;;
+        --accept-species-loss) plugin_require_value "$@"; ACCEPTED_LOSS+=("$2"); shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0

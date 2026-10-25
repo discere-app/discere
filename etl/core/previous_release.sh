@@ -46,9 +46,9 @@ MANIFEST_URL="${DISCERE_RELEASE_MANIFEST_URL:-https://raw.githubusercontent.com/
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --path)         LOCAL_PATH="$2"; shift ;;
-        --cache-dir)    CACHE_DIR="$2"; shift ;;
-        --manifest-url) MANIFEST_URL="$2"; shift ;;
+        --path)         plugin_require_value "$@"; LOCAL_PATH="$2"; shift ;;
+        --cache-dir)    plugin_require_value "$@"; CACHE_DIR="$2"; shift ;;
+        --manifest-url) plugin_require_value "$@"; MANIFEST_URL="$2"; shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0

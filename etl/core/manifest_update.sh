@@ -56,13 +56,13 @@ PUBLISHED_AT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --manifest)     MANIFEST="$2"; shift ;;
-        --schema)       SCHEMA="$2"; shift ;;
-        --version)      VERSION="$2"; shift ;;
-        --url)          URL="$2"; shift ;;
-        --sha256)       SHA256="$2"; shift ;;
-        --size)         SIZE="$2"; shift ;;
-        --published-at) PUBLISHED_AT="$2"; shift ;;
+        --manifest)     plugin_require_value "$@"; MANIFEST="$2"; shift ;;
+        --schema)       plugin_require_value "$@"; SCHEMA="$2"; shift ;;
+        --version)      plugin_require_value "$@"; VERSION="$2"; shift ;;
+        --url)          plugin_require_value "$@"; URL="$2"; shift ;;
+        --sha256)       plugin_require_value "$@"; SHA256="$2"; shift ;;
+        --size)         plugin_require_value "$@"; SIZE="$2"; shift ;;
+        --published-at) plugin_require_value "$@"; PUBLISHED_AT="$2"; shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0

@@ -25,7 +25,7 @@ PLUGIN_SOURCE="lookup"
 DB_PATH=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --db) DB_PATH="$2"; shift ;;
+        --db) plugin_require_value "$@"; DB_PATH="$2"; shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0

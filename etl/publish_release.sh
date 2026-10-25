@@ -77,12 +77,12 @@ fail() { echo "[ERROR] [publish_release] $*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --version) VERSION="$2"; shift ;;
+        --version) plugin_require_value "$@"; VERSION="$2"; shift ;;
         --schema-version)
             fail "--schema-version gibt es nicht mehr: Die Schemaversion wird aus der DB abgeleitet (core/schema_version.sh)." ;;
-        --source) SOURCE_DB="$2"; shift ;;
-        --data-repo) DATA_REPO="$2"; shift ;;
-        --tag) TAG="$2"; shift ;;
+        --source) plugin_require_value "$@"; SOURCE_DB="$2"; shift ;;
+        --data-repo) plugin_require_value "$@"; DATA_REPO="$2"; shift ;;
+        --tag) plugin_require_value "$@"; TAG="$2"; shift ;;
         --help|-h)
             plugin_print_help "$0"
             exit 0
