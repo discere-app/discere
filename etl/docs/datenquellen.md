@@ -129,9 +129,9 @@ eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
 3. trifft ein Datensatz **mehrere Entitäten**, gilt die eine, bei der sein
    Name der akzeptierte ist, sofern es genau eine solche gibt: Die Quelle führt
    den Namen dort selbst als gültig, bei den übrigen nur als Synonym.
-   SeaLifeBase etwa führt manche Art zweimal, unter dem alten Namen mit dem
-   neuen als Synonym und unter dem neuen als gültig; ein Datensatz unter dem
-   neuen Namen meint den Eintrag, der ihn gültig führt. Ist der Name bei
+   SeaLifeBase etwa führt manche Art zweimal, und der eine Eintrag nennt den
+   gültigen Namen des anderen als Synonym; ein Datensatz unter diesem Namen
+   meint den Eintrag, der ihn gültig führt. Ist der Name bei
    keiner oder bei mehreren Entitäten der akzeptierte — bei höheren Taxa, die
    nur ihren akzeptierten Namen haben, etwa zwei gleichnamige Gattungen —, ist
    das Ergebnis **mehrdeutig: kein Treffer**, sondern ein Eintrag im

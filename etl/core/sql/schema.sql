@@ -472,9 +472,10 @@ CREATE INDEX IF NOT EXISTS idx_taxonomy_distribution_regions_status
 -- Verwendet fts4 — fts5 ist im sqflite SQLite-Build auf iOS/Android
 -- nicht zuverlässig verfügbar (nicht Teil des SQLite-Core).
 -- fts4 content tables vermeiden duplizierte Daten.
--- Erfordert nach jedem Import ein rebuild:
+-- Erfordert nach dem Import ein rebuild:
 --   INSERT INTO species_fts(species_fts) VALUES('rebuild');
--- Das übernimmt das jeweilige Plugin automatisch.
+-- Das übernimmt Stage 04 von build.sh (core/sql/rebuild_fts.sql) nach allen
+-- Plugins.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------

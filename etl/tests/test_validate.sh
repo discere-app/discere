@@ -74,6 +74,13 @@ validate() {
     run_capture "$ETL_DIR/core/validate.sh" --db "$DB" --plugins-dir "$ETL_DIR/plugins" "$@"
 }
 
+# Baut nach einer Änderung der Namen species_name_lookup und
+# species_synonyms_fts neu auf, wie Stage 03 und 04 des Builds.
+rebuild_name_indexes() {
+    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    sqlite3 "$DB" < "$ETL_DIR/core/sql/rebuild_fts.sql"
+}
+
 # Kopiert core/ nach $TEST_TMP/etl, damit ein Fall validate.sql ändern kann.
 validate_with_copied_core() {
     run_capture "$TEST_TMP/etl/core/validate.sh" --db "$DB" --plugins-dir "$ETL_DIR/plugins" "$@"
@@ -154,12 +161,12 @@ test_validate_fails_on_active_species_with_genus_without_preferred_name() {
         INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
             ('discere:species:1', 'G1 s1', 'g1 s1', 'valid', 'fishbase', 1),
             ('discere:species:2', 'G1 s2', 'g1 s2', 'valid', 'fishbase', 1);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 0
     sqlite3 "$DB" "UPDATE species_scientific_names SET is_preferred = 0, name_status = 'synonym'
                    WHERE species_id = 'discere:species:2';"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: species (preferred name) — 1 (erwartet >= 2)"
@@ -174,12 +181,12 @@ test_validate_fails_on_preferred_name_of_species_without_genus_with_other_epithe
         INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
             ('discere:species:1', 'Abra s1', 'abra s1', 'valid', 'sealifebase', 1),
             ('discere:species:2', 'Abra s2', 'abra s2', 'valid', 'sealifebase', 1);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 0
     sqlite3 "$DB" "UPDATE species_scientific_names SET name = 'Abra s22', normalized_name = 'abra s22'
                    WHERE species_id = 'discere:species:2';"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: species without genus (preferred name) — 1 (erwartet >= 2)"
@@ -201,7 +208,7 @@ test_validate_fails_on_preferred_name_other_than_own_binomial() {
             ('discere:species:1', 'Callista niger', 'callista niger', 'valid', 'fishbase', 1),
             ('discere:species:2', 'Callista chione', 'callista chione', 'valid', 'fishbase', 1),
             ('discere:species:2', 'Callista niger', 'callista niger', 'synonym', 'fishbase', 0);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     assert_eq "discere:species:1" \
         "$(sqlite3 "$DB" "SELECT species_id FROM species_name_lookup WHERE normalized_name = 'callista niger';")" \
         "Lookup callista niger"
@@ -220,7 +227,7 @@ test_validate_fails_on_two_preferred_names_of_one_species_in_one_source() {
             ('discere:species:1', 'G1 t1', 'g1 t1', 'valid', 'fishbase', 1),
             ('discere:species:2', 'G2 s2', 'g2 s2', 'valid', 'fishbase', 1),
             ('discere:species:2', 'G2 s2', 'g2 s2', 'valid', 'sealifebase', 1);"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 1
     assert_contains "$ERR" "FEHLER: preferred names (per source) — 3 (erwartet >= 4)"
@@ -242,7 +249,7 @@ test_validate_fails_on_inaturalist_mapping_without_chain() {
         INSERT INTO entity_external_ids (entity_id, entity_type, provider, external_id) VALUES
             ('discere:species:1', 'species', 'inaturalist', '1'),
             ('genus:g1',          'genera',  'inaturalist', '2');"
-    "$ETL_DIR/core/lookup.sh" --db "$DB" > /dev/null 2>&1
+    rebuild_name_indexes
     validate "${COMPLETE_RAN[@]}"
     assert_status 0
     sqlite3 "$DB" "
