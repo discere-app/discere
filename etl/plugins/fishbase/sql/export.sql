@@ -241,6 +241,7 @@ COPY (
         UNION ALL
 
         -- Species-Synonyme / Fehl- und Alt-Kombinationen
+        -- (Ebene Species, die die Quelle teils klein schreibt)
         SELECT
             sp.id                                                  AS species_id,
             CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies))  AS name,
@@ -255,7 +256,7 @@ COPY (
         FROM read_parquet('${FISHBASE_DIR}/synonyms.parquet') syn
         JOIN t_species sp
           ON sp.external_id = CAST(syn.SpecCode AS VARCHAR)
-        WHERE syn.TaxonLevel = 'Species'
+        WHERE LOWER(TRIM(syn.TaxonLevel)) = 'species'
           AND syn.SpecCode IS NOT NULL
           AND NULLIF(TRIM(syn.SynGenus), '') IS NOT NULL
           AND NULLIF(TRIM(syn.SynSpecies), '') IS NOT NULL
