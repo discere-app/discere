@@ -110,6 +110,9 @@ void main() {
       {
         'decks.name',
         'species_photo_gap_ack.acknowledged_at',
+        'deck_subdecks.name',
+        'deck_subdeck_species.subdeck_id',
+        'deck_subdeck_unresolved_names.subdeck_id',
         'inat_photo_cache.fetched_at',
         'runtime_common_names.entity_key',
         'runtime_common_names.entity_type',

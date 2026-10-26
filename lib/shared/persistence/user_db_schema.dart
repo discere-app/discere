@@ -62,6 +62,12 @@ const _createDeckConfigSqlAsset =
     'assets/sql/user_db/tables/create_deck_config.sql';
 const _createSpeciesPhotoGapAckSqlAsset =
     'assets/sql/user_db/tables/create_species_photo_gap_ack.sql';
+const _createDeckSubdecksSqlAsset =
+    'assets/sql/user_db/tables/create_deck_subdecks.sql';
+const _createDeckSubdeckSpeciesSqlAsset =
+    'assets/sql/user_db/tables/create_deck_subdeck_species.sql';
+const _createDeckSubdeckUnresolvedNamesSqlAsset =
+    'assets/sql/user_db/tables/create_deck_subdeck_unresolved_names.sql';
 
 Future<void> _ensureColumnExists(
   Database db,
@@ -111,10 +117,11 @@ class UserDbSchema {
   /// Current user DB schema version — bump whenever a migration is added, and
   /// whenever an asset gains a column: reconciliation only runs on create and
   /// upgrade, so an existing database gets the column through a bump alone.
-  static const int version = 21;
+  static const int version = 22;
 
   /// Every table of the current schema, in creation order — `decks` first,
-  /// because the tables after it declare a foreign key to it.
+  /// because the tables after it declare a foreign key to it, and
+  /// `deck_subdecks` before the two tables that refer to a subdeck.
   ///
   /// This is both the create path and [SchemaReconciler]'s input, so a table
   /// absent from this list is a table nothing repairs. Adding a
@@ -131,6 +138,9 @@ class UserDbSchema {
     _createFlashcardStatsSqlAsset,
     _createDeckConfigSqlAsset,
     _createSpeciesPhotoGapAckSqlAsset,
+    _createDeckSubdecksSqlAsset,
+    _createDeckSubdeckSpeciesSqlAsset,
+    _createDeckSubdeckUnresolvedNamesSqlAsset,
     _createINatPhotoCacheSqlAsset,
     _createRuntimeCommonNamesSqlAsset,
     _createRuntimeCommonNameSearchDocumentsSqlAsset,
@@ -184,6 +194,8 @@ class UserDbSchema {
     if (oldVersion < 19) await migrateUserDbToV19(db);
     if (oldVersion < 20) await migrateUserDbToV20(db);
     // v21 only adds columns (inat_taxon_id), which reconciliation brings.
+    // v22 only adds tables (the deck_subdeck* tables), which reconciliation
+    // brings.
 
     // Bring whatever the ladder produced to the current shape: missing
     // tables, missing columns, missing indexes. A migration describes the

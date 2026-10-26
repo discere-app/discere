@@ -24,6 +24,7 @@ final referenceIdTables = <KeyedIdTable>[
     onCollision: keepMostRecentlyReviewed,
   ),
   _speciesIdTable('species_photo_gap_ack', keyColumns: const ['deck_id']),
+  _speciesIdTable('deck_subdeck_species', keyColumns: const ['deck_id']),
   _speciesIdTable(
     'enrichment_species_deck_membership',
     keyColumns: const ['deck_id'],
