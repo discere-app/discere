@@ -30,6 +30,7 @@ import 'settings_test.dart' as settings;
 import 'smoke_test.dart' as smoke;
 import 'sources_page_test.dart' as sources_page;
 import 'species_search_test.dart' as species_search;
+import 'subdeck_test.dart' as subdeck;
 import 'watchlist_test.dart' as watchlist;
 
 void main() {
@@ -43,6 +44,7 @@ void main() {
   import_deck.main();
   deck_lifecycle.main();
   edit_deck.main();
+  subdeck.main();
   enrichment_pipeline.main();
   enrichment_shutdown.main();
   favorites.main();
