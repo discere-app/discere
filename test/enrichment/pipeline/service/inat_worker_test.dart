@@ -31,11 +31,15 @@ class _FakeNameResolutionPort implements ScientificNameResolutionPort {
 }
 
 class _FakeDeckSpeciesMutationPort implements DeckSpeciesMutationPort {
-  final List<(String, Set<String>)> additions = [];
+  final List<(String, String, String)> additions = [];
 
   @override
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
-    additions.add((deckId, speciesIds));
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  }) async {
+    additions.add((deckId, speciesId, resolvedName));
   }
 }
 
@@ -398,16 +402,10 @@ void main() {
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
 
     expect(processedAny, isTrue);
-    // Compared field-by-field rather than as a whole record: records compare
-    // their fields with plain `==`, and Set/List don't have value equality
-    // under `==` (only under matcher's `equals()`), so comparing a whole
-    // (String, Set<String>) tuple directly can spuriously fail even when the
-    // contents match.
-    expect(deckSpeciesMutationPort.additions, hasLength(1));
-    final (additionDeckId, additionSpeciesIds) =
-        deckSpeciesMutationPort.additions.single;
-    expect(additionDeckId, 'deck-1');
-    expect(additionSpeciesIds, {'sp-resolved'});
+    // The name goes along: the deck may say which subdeck it belongs to.
+    expect(deckSpeciesMutationPort.additions, [
+      ('deck-1', 'sp-resolved', 'Unknownus fishus'),
+    ]);
     final speciesWorkRows = await database.query(
       EnrichmentWorkTables.speciesWork,
       where: 'species_id = ?',

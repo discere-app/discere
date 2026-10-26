@@ -154,6 +154,8 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
       speciesIds: deck.speciesIds == null
           ? null
           : Set<String>.from(deck.speciesIds!),
+      subdecks: deck.subdecks,
+      supersedes: deck.supersedes,
       imageUrl: deck.imageUrl,
       sourceId: deck.sourceId,
       updatedAt: deck.updatedAt,

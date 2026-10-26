@@ -77,6 +77,7 @@ void main() {
       stats,
       SpeciesRepository(database: referenceDb, userDatabase: userDb),
       MockImageService(),
+      subdeckRepository: SubdeckRepository(database: userDb),
       deckConfigRepository: DeckConfigRepository(database: userDb),
       lifecycleObserver: const NoopDeckLifecycleObserver(),
       answerableCards: AnswerableCardsService(

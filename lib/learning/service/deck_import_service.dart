@@ -2,6 +2,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
@@ -112,7 +113,10 @@ class DeckImportService {
           final resolution = await _resolveSpeciesIds(_cloneDeck(deck));
           final importDeck = resolution.deck;
           final unresolved = resolution.unresolved;
-          final deckId = await _decksService.createDeck(importDeck);
+          final deckId = await _decksService.createDeck(
+            importDeck,
+            subdecks: resolution.subdecks,
+          );
           importedDeckIds.add(deckId);
           if (unresolved.isNotEmpty) {
             unresolvedNamesByDeckId[deckId] = unresolved;
@@ -148,23 +152,32 @@ class DeckImportService {
   }
 
   /// Resolves [deck]'s species names against the local catalog, returning
-  /// the deck with the ids filled in and the names that stayed unresolved.
+  /// the deck with the ids filled in, the names that stayed unresolved, and
+  /// its subdecks with both put in place.
   ///
   /// iNaturalist fallback is intentionally skipped here and handled
   /// separately by the enrichment queue so the import completes immediately.
-  Future<({CreateDeck deck, List<String> unresolved})> _resolveSpeciesIds(
-    CreateDeck deck,
-  ) async {
+  Future<
+    ({CreateDeck deck, List<String> unresolved, SubdeckStructure subdecks})
+  >
+  _resolveSpeciesIds(CreateDeck deck) async {
     final names = deck.speciesNames?.toList() ?? [];
-    if (names.isEmpty) return (deck: deck, unresolved: const <String>[]);
+    if (names.isEmpty) {
+      return (
+        deck: deck,
+        unresolved: const <String>[],
+        subdecks: SubdeckStructure.none,
+      );
+    }
 
     final resolved = await resolveSpeciesNames(names);
+    final subdecks = SubdeckStructure.resolve(deck.subdecks, resolved);
 
     if (resolved.isEmpty) {
       _log.warn(
         'Deck "${deck.name}": none of ${names.length} species names could be resolved locally',
       );
-      return (deck: deck, unresolved: names);
+      return (deck: deck, unresolved: names, subdecks: subdecks);
     }
 
     final unresolved = names.where((n) => !resolved.containsKey(n)).toList();
@@ -182,6 +195,7 @@ class DeckImportService {
     return (
       unresolved: unresolved,
       deck: deck.withSpeciesIds({...?deck.speciesIds, ...resolved.values}),
+      subdecks: subdecks,
     );
   }
 
@@ -213,6 +227,8 @@ class DeckImportService {
       speciesIds: source.speciesIds == null
           ? null
           : Set<String>.from(source.speciesIds!),
+      subdecks: source.subdecks,
+      supersedes: source.supersedes,
       imageUrl: source.imageUrl,
       sourceId: source.sourceId,
       updatedAt: source.updatedAt,

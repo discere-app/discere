@@ -9,6 +9,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -29,8 +30,16 @@ class _DeckSpeciesMutationAdapter implements DeckSpeciesMutationPort {
   const _DeckSpeciesMutationAdapter(this._decksService);
 
   @override
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) {
-    return _decksService.addSpeciesToDeck(deckId, speciesIds);
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  }) {
+    return _decksService.addResolvedSpeciesToDeck(
+      deckId,
+      speciesId,
+      resolvedName: resolvedName,
+    );
   }
 }
 
@@ -54,7 +63,8 @@ class _FakeNameResolutionPort implements ScientificNameResolutionPort {
 /// zero `flashcard_stats` rows at creation time — the deck is only ever
 /// reviewable if the *separate* asynchronous name-resolution path
 /// (`INatWorker._processNameResolution` -> `DeckSpeciesMutationPort`
-/// -> `DecksService.addSpeciesToDeck`) actually completes and writes back.
+/// -> `DecksService.addResolvedSpeciesToDeck`) actually completes and writes
+/// back.
 ///
 /// Every individual link in this chain already had unit coverage in
 /// isolation (deck_import_service_test.dart mocks away what happens to
@@ -86,6 +96,7 @@ void main() {
       FlashcardStatRepository(database: database),
       MockSpeciesRepository(),
       MockImageService(),
+      subdeckRepository: SubdeckRepository(database: database),
       deckConfigRepository: DeckConfigRepository(database: database),
       lifecycleObserver: const NoopDeckLifecycleObserver(),
       answerableCards: AnswerableCardsService(

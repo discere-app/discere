@@ -3,11 +3,15 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/model/subdeck.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
@@ -18,15 +22,22 @@ import 'package:flutter/foundation.dart';
 
 /// Application service for deck lifecycle operations.
 ///
-/// Responsible for creating, reading, updating, and deleting decks and their
-/// associated flashcard stats. Post-import enrichment (iNaturalist photos and
-/// common names) is handled separately by the enrichment pipeline.
+/// Responsible for creating, reading, updating, and deleting decks, their
+/// associated flashcard stats and their subdecks. Post-import enrichment
+/// (iNaturalist photos and common names) is handled separately by the
+/// enrichment pipeline.
+///
+/// The subdecks live here rather than in a service of their own because
+/// every change to them comes with a change to the deck: created with it,
+/// exported with it, updated with it, and a species that leaves the deck
+/// leaves its subdeck too.
 class DecksService extends ChangeNotifier {
   static final _log = Logger.forType(DecksService);
   static int _suppressedNotificationDepth = 0;
   final DeckRepository _deckRepository;
   final SpeciesRepository _speciesRepository;
   final FlashcardStatRepository _flashcardStatRepository;
+  final SubdeckRepository _subdeckRepository;
   final ImageService _imageService;
   final DeckConfigRepository _deckConfigRepository;
   final DeckLifecycleObserver _lifecycleObserver;
@@ -41,11 +52,13 @@ class DecksService extends ChangeNotifier {
     this._flashcardStatRepository,
     this._speciesRepository,
     this._imageService, {
+    required SubdeckRepository subdeckRepository,
     required DeckConfigRepository deckConfigRepository,
     required DeckLifecycleObserver lifecycleObserver,
     required AnswerableCardsService answerableCards,
     required UserDataWrites userDataWrites,
-  }) : _deckConfigRepository = deckConfigRepository,
+  }) : _subdeckRepository = subdeckRepository,
+       _deckConfigRepository = deckConfigRepository,
        _lifecycleObserver = lifecycleObserver,
        _answerableCards = answerableCards,
        _writes = userDataWrites;
@@ -65,27 +78,23 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> createDeck(CreateDeck deck) =>
-      _writes.run(() => _createDeck(deck));
+  /// Creates [deck] with its species, divided into [subdecks] — the deck's
+  /// own subdecks with their names resolved, as the import works them out.
+  Future<String> createDeck(
+    CreateDeck deck, {
+    SubdeckStructure subdecks = SubdeckStructure.none,
+  }) => _writes.run(() => _createDeck(deck, subdecks));
 
-  Future<String> _createDeck(CreateDeck deck) async {
+  Future<String> _createDeck(CreateDeck deck, SubdeckStructure subdecks) async {
     _log.debug(
-      'Create deck name="${deck.name}" species=${deck.speciesIds?.length ?? 0}',
+      'Create deck name="${deck.name}" species=${deck.speciesIds?.length ?? 0} '
+      'subdecks=${subdecks.subdecks.length}',
     );
     final id = await _deckRepository.insertDeck(deck);
-    // Ensure the deck object has the ID for initialization
-    final updatedDeck = CreateDeck(
-      id: id,
-      name: deck.name,
-      description: deck.description,
-      language: deck.language,
-      speciesIds: deck.speciesIds,
-      sourceId: deck.sourceId,
-      updatedAt: deck.updatedAt,
-      coverImagePath: deck.coverImagePath,
-    );
-
-    await _initializeDeck(updatedDeck);
+    await _initializeDeck(id, deck.speciesIds ?? const {});
+    if (subdecks.subdecks.isNotEmpty) {
+      await _subdeckRepository.writeStructure(id, subdecks);
+    }
     _lifecycleObserver.onDeckCreated(id);
     _notifyListenersIfEnabled();
     return id;
@@ -122,12 +131,13 @@ class DecksService extends ChangeNotifier {
     final removed = removedSpeciesIds.intersection(currentIds);
     final added = addedSpeciesIds.difference(currentIds);
 
-    // 3. Remove flash-card stats for removed species
+    // 3. Remove flash-card stats for removed species, and their subdeck
     if (removed.isNotEmpty) {
       await _flashcardStatRepository.deleteFlashcardStats(
         updatedDeck.id!,
         removed,
       );
+      await _subdeckRepository.removeSpecies(updatedDeck.id!, removed);
     }
 
     // 4. Insert flash-card stats for newly added species (preserves progress for existing)
@@ -147,8 +157,35 @@ class DecksService extends ChangeNotifier {
   /// Removes a single species from a deck without touching the rest of its
   /// membership — used when the user decides to drop a species that has no
   /// findable photo instead of editing the whole deck.
-  Future<void> removeSpeciesFromDeck(String deckId, String speciesId) async {
-    await _flashcardStatRepository.deleteFlashcardStats(deckId, {speciesId});
+  Future<void> removeSpeciesFromDeck(String deckId, String speciesId) =>
+      _writes.run(() async {
+        await _flashcardStatRepository.deleteFlashcardStats(deckId, {
+          speciesId,
+        });
+        await _subdeckRepository.removeSpecies(deckId, {speciesId});
+        _notifyListenersIfEnabled();
+      });
+
+  /// The subdecks of [deckId] in their order; empty for a deck without.
+  Future<List<Subdeck>> getSubdecks(String deckId) =>
+      _subdeckRepository.getSubdecks(deckId);
+
+  /// Switches the subdecks of [deckId] in [activeSubdeckIds] on and every
+  /// other one off. What is a card changes with it, so the deck list hears
+  /// of it.
+  Future<void> setActiveSubdecks(
+    String deckId,
+    Set<String> activeSubdeckIds,
+  ) async {
+    await _subdeckRepository.setActiveSubdecks(deckId, activeSubdeckIds);
+    _notifyListenersIfEnabled();
+  }
+
+  /// Makes [subdecks] the subdecks of [deckId] — what a deck update does to
+  /// them, whatever it does to the species (see
+  /// [SubdeckRepository.writeStructure]).
+  Future<void> replaceSubdecks(String deckId, SubdeckStructure subdecks) async {
+    await _subdeckRepository.writeStructure(deckId, subdecks);
     _notifyListenersIfEnabled();
   }
 
@@ -178,6 +215,9 @@ class DecksService extends ChangeNotifier {
     final speciesList = await getSpeciesByDeckId(deckId);
     final speciesNames = speciesList.map((s) => s.getBinomialName()).toSet();
     final speciesIds = speciesList.map((s) => s.id).toSet();
+    final subdecks = await _subdeckRepository.getSubdecks(deckId);
+    final subdeckIdBySpeciesId = await _subdeckRepository
+        .getSubdeckIdBySpeciesId(deckId);
 
     return CreateDeck(
       id: deck.id,
@@ -186,6 +226,22 @@ class DecksService extends ChangeNotifier {
       language: deck.language,
       speciesNames: speciesNames,
       speciesIds: speciesIds,
+      // Null rather than empty, so a deck without subdecks exports without
+      // the key and reads the same in an app that knows nothing of them.
+      subdecks: subdecks.isEmpty
+          ? null
+          : [
+              for (final subdeck in subdecks)
+                CreateSubdeck(
+                  id: subdeck.id,
+                  name: subdeck.name,
+                  speciesNames: {
+                    for (final species in speciesList)
+                      if (subdeckIdBySpeciesId[species.id] == subdeck.id)
+                        species.getBinomialName(),
+                  },
+                ),
+            ],
       sourceId: deck.sourceId,
       updatedAt: deck.updatedAt,
       coverImagePath: deck.coverImagePath,
@@ -250,8 +306,9 @@ class DecksService extends ChangeNotifier {
     // user database.
     final deleted = await runToleratingClosedDatabase(_log, () async {
       await _deleteDeckCoverImage(deckId);
-      // deck_config/flashcard_stats declare ON DELETE CASCADE on deck_id, so
-      // this alone removes their rows too — see DatabaseHelper.userDb.
+      // deck_config, flashcard_stats and the subdeck tables declare ON
+      // DELETE CASCADE on deck_id, so this alone removes their rows too —
+      // see DatabaseHelper.userDb.
       await _deckRepository.delete(deckId);
     });
     if (!deleted) return;
@@ -259,10 +316,29 @@ class DecksService extends ChangeNotifier {
     _notifyListenersIfEnabled();
   }
 
-  /// Adds new species to an existing deck without removing existing ones.
-  /// Used by the enrichment queue to add species resolved via iNaturalist after import.
+  /// Adds new species to an existing deck without removing existing ones,
+  /// in no subdeck.
   Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) =>
       _writes.run(() => _addSpeciesToDeck(deckId, speciesIds));
+
+  /// Adds [speciesId], resolved from the imported name [resolvedName], to
+  /// [deckId] — into the subdeck the deck's JSON listed that name in. Used
+  /// by the enrichment queue for the names an import or an update could not
+  /// resolve locally.
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  }) => _writes.run(() async {
+    // Assigned first: adding the species is what tells the deck list, and
+    // it must count the species in its subdeck by then.
+    await _subdeckRepository.assignResolvedName(
+      deckId,
+      resolvedName,
+      speciesId,
+    );
+    await _addSpeciesToDeck(deckId, {speciesId});
+  });
 
   Future<void> _addSpeciesToDeck(
     String deckId,
@@ -305,14 +381,11 @@ class DecksService extends ChangeNotifier {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  Future<void> _initializeDeck(CreateDeck deck) async {
-    final speciesIds = deck.speciesIds ?? {};
+  Future<void> _initializeDeck(String deckId, Set<String> speciesIds) async {
     if (speciesIds.isEmpty) return;
 
     final Set<FlashcardStat> flashcardStats = speciesIds
-        .map(
-          (speciesId) => FlashcardStat(speciesId: speciesId, deckId: deck.id!),
-        )
+        .map((speciesId) => FlashcardStat(speciesId: speciesId, deckId: deckId))
         .toSet();
 
     await _flashcardStatRepository.insertOrUpdateFlashcardStats(flashcardStats);

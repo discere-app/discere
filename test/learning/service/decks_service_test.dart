@@ -19,6 +19,7 @@ void main() {
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockImageService mockImageService;
   late MockDeckConfigRepository mockDeckConfigRepo;
+  late MockSubdeckRepository mockSubdeckRepo;
   late AnswerableCardsService answerableCards;
   late DecksService service;
 
@@ -28,11 +29,12 @@ void main() {
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockImageService = MockImageService();
     mockDeckConfigRepo = MockDeckConfigRepository();
+    mockSubdeckRepo = MockSubdeckRepository();
     answerableCards = AnswerableCardsService(
       mockFlashcardStatRepo,
       MockFlashcardStatModeRepository(),
       MockTaxonAssignmentRepository(),
-      MockSubdeckRepository(),
+      mockSubdeckRepo,
     );
 
     when(
@@ -54,6 +56,7 @@ void main() {
       mockFlashcardStatRepo,
       mockSpeciesRepo,
       mockImageService,
+      subdeckRepository: mockSubdeckRepo,
       deckConfigRepository: mockDeckConfigRepo,
       lifecycleObserver: const NoopDeckLifecycleObserver(),
       answerableCards: answerableCards,
@@ -249,6 +252,7 @@ void main() {
         mockFlashcardStatRepo,
         mockSpeciesRepo,
         mockImageService,
+        subdeckRepository: mockSubdeckRepo,
         deckConfigRepository: mockDeckConfigRepo,
         lifecycleObserver: observer,
         answerableCards: answerableCards,

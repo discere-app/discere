@@ -242,9 +242,15 @@ class _DeckSpeciesMutationAdapter implements DeckSpeciesMutationPort {
   const _DeckSpeciesMutationAdapter(this._deckService);
 
   @override
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) {
-    return _deckService.addSpeciesToDeck(deckId, speciesIds);
-  }
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  }) => _deckService.addResolvedSpeciesToDeck(
+    deckId,
+    speciesId,
+    resolvedName: resolvedName,
+  );
 }
 
 class _AllDeckIdsAdapter implements AllDeckIdsPort {

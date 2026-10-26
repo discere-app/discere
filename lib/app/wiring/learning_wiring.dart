@@ -108,6 +108,7 @@ LearningDeckServices buildLearningDeckServices({
     flashcardStatRepository,
     speciesRepository,
     imageService,
+    subdeckRepository: subdeckRepository,
     deckConfigRepository: deckConfigRepository,
     lifecycleObserver: deckLifecycle,
     answerableCards: answerableCardsService,
