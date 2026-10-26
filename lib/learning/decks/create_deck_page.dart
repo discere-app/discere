@@ -5,6 +5,7 @@ import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/species_field_presenter.dart';
 import 'package:discere/learning/decks/species_field_summary.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
+import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -28,6 +29,10 @@ class CreateDeckPage extends StatefulWidget {
   /// direct-import flow does for the decks it creates.
   final String? initialImageUrl;
 
+  /// Subdecks of an imported deck. Not shown: they follow the species field,
+  /// a name taken out of it leaves its subdeck.
+  final List<CreateSubdeck>? initialSubdecks;
+
   const CreateDeckPage({
     super.key,
     this.initialSpeciesNames,
@@ -35,6 +40,7 @@ class CreateDeckPage extends StatefulWidget {
     this.initialDescription,
     this.initialLanguage,
     this.initialImageUrl,
+    this.initialSubdecks,
   });
 
   @override
@@ -200,6 +206,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             scientificNames: speciesNames,
             language: _selectedLanguage,
             coverImagePath: _coverImagePath,
+            subdecks: widget.initialSubdecks,
           );
       final coverImageUrl = _coverImagePath == null
           ? widget.initialImageUrl?.trim()

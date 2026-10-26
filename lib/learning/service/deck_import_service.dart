@@ -2,6 +2,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -66,6 +67,10 @@ class DeckImportService {
   /// The deck holds the species that resolved; [unresolvedNames] are the
   /// rest, for the caller to hand to the enrichment queue, which looks them
   /// up on iNaturalist and adds what it finds.
+  ///
+  /// [subdecks] come from the imported deck the names were taken from. The
+  /// names are what the user confirmed: one taken out leaves its subdeck,
+  /// one added belongs to none.
   Future<({String deckId, List<String> unresolvedNames})>
   importDeckFromSpeciesNames({
     required String name,
@@ -73,17 +78,30 @@ class DeckImportService {
     required List<String> scientificNames,
     Language? language,
     String? coverImagePath,
+    List<CreateSubdeck>? subdecks,
   }) async {
+    final names = scientificNames.toSet();
     final resolution = await _resolveSpeciesIds(
       CreateDeck(
         name: name,
         description: description,
         language: language,
-        speciesNames: scientificNames.toSet(),
+        speciesNames: names,
         coverImagePath: coverImagePath,
+        subdecks: [
+          for (final subdeck in subdecks ?? const <CreateSubdeck>[])
+            CreateSubdeck(
+              id: subdeck.id,
+              name: subdeck.name,
+              speciesNames: subdeck.speciesNames.intersection(names),
+            ),
+        ],
       ),
     );
-    final deckId = await _decksService.createDeck(resolution.deck);
+    final deckId = await _decksService.createDeck(
+      resolution.deck,
+      subdecks: resolution.subdecks,
+    );
     return (deckId: deckId, unresolvedNames: resolution.unresolved);
   }
 

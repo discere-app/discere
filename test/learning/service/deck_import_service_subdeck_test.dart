@@ -1,4 +1,5 @@
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/learning_test_stack.dart';
@@ -136,5 +137,39 @@ void main() {
     )).toJson();
 
     expect(shared.containsKey('subdecks'), isFalse);
+  });
+
+  test('a deck created from a reviewed species list keeps the subdecks for '
+      'the names left in it', () async {
+    final created = await stack.importService.importDeckFromSpeciesNames(
+      name: 'Reviewed',
+      description: '',
+      // Blue shark taken out, tiger shark added.
+      scientificNames: ['Carcharodon carcharias', 'Galeocerdo cuvier'],
+      subdecks: const [
+        CreateSubdeck(
+          id: 'l1',
+          name: 'Level 1',
+          speciesNames: {'Carcharodon carcharias'},
+        ),
+        CreateSubdeck(
+          id: 'l2',
+          name: 'Level 2',
+          speciesNames: {'Prionace glauca'},
+        ),
+      ],
+    );
+
+    expect(await stack.stats.getSpeciesIdsByDeckId(created.deckId), {
+      _greatWhite,
+      _tigerShark,
+    });
+    expect(
+      (await stack.decksService.getSubdecks(created.deckId)).map((s) => s.id),
+      ['l1', 'l2'],
+    );
+    expect(await stack.subdecks.getSubdeckIdBySpeciesId(created.deckId), {
+      _greatWhite: 'l1',
+    });
   });
 }

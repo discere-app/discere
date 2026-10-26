@@ -113,6 +113,7 @@ class ImportDeckPage extends StatelessWidget {
           initialSpeciesNames: prefill.speciesNames,
           initialLanguage: prefill.language,
           initialImageUrl: prefill.imageUrl,
+          initialSubdecks: prefill.subdecks,
         ),
       ),
     );
