@@ -139,14 +139,14 @@ Species und Genera verwenden Soft Delete / INSERT OR IGNORE — nicht löschen.
 
 ### Metadata
 
-Nach erfolgreichem Import in `metadata` schreiben:
+In der Transaktion des Imports, vor dem `COMMIT`, in `metadata` schreiben:
 
 ```sql
 INSERT INTO metadata (key, value) VALUES ('<source>', '<version>')
 ON CONFLICT (key) DO UPDATE SET value = excluded.value;
 ```
 
-Das soll über `plugin_write_source_metadata(...)` geschehen, nicht mit
+Das soll über `plugin_source_metadata_sql(...)` geschehen, nicht mit
 handgeschriebenem Boilerplate pro Plugin.
 
 ---

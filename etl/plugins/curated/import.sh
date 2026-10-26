@@ -180,9 +180,14 @@ validate_class_names() {
         || plugin_fail "Ungültige Zeilen in $(basename "$CLASS_NAMES_CSV"):"$'\n'"$problems"
 }
 
-# Ersetzt alle Zeilen dieser Quelle in einer Transaktion. entity_id ist die
-# ID, die das Register dem Schlüssel zuordnet.
+# Ersetzt alle Zeilen dieser Quelle und ihre Quellenangabe in einer
+# Transaktion. entity_id ist die ID, die das Register dem Schlüssel zuordnet.
+# Die Daten haben keine Releases. Als Version dient eine Prüfsumme der CSV,
+# damit metadata zeigt, welcher Stand gebaut wurde.
 import_class_names() {
+    local data_version source_sql
+    data_version="$(cksum < "$CLASS_NAMES_CSV" | awk '{ print $1 }')"
+    source_sql="$(plugin_source_metadata_sql "$PLUGIN_SQL_DIR/source.sql" "$data_version")"
     plugin_log "Importiere Klassennamen in: $DB_PATH"
     {
         staging_sql
@@ -203,21 +208,10 @@ JOIN entity_source_keys k
 JOIN classes c
   ON c.id   = k.entity_id
  AND c.name = n.class;
+${source_sql}
 COMMIT;
 EOF
     } | sqlite3 "$DB_PATH" || plugin_fail "SQLite-Import fehlgeschlagen."
-}
-
-# ---------------------------------------------------------------------------
-# Source-Metadaten schreiben
-#
-# Die Daten haben keine Releases. Als Version dient eine Prüfsumme der CSV,
-# damit metadata zeigt, welcher Stand gebaut wurde.
-# ---------------------------------------------------------------------------
-write_source_metadata() {
-    local data_version
-    data_version="$(cksum < "$CLASS_NAMES_CSV" | awk '{ print $1 }')"
-    plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$data_version"
 }
 
 # Jede Zeile der CSV muss in der DB angekommen sein.
@@ -241,7 +235,6 @@ check_deps
 check_csv_header
 validate_class_names
 import_class_names
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

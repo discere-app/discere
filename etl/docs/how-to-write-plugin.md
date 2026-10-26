@@ -104,7 +104,13 @@ Aus `_template/import.sh` kopieren und anpassen:
    [`plugin-interface.md`](plugin-interface.md#aufruf-schnittstelle)
 4. Download-Logik implementieren (oder weglassen wenn kein Download nötig)
 5. `export_to_csv()` — Datenpfade in den Sed-Ersetzungen ergänzen
-6. `import_to_sqlite()` — SQLite-Import-Script schreiben (analog fishbase)
+6. `import_to_sqlite()` — SQLite-Import-Script schreiben (analog fishbase):
+   `.bail on`, `PRAGMA foreign_keys = OFF`, dann `BEGIN`, die Löschungen aus
+   `clear_existing_data_sql()`, der Import, die Quellenangabe aus
+   `plugin_source_metadata_sql` und `COMMIT`. Scheitert eine Anweisung,
+   bricht sqlite3 dort ab und rollt die Transaktion zurück — die Daten der
+   Quelle bleiben, wie sie waren. Das `PRAGMA` gehört vor das `BEGIN`,
+   innerhalb einer Transaktion wirkt es nicht.
 7. `validate()` — Plugin-spezifische Schnellprüfung
 
 Zusätzlich `sql/source.sql` anpassen:
@@ -129,7 +135,7 @@ Wichtige Helper aus der Plugin-API:
 
 - `plugin_require_db_path "$DB_PATH"`
 - `plugin_require_command duckdb sqlite3`
-- `plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`
+- `plugin_source_metadata_sql "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`
 - `plugin_validate_source_entry_exists "$DB_PATH"`
 - `plugin_validate_min_count ...`
 
@@ -177,7 +183,7 @@ sqlite3 /tmp/test.db "SELECT COUNT(*) FROM species WHERE id NOT GLOB 'discere:*_
 Sicherstellen dass Parent-Tabellen als `TEMP TABLE` in derselben DuckDB-Session angelegt sind und Children per `LEFT JOIN` auf diese joinen — nicht über `discere_uuid()` des externen IDs neu berechnen.
 
 **`external_source` stimmt nicht mit `plugin.yaml:source` überein**
-Beide müssen identisch sein. Sonst findet `clear_existing_data()` nichts zu löschen und der Import ist nicht idempotent.
+Beide müssen identisch sein. Sonst findet `clear_existing_data_sql()` nichts zu löschen und der Import ist nicht idempotent.
 
 **Plugin läuft im Build nicht**
 `validate_plugin.sh` prüft Struktur und Ausführbarkeit. Checklist:

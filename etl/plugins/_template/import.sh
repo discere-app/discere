@@ -23,6 +23,8 @@
 #   - Logs auf stderr, nichts auf stdout
 #   - Eigenes Cleanup (temporäre Dateien, geladene Quelldaten ohne --keep)
 #   - Idempotent: bestehende Daten der Quelle werden vor dem Import gelöscht
+#   - Aufräumen und Import in einer Transaktion unter .bail on: ein
+#     gescheiterter Import lässt die Daten der Quelle, wie sie waren
 #   - IDs werden ausschliesslich über discere_uuid() in export.sql erzeugt
 # =============================================================================
 
@@ -78,18 +80,15 @@ download_data() {
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
-clear_existing_data() {
-    plugin_log "Räume bestehende ${PLUGIN_SOURCE}-Daten auf..."
-    sqlite3 "$DB_PATH" << EOF
-PRAGMA foreign_keys = OFF;
+# Löscht die bestehenden Daten der Quelle, in der Transaktion des Imports.
+clear_existing_data_sql() {
+    cat << EOF
 -- Nur Tabellen löschen die kein Soft-Delete verwenden.
 -- species und genera nicht löschen (Soft-Delete / FK-Referenzen).
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
-DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
-PRAGMA foreign_keys = ON;
 EOF
 }
 
@@ -111,25 +110,36 @@ export_to_csv() {
     plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
+# Aufräumen, Import und Quellenangabe laufen in einer Transaktion: Scheitert
+# eine Anweisung, bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie
+# sie waren. PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
+#
+# Die Quellenangabe kommt aus sql/source.sql, mit ${VERSION} und ${NOW}
+# ersetzt. Alle inhaltlichen Angaben (Zitierung, Lizenz, URL etc.) stehen
+# dort — nicht hier in import.sh, damit Sonderzeichen in Zitierungen kein
+# Problem sind (Apostrophe in Autorennamen, Klammern, etc.). Zusätzlich steht
+# die Version in metadata für den Flutter Update-Mechanismus.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
-    # TODO: Import-Logik implementieren (analog zu fishbase/import.sh)
-    plugin_fail "Import noch nicht implementiert."
-}
+    local import_script="${EXPORT_DIR}/import.sql"
+    local source_sql
+    source_sql="$(plugin_source_metadata_sql "$SQL_DIR/source.sql" "${SOURCE_VERSION:-unknown}")"
+    cat > "$import_script" << EOF
+.bail on
+.mode csv
+PRAGMA foreign_keys = OFF;
+BEGIN;
 
-# ---------------------------------------------------------------------------
-# Source-Metadaten schreiben
-#
-# Liest sql/source.sql und ersetzt ${VERSION} und ${NOW}.
-# Alle inhaltlichen Angaben (Zitierung, Lizenz, URL etc.) stehen dort —
-# nicht hier in import.sh, damit Sonderzeichen in Zitierungen kein Problem
-# sind (Apostrophe in Autorennamen, Klammern, etc.).
-# Zusätzlich wird die Version in metadata geschrieben für den
-# Flutter Update-Mechanismus.
-# ---------------------------------------------------------------------------
-write_source_metadata() {
-    local version="${SOURCE_VERSION:-unknown}"
-    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$version"
+$(clear_existing_data_sql)
+
+-- TODO: Temp-Tabellen anlegen, CSVs per .import laden und in die Tabellen
+-- übernehmen (analog zu fishbase/import.sh)
+
+${source_sql}
+
+COMMIT;
+EOF
+    sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
 }
 
 validate() {
@@ -150,10 +160,8 @@ plugin_log "DB: $DB_PATH"
 
 check_deps
 [[ "$DOWNLOAD" == true ]] && download_data
-clear_existing_data
 export_to_csv
 import_to_sqlite
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

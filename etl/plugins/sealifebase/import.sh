@@ -146,10 +146,9 @@ download_parquets() {
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
-clear_existing_data() {
-    plugin_log "Räume bestehende ${PLUGIN_SOURCE}-Daten auf..."
-    sqlite3 "$DB_PATH" << EOF
-PRAGMA foreign_keys = OFF;
+# Löscht die bestehenden Daten der Quelle, in der Transaktion des Imports.
+clear_existing_data_sql() {
+    cat << EOF
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_distribution_regions WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
@@ -159,10 +158,7 @@ DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM source_parent_overrides WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
-DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
--- common_names wird in import_to_sqlite per source gelöscht (nach Species-Import,
--- damit entity_ids aus tmp_species bereits vorhanden sind)
-PRAGMA foreign_keys = ON;
+-- common_names löscht der Import direkt vor dem Neuimport der Namen.
 EOF
 }
 
@@ -220,19 +216,37 @@ export_to_csv() {
     plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
+# Bilder aus fieldguide.csv, falls export_to_csv sie geschrieben hat.
+fieldguide_import_sql() {
+    [[ -f "${EXPORT_DIR}/fieldguide.csv" ]] || return 0
+    cat << EOF
+CREATE TEMP TABLE tmp_pictures_fg AS SELECT * FROM pictures WHERE 0;
+.import --skip 1 ${EXPORT_DIR}/fieldguide.csv tmp_pictures_fg
+INSERT OR IGNORE INTO pictures (
+    id, species, picname, picturetype, lifestage, author,
+    copyright, url, origin, license_key, is_usable
+) SELECT
+    id, species, picname, picturetype, lifestage, author,
+    copyright, url, origin, license_key, is_usable
+FROM tmp_pictures_fg;
+EOF
+}
+
+# Aufräumen, Import und Quellenangabe laufen in einer Transaktion: Scheitert
+# eine Anweisung, bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie
+# sie waren. PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
-
-    # fieldguide.csv optional einbinden
-    local fieldguide_import=""
-    if [[ -f "${EXPORT_DIR}/fieldguide.csv" ]]; then
-        fieldguide_import=".import --skip 1 ${EXPORT_DIR}/fieldguide.csv tmp_pictures_fg"
-    fi
-
+    local source_sql
+    source_sql="$(plugin_source_metadata_sql "$SQL_DIR/source.sql" "$SLB_VERSION")"
     cat > "$import_script" << EOF
-PRAGMA foreign_keys = OFF;
+.bail on
 .mode csv
+PRAGMA foreign_keys = OFF;
+BEGIN;
+
+$(clear_existing_data_sql)
 
 CREATE TEMP TABLE tmp_classes (
     id TEXT,
@@ -371,9 +385,9 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
 .import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
 
--- Ohne OR IGNORE: clear_existing_data hat die Zeilen dieser Quelle
--- gelöscht, und export.sql liefert je Code eine Zeile. Eine Kollision ist
--- ein Fehler im Export und bricht den Import ab.
+-- Ohne OR IGNORE: Die Zeilen dieser Quelle sind oben gelöscht, und
+-- export.sql liefert je Code eine Zeile. Eine Kollision ist ein Fehler im
+-- Export und bricht den Import ab.
 INSERT INTO classes (
     id, external_id, external_source, name, body_shape, super_class
 ) SELECT
@@ -514,27 +528,12 @@ INSERT INTO taxonomy_distribution_regions (
     importance, comment
 FROM tmp_taxonomy_distribution_regions;
 
-PRAGMA foreign_keys = ON;
+$(fieldguide_import_sql)
+
+${source_sql}
+
+COMMIT;
 EOF
-
-    # fieldguide optional importieren
-    if [[ -f "${EXPORT_DIR}/fieldguide.csv" ]]; then
-        cat >> "$import_script" << EOF2
-PRAGMA foreign_keys = OFF;
-.mode csv
-CREATE TEMP TABLE tmp_pictures_fg AS SELECT * FROM pictures WHERE 0;
-.import --skip 1 ${EXPORT_DIR}/fieldguide.csv tmp_pictures_fg
-INSERT OR IGNORE INTO pictures (
-    id, species, picname, picturetype, lifestage, author,
-    copyright, url, origin, license_key, is_usable
-) SELECT
-    id, species, picname, picturetype, lifestage, author,
-    copyright, url, origin, license_key, is_usable
-FROM tmp_pictures_fg;
-PRAGMA foreign_keys = ON;
-EOF2
-    fi
-
     sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
 }
 
@@ -564,11 +563,6 @@ report_family_phylum() {
         "nicht vergleichbar $(grep -c '^family_phylum_unclear' "$report" || true)," \
         "Ausnahme ohne Ordnung $(grep -c '^family_order_exception' "$report" || true)"
 }
-
-write_source_metadata() {
-    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$SLB_VERSION"
-}
-
 
 validate() {
     plugin_validate_min_count \
@@ -607,7 +601,6 @@ plugin_log "DB      : $DB_PATH"
 check_deps
 [[ "$DOWNLOAD" == true ]] && download_parquets
 check_parquet_files
-clear_existing_data
 export_to_csv
 import_to_sqlite
 plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
@@ -615,7 +608,6 @@ report_family_phylum
 plugin_report_distribution "${EXPORT_DIR}/distribution_report.tsv"
 plugin_log_common_names "${EXPORT_DIR}/common_names_summary.tsv"
 report_genus_resolution
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="
