@@ -6,7 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 /// `flashcard_stats` rows of a learning mode, taken as a whole: which of a
 /// deck's to initialize next, when each is due, and which across all decks
-/// a reminder counts — what leaving out the species without an answer in
+/// a reminder counts — what leaving out the species that are no card in
 /// the mode takes (see `AnswerableCardsService`). The per-card reads and
 /// writes are `FlashcardStatRepository`'s.
 class FlashcardStatModeRepository {
@@ -74,11 +74,20 @@ class FlashcardStatModeRepository {
   /// belongs to its deck's active learning mode and name type — the rows a
   /// reminder can be about. A deck without a configuration row counts in the
   /// defaults `deck_config` would give it.
-  Future<List<({String speciesId, LearningMode learningMode, DateTime due})>>
+  Future<
+    List<
+      ({
+        String deckId,
+        String speciesId,
+        LearningMode learningMode,
+        DateTime due,
+      })
+    >
+  >
   getActiveModeReviewDates() async {
     final db = await _database;
     final rows = await db.rawQuery('''
-      SELECT s.species_id, s.learning_mode, s.next_review_date
+      SELECT s.deck_id, s.species_id, s.learning_mode, s.next_review_date
       FROM flashcard_stats s
       LEFT JOIN deck_config c ON c.deck_id = s.deck_id
       WHERE s.next_review_date IS NOT NULL
@@ -90,6 +99,7 @@ class FlashcardStatModeRepository {
     return [
       for (final row in rows)
         (
+          deckId: row['deck_id'] as String,
           speciesId: row['species_id'] as String,
           learningMode: LearningMode.fromStorage(
             row['learning_mode'] as String?,

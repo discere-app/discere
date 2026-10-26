@@ -112,10 +112,12 @@ void main() {
 
   late MockFlashcardReviewService flashcardReviewService;
   late MockDecksService decksService;
+  late MockAnswerableCardsService answerableCards;
 
   setUp(() {
     flashcardReviewService = MockFlashcardReviewService();
     decksService = MockDecksService();
+    answerableCards = MockAnswerableCardsService();
   });
 
   DeckSessionService buildService({
@@ -125,6 +127,7 @@ void main() {
     return DeckSessionService(
       flashcardReviewService: flashcardReviewService,
       decksService: decksService,
+      answerableCards: answerableCards,
       enrichmentQueueService: enrichmentQueueService,
       distractorPoolService:
           distractorPoolService ??
@@ -324,9 +327,10 @@ void main() {
   });
 
   group('photo gaps', () {
-    test('getUnacknowledgedPhotoGaps asks for ids, not for the deck\'s species', () async {
+    test('getUnacknowledgedPhotoGaps asks for the ids outside switched-off '
+        'subdecks, not for the deck\'s species', () async {
       when(
-        decksService.getSpeciesIdsByDeckIds(['deck-1']),
+        answerableCards.activeSpecies('deck-1'),
       ).thenAnswer((_) async => {'sp1', 'sp2'});
       when(
         flashcardReviewService.getUnacknowledgedPhotoGaps('deck-1', {'sp1', 'sp2'}),

@@ -235,6 +235,7 @@ void main() {
             value: DeckSessionService(
               flashcardReviewService: flashcardReviewService,
               decksService: decksService,
+              answerableCards: MockAnswerableCardsService(),
               enrichmentQueueService: enrichmentQueueService,
               distractorPoolService: MultipleChoiceDistractorPoolService(
                 taxonomyRepository: MockTaxonomyRepository(),
@@ -307,6 +308,7 @@ void main() {
               value: DeckSessionService(
                 flashcardReviewService: flashcardReviewService,
                 decksService: decksService,
+                answerableCards: MockAnswerableCardsService(),
                 enrichmentQueueService: enrichmentQueueService,
                 distractorPoolService: MultipleChoiceDistractorPoolService(
                   taxonomyRepository: MockTaxonomyRepository(),

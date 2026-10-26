@@ -288,6 +288,7 @@ Widget _buildApp(
         value: DeckSessionService(
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
+          answerableCards: MockAnswerableCardsService(),
           enrichmentQueueService: enrichmentQueueService,
           distractorPoolService: MultipleChoiceDistractorPoolService(
             taxonomyRepository: MockTaxonomyRepository(),

@@ -35,6 +35,7 @@ void main() {
         flashcardStatRepository,
         MockFlashcardStatModeRepository(),
         MockTaxonAssignmentRepository(),
+        MockSubdeckRepository(),
       ),
       userDataWrites: UserDataWrites(),
     );

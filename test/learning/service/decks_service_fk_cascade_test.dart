@@ -51,6 +51,7 @@ void main() {
         flashcardStatRepository,
         MockFlashcardStatModeRepository(),
         MockTaxonAssignmentRepository(),
+        MockSubdeckRepository(),
       ),
       userDataWrites: UserDataWrites(),
     );
@@ -88,7 +89,7 @@ void main() {
       await decksService.updateDeckCoverPath(deckId, '/tmp/cover.jpg');
 
       expect(
-        await decksService.getSpeciesIdsByDeckIds([deckId]),
+        (await decksService.getSpeciesIdsGroupedByDeckId([deckId]))[deckId],
         {'sp1', 'sp2'},
         reason:
             'updateDeckCoverPath only touches coverImagePath — it must not '
@@ -130,7 +131,7 @@ void main() {
       await decksService.addSpeciesToDeck(deckId, {'sp2'});
 
       expect(
-        await decksService.getSpeciesIdsByDeckIds([deckId]),
+        (await decksService.getSpeciesIdsGroupedByDeckId([deckId]))[deckId],
         {'sp1', 'sp2'},
         reason:
             'both the originally-imported species and the one resolved '

@@ -62,9 +62,9 @@ class FlashcardReviewService {
     DeckConfig config,
   ) async {
     final currentDate = DateTime.now();
-    final withoutAnswer = await _prepareCards(deckId, config);
-    // A row without an answer may still carry a review date from before the
-    // species lost its answer; it stays as it is, and is no card.
+    final withoutCard = await _prepareCards(deckId, config);
+    // A row of such a species may still carry a review date from before it
+    // stopped being a card; it stays as it is, and is not handed out.
     final statsForReview =
         (await _flashcardStatRepository.getFlashcardStatsForReview(
               deckId,
@@ -72,7 +72,7 @@ class FlashcardReviewService {
               config.learningMode,
               config.nameType,
             ))
-            .where((stat) => !withoutAnswer.contains(stat.speciesId))
+            .where((stat) => !withoutCard.contains(stat.speciesId))
             .toList();
 
     if (statsForReview.isEmpty) {
@@ -153,13 +153,13 @@ class FlashcardReviewService {
     await runToleratingClosedDatabase(
       _log,
       () => _writes.run(() async {
-        final withoutAnswer = await _prepareCards(deckId, config);
+        final withoutCard = await _prepareCards(deckId, config);
         final uninitializedStats = await _modeStats.getUninitializedStats(
           deckId,
           config.learningMode,
           config.nameType,
           limit: batchSize,
-          excludedSpeciesIds: withoutAnswer,
+          excludedSpeciesIds: withoutCard,
         );
 
         final now = DateTime.now();
@@ -172,7 +172,7 @@ class FlashcardReviewService {
   }
 
   /// Seeds a row of [config]'s mode for every species of the deck, and
-  /// returns the species without an answer in it, which are no card (see
+  /// returns the species that are no card in it (see
   /// [AnswerableCardsService]).
   Future<Set<String>> _prepareCards(String deckId, DeckConfig config) async {
     await _flashcardStatRepository.ensureStatsForLearningMode(
@@ -180,7 +180,7 @@ class FlashcardReviewService {
       config.learningMode,
       config.nameType,
     );
-    return _answerableCards.speciesWithoutAnswer(deckId, config.learningMode);
+    return _answerableCards.speciesWithoutCard(deckId, config.learningMode);
   }
 
   /// Grades a single card. Does not touch notification scheduling — callers

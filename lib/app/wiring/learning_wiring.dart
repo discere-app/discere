@@ -19,6 +19,7 @@ import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
@@ -86,10 +87,12 @@ LearningDeckServices buildLearningDeckServices({
 }) {
   final flashcardStatRepository = FlashcardStatRepository();
   final flashcardStatModeRepository = FlashcardStatModeRepository();
+  final subdeckRepository = SubdeckRepository();
   final answerableCardsService = AnswerableCardsService(
     flashcardStatRepository,
     flashcardStatModeRepository,
     TaxonAssignmentRepository(),
+    subdeckRepository,
   );
   final deckRepository = DeckRepository();
   final deckConfigRepository = DeckConfigRepository();
@@ -258,6 +261,7 @@ buildLearningReviewServices({
   final deckSessionService = DeckSessionService(
     flashcardReviewService: flashcardReviewService,
     decksService: deckServices.deckService,
+    answerableCards: deckServices.answerableCardsService,
     enrichmentQueueService: enrichmentQueueService,
     distractorPoolService: deckServices.multipleChoiceDistractorPoolService,
     userDataWrites: deckServices.userDataWrites,

@@ -32,6 +32,7 @@ void main() {
       mockFlashcardStatRepo,
       MockFlashcardStatModeRepository(),
       MockTaxonAssignmentRepository(),
+      MockSubdeckRepository(),
     );
 
     when(

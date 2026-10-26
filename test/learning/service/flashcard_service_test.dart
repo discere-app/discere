@@ -43,6 +43,7 @@ void main() {
         mockFlashcardStatRepo,
         mockModeStats,
         MockTaxonAssignmentRepository(),
+        MockSubdeckRepository(),
       ),
     );
   });
@@ -122,8 +123,15 @@ void main() {
 
 /// Review dates as the repository reports them for decks in species mode,
 /// where every species has an answer.
-List<({String speciesId, LearningMode learningMode, DateTime due})>
+List<
+  ({String deckId, String speciesId, LearningMode learningMode, DateTime due})
+>
 _speciesModeRows(List<DateTime> dates) => [
   for (final (i, due) in dates.indexed)
-    (speciesId: 'sp$i', learningMode: LearningMode.species, due: due),
+    (
+      deckId: 'deck-1',
+      speciesId: 'sp$i',
+      learningMode: LearningMode.species,
+      due: due,
+    ),
 ];

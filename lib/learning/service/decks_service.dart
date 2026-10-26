@@ -233,16 +233,6 @@ class DecksService extends ChangeNotifier {
     return _deckRepository.getDecksByIds(deckIds);
   }
 
-  Future<Set<String>> getSpeciesIdsByDeckIds(Iterable<String> deckIds) async {
-    final speciesIds = <String>{};
-    for (final deckId in deckIds) {
-      speciesIds.addAll(
-        await _flashcardStatRepository.getSpeciesIdsByDeckId(deckId),
-      );
-    }
-    return speciesIds;
-  }
-
   /// The species of each of [deckIds], keyed by deck id, in one query. A
   /// deck without species is missing from the result.
   Future<Map<String, Set<String>>> getSpeciesIdsGroupedByDeckId(

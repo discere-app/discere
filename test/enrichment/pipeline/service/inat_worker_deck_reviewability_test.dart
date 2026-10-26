@@ -92,6 +92,7 @@ void main() {
         FlashcardStatRepository(database: database),
         MockFlashcardStatModeRepository(),
         MockTaxonAssignmentRepository(),
+        MockSubdeckRepository(),
       ),
       userDataWrites: UserDataWrites(),
     );
@@ -150,9 +151,8 @@ void main() {
       final processedAny = await worker.runUntilIdle(shouldStop: () => false);
       expect(processedAny, isTrue);
 
-      final reviewableSpeciesIds = await decksService.getSpeciesIdsByDeckIds([
-        deckId,
-      ]);
+      final reviewableSpeciesIds = (await decksService
+          .getSpeciesIdsGroupedByDeckId([deckId]))[deckId];
       expect(
         reviewableSpeciesIds,
         {'sp-willani'},
