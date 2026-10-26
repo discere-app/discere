@@ -170,6 +170,10 @@ class DecksService extends ChangeNotifier {
   Future<List<Subdeck>> getSubdecks(String deckId) =>
       _subdeckRepository.getSubdecks(deckId);
 
+  /// The subdeck of each species of [deckId] that belongs to one.
+  Future<Map<String, String>> getSubdeckIdBySpeciesId(String deckId) =>
+      _subdeckRepository.getSubdeckIdBySpeciesId(deckId);
+
   /// Switches the subdecks of [deckId] in [activeSubdeckIds] on and every
   /// other one off. What is a card changes with it, so the deck list hears
   /// of it.

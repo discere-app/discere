@@ -49,9 +49,9 @@ void main() {
       _whaleShark,
     });
     final subdecks = await stack.decksService.getSubdecks(deckId);
-    expect(subdecks.map((s) => (s.id, s.name, s.isActive, s.speciesCount)), [
-      ('l1', 'Level 1', true, 1),
-      ('l2', 'Level 2', true, 1),
+    expect(subdecks.map((s) => (s.id, s.name, s.isActive)), [
+      ('l1', 'Level 1', true),
+      ('l2', 'Level 2', true),
     ]);
     expect(await stack.subdecks.getSubdeckIdBySpeciesId(deckId), {
       _greatWhite: 'l1',
@@ -90,7 +90,9 @@ void main() {
   test('a removed species leaves its subdeck', () async {
     await stack.decksService.removeSpeciesFromDeck(deckId, _blueShark);
 
-    expect((await stack.decksService.getSubdecks(deckId))[1].speciesCount, 0);
+    expect(await stack.subdecks.getSubdeckIdBySpeciesId(deckId), {
+      _greatWhite: 'l1',
+    });
   });
 
   test('a shared deck keeps its subdecks', () async {

@@ -82,20 +82,14 @@ class SubdeckRepository {
     });
   }
 
-  /// The subdecks of [deckId] in their order, each with its species count.
+  /// The subdecks of [deckId] in their order.
   Future<List<Subdeck>> getSubdecks(String deckId) async {
     final db = await _database;
-    final rows = await db.rawQuery(
-      '''
-      SELECT d.deck_id, d.subdeck_id, d.name, d.sort_order, d.is_active,
-             (SELECT COUNT(*) FROM deck_subdeck_species s
-               WHERE s.deck_id = d.deck_id AND s.subdeck_id = d.subdeck_id)
-               AS species_count
-      FROM deck_subdecks d
-      WHERE d.deck_id = ?
-      ORDER BY d.sort_order
-    ''',
-      [deckId],
+    final rows = await db.query(
+      'deck_subdecks',
+      where: 'deck_id = ?',
+      whereArgs: [deckId],
+      orderBy: 'sort_order',
     );
     return rows.map(Subdeck.fromMap).toList();
   }

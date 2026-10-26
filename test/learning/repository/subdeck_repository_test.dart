@@ -35,16 +35,14 @@ void main() {
   tearDown(() => db.close());
 
   test(
-    'writes and reads a structure, subdecks in order with their counts',
+    'writes and reads a structure, subdecks in order',
     () async {
       await repository.writeStructure(_deckId, _levels());
 
       final subdecks = await repository.getSubdecks(_deckId);
       expect(
-        subdecks.map(
-          (s) => (s.id, s.name, s.sortOrder, s.isActive, s.speciesCount),
-        ),
-        [('l1', 'Level 1', 0, true, 1), ('l2', 'Level 2', 1, true, 1)],
+        subdecks.map((s) => (s.id, s.name, s.sortOrder, s.isActive)),
+        [('l1', 'Level 1', 0, true), ('l2', 'Level 2', 1, true)],
       );
       expect(await repository.getSubdeckIdBySpeciesId(_deckId), {
         'sp-a': 'l1',

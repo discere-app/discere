@@ -5,17 +5,23 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
+import 'package:discere/learning/decks/edit/delete_deck_button.dart';
+import 'package:discere/learning/decks/edit/delete_deck_dialog.dart';
+import 'package:discere/learning/decks/edit/discard_changes_dialog.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/edit_deck_species_header.dart';
 import 'package:discere/learning/decks/edit/edit_deck_species_list.dart';
 import 'package:discere/learning/decks/edit/edit_deck_tutorial.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
+import 'package:discere/learning/decks/edit/subdeck_section.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/learning/model/subdeck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
@@ -72,6 +78,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   bool _isDirty = false;
 
   final GlobalKey _learningSettingsKey = GlobalKey();
+  final GlobalKey _subdecksKey = GlobalKey();
 
   String? _coverImagePath;
   late Language _selectedLanguage;
@@ -83,6 +90,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late NameType _nameType;
   late ReviewMode _reviewMode;
 
+  List<Subdeck> _subdecks = const [];
+  Map<String, String> _subdeckIdBySpeciesId = const {};
+  Set<String> _activeSubdeckIds = const {};
+
   /// Snapshot of the last persisted state, compared against the live fields
   /// to drive the Save button. Taken once the deck has loaded, replaced
   /// wholesale on save.
@@ -93,17 +104,28 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// Applies one change to the draft the user is editing.
   ///
   /// Every such change needs the same three steps: mutate, re-validate the
-  /// review mode against what the deck now contains, and re-evaluate whether
-  /// anything differs from what is saved. Forgetting a step leaves the save
-  /// button inactive or a review mode the deck cannot support — neither of
-  /// which looks wrong on screen.
+  /// review mode and the subdeck switches against what the deck now
+  /// contains, and re-evaluate whether anything differs from what is saved.
+  /// Forgetting a step leaves the save button inactive, a review mode the
+  /// deck cannot support or a deck without cards — none of which looks
+  /// wrong on screen.
   void _applyDraftChange(VoidCallback mutate) {
     setState(() {
       mutate();
       _enforceReviewModeValidity();
+      _activeSubdeckIds = _presenter.effectiveActiveSubdecks(
+        activeSubdeckIds: _activeSubdeckIds,
+        subdecks: _subdecks,
+        hasSpeciesOutsideSubdecks: _hasSpeciesOutsideSubdecks,
+      );
       _updateDirtyState(setStateIfChanged: false);
     });
   }
+
+  bool get _hasSpeciesOutsideSubdecks => _presenter.hasSpeciesOutsideSubdecks(
+    _speciesIdsFor(_species),
+    _subdeckIdBySpeciesId,
+  );
 
   /// Recomputes [_distinctNameCount] and reverts to flip mode if multiple
   /// choice is selected but the deck no longer has enough distinct names —
@@ -139,18 +161,28 @@ class _EditDeckPageState extends State<EditDeckPage> {
     unawaited(_load());
   }
 
-  /// Loads the species and the learning config, and takes them over in one
-  /// step only once both are in: nothing from a failed attempt is left
-  /// behind for a retry, and the review mode is validated against the
-  /// complete deck. The config is a single row of the user DB, so loading
-  /// it after the species rather than alongside costs nothing noticeable.
+  /// Loads the species, the subdecks and the learning config, and takes them
+  /// over in one step only once all are in: nothing from a failed attempt
+  /// is left behind for a retry, and the review mode is validated against
+  /// the complete deck. The config is a single row of the user DB, so
+  /// loading it after the species rather than alongside costs nothing
+  /// noticeable.
   Future<void> _load() async {
     try {
       final species = await _decksService.getSpeciesByDeckId(widget.deck.id!);
+      final subdecks = await _decksService.getSubdecks(widget.deck.id!);
+      final subdeckIdBySpeciesId = await _decksService
+          .getSubdeckIdBySpeciesId(widget.deck.id!);
       final config = await _flashcardService.getDeckConfig(widget.deck.id!);
       if (!mounted) return;
       setState(() {
         _species = species;
+        _subdecks = subdecks;
+        _subdeckIdBySpeciesId = subdeckIdBySpeciesId;
+        _activeSubdeckIds = {
+          for (final subdeck in subdecks)
+            if (subdeck.isActive) subdeck.id,
+        };
         _deckConfig = config;
         _desiredRetention = config.desiredRetention;
         _learningMode = config.learningMode;
@@ -253,6 +285,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
           reviewMode: _reviewMode,
         ),
       );
+      if (_subdecks.isNotEmpty) {
+        await _decksService.setActiveSubdecks(
+          widget.deck.id!,
+          _activeSubdeckIds,
+        );
+      }
     });
     // Safe once the page is gone as well: nothing here rebuilds it.
     _saved = _currentDraft();
@@ -329,29 +367,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
   }
 
   Future<void> _confirmAndDeleteDeck() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.loc.deleteDeckConfirmationTitle),
-        content: Text(context.loc.deleteDeckConfirmationMessage),
-        actions: [
-          TextButton(
-            key: const Key('edit_deck_delete_cancel_button'),
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.loc.commonCancel),
-          ),
-          TextButton(
-            key: const Key('edit_deck_delete_confirm_button'),
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: Text(context.loc.deleteDeckConfirmButton),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+    final confirmed = await showDeleteDeckDialog(context);
+    if (!confirmed || !mounted) return;
 
     setState(() => _isSaving = true);
     await _decksService.deleteDeck(widget.deck.id!);
@@ -412,31 +429,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// discard-confirmation check explicitly.
   Future<void> _confirmAndPopIfNeeded() async {
     if (_isDirty) {
-      final shouldDiscard = await _confirmDiscardChanges();
+      final shouldDiscard = await showDiscardChangesDialog(context);
       if (!mounted || !shouldDiscard) return;
     }
     Navigator.of(context).pop();
-  }
-
-  Future<bool> _confirmDiscardChanges() async {
-    final shouldDiscard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.loc.editDeckDiscardTitle),
-        content: Text(context.loc.editDeckDiscardMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.loc.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.loc.editDeckDiscardConfirm),
-          ),
-        ],
-      ),
-    );
-    return shouldDiscard ?? false;
   }
 
   Future<void> _openSpeciesDetail(Species species) async {
@@ -461,6 +457,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     nameType: _nameType,
     reviewMode: _reviewMode,
     speciesIds: _speciesIdsFor(_species),
+    activeSubdeckIds: _activeSubdeckIds,
   );
 
   void _updateDirtyState({bool setStateIfChanged = true}) {
@@ -473,34 +470,28 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
-  /// Scrolls the learning settings section into view before showing its
-  /// coach mark — it sits below the name/description/cover/language
-  /// sections in the scroll view, so on smaller screens it isn't visible
-  /// without scrolling first.
+  /// Shows the coach marks not seen yet: the learning settings one, and
+  /// the subdeck one for a deck that has subdecks.
   void _maybeScheduleTutorial() {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (prefs.hasSeenEditDeckTutorial) return;
+    final learningSettings = !prefs.hasSeenEditDeckTutorial;
+    final subdecks =
+        _subdecks.isNotEmpty && !prefs.hasSeenEditDeckSubdecksTutorial;
+    if (!learningSettings && !subdecks) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
-      final targetContext = _learningSettingsKey.currentContext;
-      if (targetContext != null && targetContext.mounted) {
-        await Scrollable.ensureVisible(
-          targetContext,
-          duration: const Duration(milliseconds: 300),
-          alignment: 0.1,
-        );
-      }
-      if (!mounted) return;
-      prefs.hasSeenEditDeckTutorial = true;
-      EditDeckTutorial(learningSettingsKey: _learningSettingsKey).show(context);
+      if (learningSettings) prefs.hasSeenEditDeckTutorial = true;
+      if (subdecks) prefs.hasSeenEditDeckSubdecksTutorial = true;
+      EditDeckTutorial(
+        learningSettingsKey: learningSettings ? _learningSettingsKey : null,
+        subdecksKey: subdecks ? _subdecksKey : null,
+      ).show(context);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return PopScope(
       canPop: !_isDirty,
       onPopInvokedWithResult: _handlePopInvoked,
@@ -542,14 +533,37 @@ class _EditDeckPageState extends State<EditDeckPage> {
               onRetry: _retryLoad,
               retryButtonKey: const Key('edit_deck_retry_button'),
             ),
-            _DeckLoadState.loaded => _buildContent(theme),
+            _DeckLoadState.loaded => _buildContent(),
           },
         ),
       ),
     );
   }
 
-  Widget _buildContent(ThemeData theme) {
+  Widget _buildSubdeckSection() {
+    final speciesIds = _speciesIdsFor(_species);
+    return SubdeckSection(
+      titleKey: _subdecksKey,
+      subdecks: _subdecks,
+      activeSubdeckIds: _activeSubdeckIds,
+      speciesCounts: _presenter.subdeckSpeciesCounts(
+        speciesIds,
+        _subdeckIdBySpeciesId,
+      ),
+      canSwitchOff: (subdeckId) => _presenter.canSwitchOffSubdeck(
+        subdeckId: subdeckId,
+        activeSubdeckIds: _activeSubdeckIds,
+        hasSpeciesOutsideSubdecks: _hasSpeciesOutsideSubdecks,
+      ),
+      onChanged: (subdeckId, active) => _applyDraftChange(
+        () => _activeSubdeckIds = active
+            ? {..._activeSubdeckIds, subdeckId}
+            : _activeSubdeckIds.difference({subdeckId}),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
     return CustomScrollView(
       // The default cache extent (250px) is too small to lay out the
       // learning settings section on first build if it sits below the
@@ -601,6 +615,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onReviewModeChanged: (mode) =>
                     _applyDraftChange(() => _reviewMode = mode),
               ),
+              if (_subdecks.isNotEmpty) ...[
+                AppSpacing.heightS24,
+                _buildSubdeckSection(),
+              ],
               AppSpacing.heightS24,
               ManualINatEnrichmentSection(
                 deckId: widget.deck.id!,
@@ -610,37 +628,13 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onRefreshStaleBaseImages: _refreshStaleBaseImages,
               ),
               AppSpacing.heightS24,
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  key: const Key('edit_deck_delete_button'),
-                  onPressed: _isSaving ? null : _confirmAndDeleteDeck,
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: Text(context.loc.editDeckDeleteButton),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                    side: BorderSide(color: theme.colorScheme.error),
-                  ),
-                ),
+              DeleteDeckButton(
+                onPressed: _isSaving ? null : _confirmAndDeleteDeck,
               ),
               AppSpacing.heightS24,
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.loc.editSpeciesInDeck(_species.length),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  FilledButton.tonalIcon(
-                    key: const Key('edit_deck_add_species_button'),
-                    onPressed: _openAddSpeciesSheet,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: Text(context.loc.editAddSpeciesButton),
-                  ),
-                ],
+              EditDeckSpeciesHeader(
+                speciesCount: _species.length,
+                onAdd: _openAddSpeciesSheet,
               ),
               AppSpacing.heightS12,
             ]),
