@@ -258,29 +258,30 @@ plugin_cleanup_dir() {
     [[ -n "$path" ]] && rm -rf "$path"
 }
 
-plugin_write_source_metadata() {
-    local db_path="$1"
-    local source_sql_path="$2"
-    local source_version="$3"
+# plugin_source_metadata_sql <source.sql> <version>
+# Gibt die Quellenangabe als SQL aus, für die Transaktion des Imports: die
+# ausgefüllte source.sql (${VERSION}, ${NOW}) und den Versionswert der Quelle
+# in metadata. Führt nichts aus. Fehlt source.sql, bricht sie ab — der Aufrufer
+# weist die Ausgabe deshalb erst einer Variablen zu, denn ein $(…) direkt im
+# Heredoc verlöre den Abbruch.
+plugin_source_metadata_sql() {
+    local source_sql_path="$1"
+    local source_version="$2"
     local now
 
     [[ -f "$source_sql_path" ]] || plugin_fail "source.sql fehlt: $source_sql_path"
 
     now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-    plugin_log "Schreibe Quellenangabe für '${PLUGIN_SOURCE}'..."
+    plugin_log "Quellenangabe für '${PLUGIN_SOURCE}': version=$source_version"
     sed -e "s|\${VERSION}|$source_version|g" \
         -e "s|\${NOW}|$now|g" \
         "$source_sql_path" \
-    | sqlite3 "$db_path" \
-    || plugin_fail "source.sql fehlgeschlagen."
-
-    sqlite3 "$db_path" \
-        "INSERT INTO metadata (key, value) VALUES ('${PLUGIN_SOURCE}', '$source_version')
-         ON CONFLICT (key) DO UPDATE SET value = excluded.value;" \
-    || plugin_fail "metadata-Eintrag fehlgeschlagen."
-
-    plugin_log "Quellenangabe geschrieben (version=$source_version)."
+    || plugin_fail "source.sql nicht lesbar: $source_sql_path"
+    cat << EOF
+INSERT INTO metadata (key, value) VALUES ('${PLUGIN_SOURCE}', '$source_version')
+ON CONFLICT (key) DO UPDATE SET value = excluded.value;
+EOF
 }
 
 plugin_validate_source_entry_exists() {

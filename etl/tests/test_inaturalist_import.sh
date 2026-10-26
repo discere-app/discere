@@ -687,6 +687,19 @@ test_inaturalist_validation_fails_on_rejection_with_mapping() {
     assert_contains "$ERR" "discere:fishbase_species:1	100	ablehnung mit zuordnung	ambiguous"
 }
 
+# Die Quellenangabe gehört zur Transaktion des Imports: Scheitert sie, schreibt
+# der Import auch keine Zuordnungen.
+test_inaturalist_writes_nothing_when_source_sql_fails() {
+    create_mini_reference_db
+    write_taxa_file "$OCELLARIS"
+    run_broken_plugin sql/source.sql "INSERT INTO sources (" "INSERT INTO missing_sources ("
+    assert_status 1
+    assert_eq 0 "$(sqlite3 "$DB" "SELECT COUNT(*) FROM entity_external_ids WHERE provider = 'inaturalist';")" \
+        "Zuordnungen nach dem Abbruch"
+    assert_eq 0 "$(sqlite3 "$DB" "SELECT COUNT(*) FROM metadata WHERE key = 'inaturalist';")" "metadata-Eintrag"
+    assert_contains "$ERR" "no such table: missing_sources"
+}
+
 add_frenata_synonym() {
     sqlite3 "$DB" "INSERT INTO species_scientific_names
         (species_id, name, normalized_name, name_status, source, is_preferred) VALUES

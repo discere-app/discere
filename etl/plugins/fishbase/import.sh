@@ -135,7 +135,6 @@ DELETE FROM ambiguous_scientific_names WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
-DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
 EOF
 }
 
@@ -159,12 +158,14 @@ export_to_csv() {
     plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
-# Aufräumen und Import laufen in einer Transaktion: Scheitert eine Anweisung,
-# bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie sie waren.
-# PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
+# Aufräumen, Import und Quellenangabe laufen in einer Transaktion: Scheitert
+# eine Anweisung, bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie
+# sie waren. PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
+    local source_sql
+    source_sql="$(plugin_source_metadata_sql "$SQL_DIR/source.sql" "$FISHBASE_VERSION")"
     cat > "$import_script" << EOF
 .bail on
 .mode csv
@@ -447,19 +448,11 @@ INSERT INTO taxonomy_distribution_regions (
     importance, comment
 FROM tmp_taxonomy_distribution_regions;
 
+${source_sql}
+
 COMMIT;
 EOF
     sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
-}
-
-# ---------------------------------------------------------------------------
-# Source-Metadaten schreiben
-#
-# Liest sql/source.sql und ersetzt ${VERSION} und ${NOW}.
-# Schreibt zusätzlich die Version in metadata für den Flutter Update-Mechanismus.
-# ---------------------------------------------------------------------------
-write_source_metadata() {
-    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$FISHBASE_VERSION"
 }
 
 validate() {
@@ -504,7 +497,6 @@ import_to_sqlite
 plugin_report_source_codes "${EXPORT_DIR}/code_report.tsv"
 plugin_report_distribution "${EXPORT_DIR}/distribution_report.tsv"
 plugin_log_common_names "${EXPORT_DIR}/common_names_summary.tsv"
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

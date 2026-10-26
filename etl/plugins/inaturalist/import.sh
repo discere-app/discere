@@ -170,9 +170,14 @@ export_records() {
 # Taxon seines Namens, steht dort nicht. Die App sucht für diese Entitäten
 # nicht selbst, denn ihre Suche fände dieselben Taxa wieder und prüft nur den
 # Stamm.
+#
+# Die Quellenangabe steht in derselben Transaktion. Ihre Version ist das Datum
+# der taxa.csv.gz (beim Download das des Servers).
 import_mappings() {
-    local synced_at
+    local synced_at data_version source_sql
     synced_at="$(date -u +%Y-%m-%d)"
+    data_version="$(date -u -r "$TAXA_FILE" +%Y-%m-%d)"
+    source_sql="$(plugin_source_metadata_sql "$PLUGIN_SQL_DIR/source.sql" "$data_version")"
     plugin_log "Importiere Zuordnungen in entity_external_ids..."
     sqlite3 "$DB_PATH" << EOF || plugin_fail "SQLite-Import fehlgeschlagen."
 .bail on
@@ -278,6 +283,7 @@ WHERE entity_key NOT IN (SELECT entity_id FROM entity_external_ids WHERE provide
 DELETE FROM inat_allowed_ancestors;
 INSERT INTO inat_allowed_ancestors (class_id, rank, inat_taxon_id)
 SELECT class_id, rank, CAST(inat_taxon_id AS INTEGER) FROM tmp_allowed_ancestors;
+${source_sql}
 COMMIT;
 EOF
     plugin_report < "$WORK_DIR/synonym_report.tsv"
@@ -286,17 +292,6 @@ EOF
     plugin_log "Entitäten ohne Zuordnung wegen Ablehnung: $(sqlite3 "$DB_PATH" \
         "SELECT COUNT(DISTINCT entity_id) FROM entity_external_id_rejections WHERE provider = '${PLUGIN_SOURCE}';")," \
         "erlaubte Vorfahren: $(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM inat_allowed_ancestors;")"
-}
-
-# ---------------------------------------------------------------------------
-# Source-Metadaten schreiben
-#
-# Version ist das Datum der taxa.csv.gz (beim Download das des Servers).
-# ---------------------------------------------------------------------------
-write_source_metadata() {
-    local data_version
-    data_version="$(date -u -r "$TAXA_FILE" +%Y-%m-%d)"
-    plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$data_version"
 }
 
 # Prüft jede Zuordnung erneut gegen die Kette, mit eigener SQL
@@ -343,7 +338,6 @@ export_reference_names
 export_records
 match_records "$DB_PATH" "$WORK_DIR/match_input.tsv" "$WORK_DIR/match_result.tsv"
 import_mappings
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

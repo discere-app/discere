@@ -219,9 +219,12 @@ Nach `source "$PLUGIN_CORE_DIR/match.sh"`:
 
 ### Source-Metadaten
 
-- `plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`
-  - rendert `source.sql` mit `${VERSION}` und `${NOW}`
-  - schreibt zusätzlich den technischen Versionswert in `metadata`
+- `plugin_source_metadata_sql "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`
+  - gibt `source.sql` mit `${VERSION}` und `${NOW}` ersetzt aus, dazu den
+    technischen Versionswert für `metadata`; führt nichts aus
+  - das Plugin setzt die Ausgabe vor das `COMMIT` seiner Import-Transaktion
+  - die Ausgabe zuerst einer Variablen zuweisen: Ein `$(…)` direkt im Heredoc
+    verliert den Abbruch, wenn `source.sql` fehlt
 
 ---
 

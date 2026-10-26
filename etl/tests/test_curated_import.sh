@@ -206,3 +206,16 @@ test_curated_keeps_previous_rows_when_rejecting() {
     assert_status 1
     assert_eq 15 "$(curated_count)" "curated-Zeilen nach dem Abbruch"
 }
+
+# Die Quellenangabe gehört zur Transaktion des Imports: Scheitert sie, schreibt
+# der Import auch keine Klassennamen.
+test_curated_writes_nothing_when_source_sql_fails() {
+    setup_curated
+    echo "INSERT INTO sources (id, version) VALUES ('curated', '\${VERSION}');" \
+        > "$TEST_TMP/etl/plugins/curated/sql/source.sql"
+    run_capture "$CURATED_IMPORT" --db "$DB"
+    assert_status 1
+    assert_eq 0 "$(curated_count)" "curated-Zeilen nach dem Abbruch"
+    assert_eq 0 "$(sqlite3 "$DB" "SELECT COUNT(*) FROM metadata WHERE key = 'curated';")" "metadata-Eintrag"
+    assert_contains "$ERR" "NOT NULL constraint failed: sources.name"
+}

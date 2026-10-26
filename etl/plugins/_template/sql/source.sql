@@ -1,7 +1,8 @@
 -- =============================================================================
 -- source.sql — <Plugin-Name>
 --
--- Wird von plugin_write_source_metadata() ausgeführt.
+-- plugin_source_metadata_sql() füllt die Platzhalter aus; import_to_sqlite()
+-- führt das Ergebnis in der Transaktion des Imports aus.
 --
 -- Platzhalter:
 --   ${VERSION}   — Versions-String des Imports

@@ -89,7 +89,6 @@ DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
-DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
 EOF
 }
 
@@ -111,12 +110,20 @@ export_to_csv() {
     plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
-# Aufräumen und Import laufen in einer Transaktion: Scheitert eine Anweisung,
-# bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie sie waren.
-# PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
+# Aufräumen, Import und Quellenangabe laufen in einer Transaktion: Scheitert
+# eine Anweisung, bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie
+# sie waren. PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
+#
+# Die Quellenangabe kommt aus sql/source.sql, mit ${VERSION} und ${NOW}
+# ersetzt. Alle inhaltlichen Angaben (Zitierung, Lizenz, URL etc.) stehen
+# dort — nicht hier in import.sh, damit Sonderzeichen in Zitierungen kein
+# Problem sind (Apostrophe in Autorennamen, Klammern, etc.). Zusätzlich steht
+# die Version in metadata für den Flutter Update-Mechanismus.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
+    local source_sql
+    source_sql="$(plugin_source_metadata_sql "$SQL_DIR/source.sql" "${SOURCE_VERSION:-unknown}")"
     cat > "$import_script" << EOF
 .bail on
 .mode csv
@@ -128,24 +135,11 @@ $(clear_existing_data_sql)
 -- TODO: Temp-Tabellen anlegen, CSVs per .import laden und in die Tabellen
 -- übernehmen (analog zu fishbase/import.sh)
 
+${source_sql}
+
 COMMIT;
 EOF
     sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
-}
-
-# ---------------------------------------------------------------------------
-# Source-Metadaten schreiben
-#
-# Liest sql/source.sql und ersetzt ${VERSION} und ${NOW}.
-# Alle inhaltlichen Angaben (Zitierung, Lizenz, URL etc.) stehen dort —
-# nicht hier in import.sh, damit Sonderzeichen in Zitierungen kein Problem
-# sind (Apostrophe in Autorennamen, Klammern, etc.).
-# Zusätzlich wird die Version in metadata geschrieben für den
-# Flutter Update-Mechanismus.
-# ---------------------------------------------------------------------------
-write_source_metadata() {
-    local version="${SOURCE_VERSION:-unknown}"
-    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$version"
 }
 
 validate() {
@@ -168,7 +162,6 @@ check_deps
 [[ "$DOWNLOAD" == true ]] && download_data
 export_to_csv
 import_to_sqlite
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

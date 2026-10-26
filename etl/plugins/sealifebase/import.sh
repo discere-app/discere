@@ -158,7 +158,6 @@ DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM source_parent_overrides WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
-DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
 -- common_names löscht der Import direkt vor dem Neuimport der Namen.
 EOF
 }
@@ -233,12 +232,14 @@ FROM tmp_pictures_fg;
 EOF
 }
 
-# Aufräumen und Import laufen in einer Transaktion: Scheitert eine Anweisung,
-# bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie sie waren.
-# PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
+# Aufräumen, Import und Quellenangabe laufen in einer Transaktion: Scheitert
+# eine Anweisung, bricht sqlite3 dort ab und die Daten der Quelle bleiben, wie
+# sie waren. PRAGMA foreign_keys wirkt nur außerhalb einer Transaktion.
 import_to_sqlite() {
     plugin_log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
+    local source_sql
+    source_sql="$(plugin_source_metadata_sql "$SQL_DIR/source.sql" "$SLB_VERSION")"
     cat > "$import_script" << EOF
 .bail on
 .mode csv
@@ -529,6 +530,8 @@ FROM tmp_taxonomy_distribution_regions;
 
 $(fieldguide_import_sql)
 
+${source_sql}
+
 COMMIT;
 EOF
     sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
@@ -560,11 +563,6 @@ report_family_phylum() {
         "nicht vergleichbar $(grep -c '^family_phylum_unclear' "$report" || true)," \
         "Ausnahme ohne Ordnung $(grep -c '^family_order_exception' "$report" || true)"
 }
-
-write_source_metadata() {
-    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$SLB_VERSION"
-}
-
 
 validate() {
     plugin_validate_min_count \
@@ -610,7 +608,6 @@ report_family_phylum
 plugin_report_distribution "${EXPORT_DIR}/distribution_report.tsv"
 plugin_log_common_names "${EXPORT_DIR}/common_names_summary.tsv"
 report_genus_resolution
-write_source_metadata
 validate
 
 plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="
