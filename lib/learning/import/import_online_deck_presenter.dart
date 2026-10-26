@@ -1,5 +1,5 @@
-import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/deck_supersession.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 
 /// Whether a catalog entry shown in the "Online" import tab has already been
@@ -14,11 +14,15 @@ enum ImportOnlineDeckStatus {
   /// Already imported, but the catalog entry is newer — offer an update
   /// instead of a duplicate import.
   updateAvailable,
+
+  /// Not imported, but it supersedes local decks — offer to merge them into
+  /// it instead of an import beside them.
+  supersedesLocal,
 }
 
-/// Classifies [ImportOnlineDeckStatus] for a catalog entry, given the local
-/// decks already known by `sourceId` (see
-/// [DecksService.getDecksBySourceId]). Kept separate from
+/// Classifies [ImportOnlineDeckStatus] for a catalog entry, given which local
+/// decks the catalog stands for or supersedes ([DeckSupersession]). Kept
+/// separate from
 /// [ImportOnlineDecksTab] so the classification is unit-testable without a
 /// widget tree, mirroring the presenter pattern used elsewhere in the app.
 class ImportOnlineDeckPresenter {
@@ -26,13 +30,14 @@ class ImportOnlineDeckPresenter {
 
   ImportOnlineDeckStatus statusFor(
     CreateDeck remote,
-    Map<String, BaseDeck> localDecksBySourceId,
+    DeckSupersession supersession,
   ) {
-    final sourceId = remote.sourceId;
-    if (sourceId == null) return ImportOnlineDeckStatus.notImported;
-
-    final local = localDecksBySourceId[sourceId];
-    if (local == null) return ImportOnlineDeckStatus.notImported;
+    final local = supersession.localDeckOf(remote);
+    if (local == null) {
+      return supersession.decksSupersededBy(remote).isEmpty
+          ? ImportOnlineDeckStatus.notImported
+          : ImportOnlineDeckStatus.supersedesLocal;
+    }
 
     return DeckUpdateService.isNewer(
           localUpdatedAt: local.updatedAt,

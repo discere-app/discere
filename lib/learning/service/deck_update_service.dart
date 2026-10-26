@@ -2,6 +2,7 @@ import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/learning/service/deck_supersession.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -9,7 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Tracks which locally-imported decks (those with a `sourceId`) have a newer
 /// version available in the online catalog, so the deck list can show an
-/// "update available" badge.
+/// "update available" badge — or are superseded by another catalog entry
+/// ([DeckSupersession]), which the deck list offers to merge them into
+/// instead.
 ///
 /// [checkForUpdates] is meant to run once per app start (see
 /// `bootstrap_app.dart`'s `startDeferred`), but only actually hits the
@@ -26,6 +29,8 @@ class DeckUpdateService extends ChangeNotifier {
   final SharedPreferences _preferences;
 
   Map<String, CreateDeck> _availableUpdates = {};
+  Map<String, CreateDeck> _replacements = {};
+  List<CreateDeck> _catalog = const [];
 
   DeckUpdateService(
     this._deckRepository,
@@ -37,6 +42,15 @@ class DeckUpdateService extends ChangeNotifier {
   /// null if no update is known (either up to date, not catalog-sourced, or
   /// the check hasn't run/succeeded yet).
   CreateDeck? updateFor(String deckId) => _availableUpdates[deckId];
+
+  /// The catalog entry to merge [deckId] into, or null if no entry is known
+  /// to supersede it. A superseded deck has no [updateFor]: it is not
+  /// updated any more, it is replaced.
+  CreateDeck? replacementFor(String deckId) => _replacements[deckId];
+
+  /// The catalog the last successful check fetched — what a merge offered
+  /// by [replacementFor] is planned against.
+  List<CreateDeck> get catalog => _catalog;
 
   /// Number of decks currently known to have an available update — shown in
   /// the developer Diagnostics page after a forced re-check.
@@ -80,11 +94,7 @@ class DeckUpdateService extends ChangeNotifier {
       _deckRepository.getAllDecks,
       whenClosed: const <BaseDeck>[],
     );
-    final trackedBySourceId = {
-      for (final deck in localDecks)
-        if (deck.sourceId != null) deck.sourceId!: deck,
-    };
-    if (trackedBySourceId.isEmpty) return;
+    if (!localDecks.any((deck) => deck.sourceId != null)) return;
 
     final List<CreateDeck> remoteDecks;
     try {
@@ -94,11 +104,42 @@ class DeckUpdateService extends ChangeNotifier {
       return;
     }
 
+    _catalog = remoteDecks;
+    _classify(localDecks);
+    _log.debug(
+      'Deck update check: ${_availableUpdates.length} deck(s) have an '
+      'update, ${_replacements.length} are superseded',
+    );
+    notifyListeners();
+    await _preferences.setInt(
+      _prefKeyLastCheckedAt,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  /// Classifies the local decks again against the [catalog] already
+  /// fetched — after a merge has imported, emptied or deleted some of them.
+  Future<void> reconcileWithLocalDecks() async {
+    _classify(await _deckRepository.getAllDecks());
+    notifyListeners();
+  }
+
+  void _classify(List<BaseDeck> localDecks) {
+    final supersession = DeckSupersession(
+      catalog: _catalog,
+      localDecks: localDecks,
+    );
+    final replacements = <String, CreateDeck>{};
     final updates = <String, CreateDeck>{};
-    for (final remote in remoteDecks) {
-      if (remote.sourceId == null) continue;
-      final local = trackedBySourceId[remote.sourceId];
-      if (local == null) continue;
+    for (final local in localDecks) {
+      if (supersession.replacementFor(local) case final replacement?) {
+        replacements[local.id!] = replacement;
+        continue;
+      }
+      final remote = _catalog
+          .where((entry) => entry.sourceId == local.sourceId)
+          .firstOrNull;
+      if (local.sourceId == null || remote == null) continue;
       if (isNewer(
         localUpdatedAt: local.updatedAt,
         remoteUpdatedAt: remote.updatedAt,
@@ -106,14 +147,8 @@ class DeckUpdateService extends ChangeNotifier {
         updates[local.id!] = remote;
       }
     }
-
+    _replacements = replacements;
     _availableUpdates = updates;
-    _log.debug('Deck update check: ${updates.length} deck(s) have an update');
-    notifyListeners();
-    await _preferences.setInt(
-      _prefKeyLastCheckedAt,
-      DateTime.now().millisecondsSinceEpoch,
-    );
   }
 
   bool _isCheckDue() {

@@ -40,4 +40,17 @@ class DeckConfigRepository {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+  /// Inserts the config for a deck that has none. For a new deck's
+  /// defaults, which are written without being awaited and must not
+  /// overwrite a config saved for the deck in the meantime — a merge target
+  /// takes over the one of the deck it replaces.
+  Future<void> saveIfAbsent(DeckConfig config) async {
+    final db = await _database;
+    await db.insert(
+      'deck_config',
+      config.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
 }

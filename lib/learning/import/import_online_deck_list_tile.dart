@@ -19,7 +19,14 @@ class ImportOnlineDeckListTile extends StatelessWidget {
   final ValueChanged<bool?> onSelected;
   final ValueChanged<Language> onLanguageChanged;
   final VoidCallback onToggleExpanded;
-  final VoidCallback? onUpdatePressed;
+
+  /// The local decks this entry supersedes, for
+  /// [ImportOnlineDeckStatus.supersedesLocal].
+  final List<String> supersededDeckNames;
+
+  /// What the status offers instead of a selection — the deck update, or
+  /// the merge of the decks this entry supersedes.
+  final VoidCallback? onStatusAction;
 
   const ImportOnlineDeckListTile({
     required this.deck,
@@ -30,7 +37,8 @@ class ImportOnlineDeckListTile extends StatelessWidget {
     required this.onSelected,
     required this.onLanguageChanged,
     required this.onToggleExpanded,
-    this.onUpdatePressed,
+    this.supersededDeckNames = const [],
+    this.onStatusAction,
     super.key,
   });
 
@@ -43,12 +51,15 @@ class ImportOnlineDeckListTile extends StatelessWidget {
     );
     final tint = isSelected
         ? OceanColors.primaryBlue
-        : status == ImportOnlineDeckStatus.updateAvailable
-        ? OceanColors.success
-        : null;
+        : switch (status) {
+            ImportOnlineDeckStatus.updateAvailable => OceanColors.success,
+            ImportOnlineDeckStatus.supersedesLocal => OceanColors.primaryBlue,
+            _ => null,
+          };
     final onTap = switch (status) {
       ImportOnlineDeckStatus.notImported => () => onSelected(!isSelected),
-      ImportOnlineDeckStatus.updateAvailable => onUpdatePressed,
+      ImportOnlineDeckStatus.updateAvailable ||
+      ImportOnlineDeckStatus.supersedesLocal => onStatusAction,
       ImportOnlineDeckStatus.upToDate => null,
     };
 
@@ -95,7 +106,10 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                       ),
                     if (status != ImportOnlineDeckStatus.notImported) ...[
                       const SizedBox(height: AppSpacing.s4),
-                      StatusLabel(status: status),
+                      StatusLabel(
+                        status: status,
+                        supersededDeckNames: supersededDeckNames,
+                      ),
                     ],
                     if (isSelected) ...[
                       const SizedBox(height: AppSpacing.s4),
@@ -166,11 +180,20 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                       ),
                       ImportOnlineDeckStatus.updateAvailable => IconButton(
                         key: ValueKey('import-online-update-${deck.name}'),
-                        onPressed: onUpdatePressed,
+                        onPressed: onStatusAction,
                         tooltip: context.loc.importOnlineUpdateAvailable,
                         icon: Icon(
                           Icons.system_update_alt,
                           color: OceanColors.success,
+                        ),
+                      ),
+                      ImportOnlineDeckStatus.supersedesLocal => IconButton(
+                        key: ValueKey('import-online-merge-${deck.name}'),
+                        onPressed: onStatusAction,
+                        tooltip: context.loc.deckMergeDialogTitle,
+                        icon: Icon(
+                          Icons.merge_type,
+                          color: OceanColors.primaryBlue,
                         ),
                       ),
                     },

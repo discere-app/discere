@@ -272,6 +272,73 @@ void main() {
       expect(find.text('Deck update available'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'an entry that supersedes local decks names them and offers the merge '
+    'instead of a checkbox',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        LanguageService.sharedPreferencesLanguageKey: Language.en.value,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final mockDecksService = MockDecksService();
+      when(mockDecksService.getDecksBySourceId()).thenAnswer(
+        (_) async => {
+          for (final level in ['1', '2'])
+            'level-$level': BaseDeck(
+              id: 'local-$level',
+              name: 'Level $level',
+              description: 'desc',
+              sourceId: 'level-$level',
+            ),
+        },
+      );
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LanguageService>.value(
+              value: LanguageService(prefs),
+            ),
+            ChangeNotifierProvider<DecksService>.value(
+              value: mockDecksService,
+            ),
+          ],
+          child: _buildApp(
+            ImportOnlineDecksTab(
+              loadDecks: () async => [
+                CreateDeck(
+                  name: 'All levels',
+                  description: 'desc',
+                  speciesNames: {'Chelonia mydas'},
+                  sourceId: 'all',
+                  supersedes: ['level-2', 'level-1'],
+                ),
+              ],
+              onImportDecks: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Replaces your decks Level 1, Level 2'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('import-online-merge-All levels')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('deck-checkbox-All levels')),
+          matching: find.byType(Checkbox),
+        ),
+        findsNothing,
+      );
+    },
+  );
 }
 
 Widget _buildApp(Widget home) {

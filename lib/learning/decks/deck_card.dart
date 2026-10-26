@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:discere/learning/decks/deck_enrichment_hint.dart';
+import 'package:discere/learning/decks/deck_replacement_hint.dart';
 import 'package:discere/learning/decks/deck_update_hint.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/widgets/action_button.dart';
@@ -201,6 +202,7 @@ class _DeckCardState extends State<DeckCard> {
                       ],
                     ),
                     DeckUpdateHint(deckId: stored.id!),
+                    DeckReplacementHint(deckId: stored.id!),
                     DeckEnrichmentHint(deckId: stored.id!),
                     AppSpacing.heightS16,
                     // Progress bar

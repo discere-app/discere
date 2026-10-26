@@ -1,7 +1,10 @@
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/in_memory_user_database.dart';
 
 // These tests exercise the pure serialization helpers inline, without a DB.
 void main() {
@@ -165,6 +168,30 @@ void main() {
       // Higher retention means the scheduler will schedule reviews sooner
       // (shorter intervals) — verified in fsrs_service_test.dart
       expect(factor07, isNot(null)); // suppress unused warning
+    });
+  });
+
+  group('DeckConfigRepository.saveIfAbsent', () {
+    test('writes a deck\'s first config and leaves one already saved', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final db = await openInMemoryUserDatabase();
+      addTearDown(db.close);
+      await db.insert('decks', {'id': 'fresh', 'name': 'Fresh'});
+      await db.insert('decks', {'id': 'merged', 'name': 'Merged'});
+      final repository = DeckConfigRepository(database: db);
+      await repository.save(
+        const DeckConfig(deckId: 'merged', reviewMode: ReviewMode.multipleChoice),
+      );
+
+      await repository.saveIfAbsent(const DeckConfig(deckId: 'fresh'));
+      await repository.saveIfAbsent(const DeckConfig(deckId: 'merged'));
+
+      expect((await repository.getOrDefault('fresh')).reviewMode, ReviewMode.flip);
+      expect(
+        (await repository.getOrDefault('merged')).reviewMode,
+        ReviewMode.multipleChoice,
+      );
+      expect(await db.query('deck_config'), hasLength(2));
     });
   });
 }

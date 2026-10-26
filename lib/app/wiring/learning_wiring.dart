@@ -16,6 +16,7 @@ import 'package:discere/learning/import/import_text_recognizer.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
+import 'package:discere/learning/repository/deck_merge_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
@@ -23,6 +24,7 @@ import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
+import 'package:discere/learning/service/deck_merge_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -142,6 +144,15 @@ LearningDeckServices buildLearningDeckServices({
     serializationWorker: serializationWorker,
   );
   final favoriteService = FavoriteService(sharedPreferences);
+  final deckMergeService = DeckMergeService(
+    deckService,
+    deckImportService,
+    mergeRepository: DeckMergeRepository(),
+    subdeckRepository: subdeckRepository,
+    deckConfigRepository: deckConfigRepository,
+    favoriteService: favoriteService,
+    userDataWrites: userDataWrites,
+  );
 
   return (
     flashcardStatRepository: flashcardStatRepository,
@@ -172,6 +183,7 @@ LearningDeckServices buildLearningDeckServices({
       Provider<RemoteDeckService>.value(value: remoteDeckService),
       ChangeNotifierProvider<DeckUpdateService>.value(value: deckUpdateService),
       ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
+      Provider<DeckMergeService>.value(value: deckMergeService),
     ],
   );
 }
@@ -210,7 +222,7 @@ class DeckLifecycleWiring implements DeckLifecycleObserver {
     // close the database before the new deck has its configuration.
     unawaited(
       _writes.run(
-        () => _deckConfigRepository.save(
+        () => _deckConfigRepository.saveIfAbsent(
           DeckConfig(
             deckId: deckId,
             desiredRetention: _userPreferences.defaultDesiredRetention,

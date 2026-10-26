@@ -6,8 +6,14 @@ import 'package:flutter/material.dart';
 class StatusLabel extends StatelessWidget {
   final ImportOnlineDeckStatus status;
 
+  /// Named for [ImportOnlineDeckStatus.supersedesLocal].
+  final List<String> supersededDeckNames;
+
   const StatusLabel({
-    super.key,required this.status});
+    super.key,
+    required this.status,
+    this.supersededDeckNames = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +30,14 @@ class StatusLabel extends StatelessWidget {
         OceanColors.success,
         context.loc.importOnlineUpdateAvailable,
       ),
+      ImportOnlineDeckStatus.supersedesLocal => (
+        Icons.merge_type,
+        OceanColors.primaryBlue,
+        context.loc.importOnlineSupersedesLocal(
+          supersededDeckNames.length,
+          supersededDeckNames.join(', '),
+        ),
+      ),
     };
     if (icon == null || color == null || text == null) {
       return const SizedBox.shrink();
@@ -34,11 +48,14 @@ class StatusLabel extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
+        // Flexible: a supersession names decks, and can run long.
+        Flexible(
+          child: Text(
+            text,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],

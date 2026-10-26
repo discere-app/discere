@@ -1,9 +1,10 @@
 import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
+import 'package:discere/learning/import/deck_merge_flow.dart';
 import 'package:discere/learning/import/import_online_deck_list_tile.dart';
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
 import 'package:discere/learning/import/widgets/import_selection_bar.dart';
-import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/deck_supersession.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -16,12 +17,9 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// The remote decks on offer, and the local decks already imported from
-/// them by source id.
-typedef _OnlineDecks = ({
-  List<CreateDeck> decks,
-  Map<String, BaseDeck> localBySourceId,
-});
+/// The remote decks on offer, and which local decks they stand for or
+/// supersede.
+typedef _OnlineDecks = ({List<CreateDeck> decks, DeckSupersession supersession});
 
 class ImportOnlineDecksTab extends StatefulWidget {
   final Future<List<CreateDeck>> Function() loadDecks;
@@ -65,7 +63,13 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     final decksService = context.read<DecksService>();
     final decks = await widget.loadDecks();
     final localBySourceId = await decksService.getDecksBySourceId();
-    return (decks: decks, localBySourceId: localBySourceId);
+    return (
+      decks: decks,
+      supersession: DeckSupersession(
+        catalog: decks,
+        localDecks: localBySourceId.values,
+      ),
+    );
   }
 
   Future<void> _retry() async {
@@ -80,6 +84,18 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     // The dialog may have bumped the local deck's sourceId/updatedAt —
     // reload so this tile reflects the new "up to date" status immediately
     // instead of waiting for the tab to be reopened.
+    setState(() {
+      _dataFuture = _loadData();
+    });
+  }
+
+  Future<void> _openMergeFlow(CreateDeck entry, List<CreateDeck> catalog) async {
+    final merged = await runDeckMergeFlow(
+      context,
+      entry: entry,
+      catalog: catalog,
+    );
+    if (!mounted || !merged) return;
     setState(() {
       _dataFuture = _loadData();
     });
@@ -187,8 +203,8 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
         }
 
         final decks = snapshot.data?.decks ?? [];
-        final localBySourceId = snapshot.data?.localBySourceId ?? {};
-        if (decks.isEmpty) {
+        final supersession = snapshot.data?.supersession;
+        if (decks.isEmpty || supersession == null) {
           return Padding(
             padding: AppSpacing.emptyStatePaddingAll,
             child: Center(
@@ -211,11 +227,9 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                     final deck = decks[index];
                     final status = _statusPresenter.statusFor(
                       deck,
-                      localBySourceId,
+                      supersession,
                     );
-                    final localDeckId = deck.sourceId == null
-                        ? null
-                        : localBySourceId[deck.sourceId]?.id;
+                    final localDeckId = supersession.localDeckOf(deck)?.id;
                     return ImportOnlineDeckListTile(
                       deck: deck,
                       status: status,
@@ -232,11 +246,20 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                         });
                       },
                       onToggleExpanded: () => _toggleExpanded(deck.name),
-                      onUpdatePressed:
-                          status == ImportOnlineDeckStatus.updateAvailable &&
-                              localDeckId != null
-                          ? () => _openUpdateDialog(localDeckId, deck)
-                          : null,
+                      supersededDeckNames: [
+                        for (final local in supersession.decksSupersededBy(
+                          deck,
+                        ))
+                          local.name,
+                      ],
+                      onStatusAction: switch (status) {
+                        ImportOnlineDeckStatus.updateAvailable
+                            when localDeckId != null =>
+                          () => _openUpdateDialog(localDeckId, deck),
+                        ImportOnlineDeckStatus.supersedesLocal =>
+                          () => _openMergeFlow(deck, decks),
+                        _ => null,
+                      },
                     );
                   },
                 ),
