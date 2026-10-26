@@ -1,9 +1,0 @@
-Neu: Namenssprache auf Arten-/Taxonseiten wählbar.
-Neu: Datenupdates im Hintergrund; „Anwenden“ auch in Einstellungen.
-Änderung: Benötigt Android 11 oder neuer.
-Änderung: JSON-Export fragt nach Speicherort.
-Fix: Lernsessions und Merkliste laden schneller.
-Fix: Multiple Choice fällt nicht mehr auf Umdrehen zurück.
-Fix: Deck-Editor zeigt alle Bilder; keine Fotos/Namen falscher Arten.
-Fix: Online-Suche zeigt Fortschritt und Fehler.
-Fix: Arten ohne Gattung/Familie sind dabei; keine Frage danach.
