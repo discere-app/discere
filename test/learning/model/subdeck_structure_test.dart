@@ -70,4 +70,21 @@ void main() {
     expect(structure.subdeckIdBySpeciesId, {'sp-a': 'l1'});
     expect(structure.subdeckIdByUnresolvedName, {'Zz unknown': 'l1'});
   });
+
+  test('withoutUnresolvedNames keeps subdecks and species', () {
+    final structure = SubdeckStructure.resolve(
+      const [
+        CreateSubdeck(
+          id: 'l1',
+          name: 'Level 1',
+          speciesNames: {'Aa aa', 'Zz unknown'},
+        ),
+      ],
+      {'Aa aa': 'sp-a'},
+    ).withoutUnresolvedNames();
+
+    expect(structure.subdecks, [(id: 'l1', name: 'Level 1')]);
+    expect(structure.subdeckIdBySpeciesId, {'sp-a': 'l1'});
+    expect(structure.subdeckIdByUnresolvedName, isEmpty);
+  });
 }

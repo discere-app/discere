@@ -4,6 +4,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 
@@ -82,14 +83,18 @@ class DeckUpdateApplier {
       addedSpecies: addedSpecies,
       removedSpecies: removedSpecies,
       unresolvedAddedNames: unresolvedAddedNames,
+      subdecks: SubdeckStructure.resolve(remote.subdecks, resolved),
     );
   }
 
   /// Applies a previously computed [diff] to [deckId]: name/description/
   /// cover/language are left untouched (a deck update only ever touches
-  /// species membership), while `sourceId`/`updatedAt` are always bumped to
-  /// [remote]'s values so the deck stops showing as outdated even if the
-  /// user declines both the additions and the removals. Returns the names
+  /// species membership and subdecks), while `sourceId`/`updatedAt` are
+  /// always bumped to [remote]'s values so the deck stops showing as
+  /// outdated even if the user declines both the additions and the
+  /// removals. The subdecks always follow [remote] too — even when the
+  /// update changes nothing else, as when a species only moves from one
+  /// level to the next ([DeckUpdateDiff.subdecks]). Returns the names
   /// from [diff.unresolvedAddedNames] that still need background iNaturalist
   /// resolution — empty unless [includeAdditions] is true.
   Future<List<String>> apply({
@@ -120,6 +125,15 @@ class DeckUpdateApplier {
       removedSpeciesIds: {
         if (includeRemovals) ...diff.removedSpecies.map((s) => s.id),
       },
+    );
+    // Restricted to what the deck holds now: a declined addition has no
+    // subdeck to be in — a resolved one is not in the deck, and an
+    // unresolved one never goes to the queue that would resolve it.
+    final species = await _decksService.getSpeciesIdsGroupedByDeckId([deckId]);
+    final subdecks = diff.subdecks.restrictedTo(species[deckId] ?? const {});
+    await _decksService.replaceSubdecks(
+      deckId,
+      includeAdditions ? subdecks : subdecks.withoutUnresolvedNames(),
     );
 
     return includeAdditions ? diff.unresolvedAddedNames : const <String>[];

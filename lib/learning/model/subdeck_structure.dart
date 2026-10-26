@@ -71,4 +71,12 @@ class SubdeckStructure {
     },
     subdeckIdByUnresolvedName: subdeckIdByUnresolvedName,
   );
+
+  /// This structure without the names not resolved yet — for a deck that
+  /// takes none of them in, so none will ever resolve into it.
+  SubdeckStructure withoutUnresolvedNames() => SubdeckStructure(
+    subdecks: subdecks,
+    subdeckIdBySpeciesId: subdeckIdBySpeciesId,
+    subdeckIdByUnresolvedName: const {},
+  );
 }
