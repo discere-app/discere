@@ -201,11 +201,13 @@ for the full design.
 
 ### `learning/`
 Decks, flashcards, spaced repetition, import/export, and review flows.
-- `DecksService`, `FlashcardService` (deck config/stat/notification surface
-  shared with `decks/` and `app/`), `DeckImportService` (`service/`) —
-  genuinely multi-feature, so these stay at the slice level
-- `DeckRepository`, `FlashcardStatRepository`, `DeckConfigRepository`
-  (`repository/`)
+- `DecksService` (decks with their subdecks), `FlashcardService` (deck
+  config/stat/notification surface shared with `decks/` and `app/`),
+  `DeckImportService`, `AnswerableCardsService` (which species are cards,
+  §6), `DeckMergeService` with the database-free `DeckSupersession` (§7.5)
+  (`service/`) — genuinely multi-feature, so these stay at the slice level
+- `DeckRepository`, `FlashcardStatRepository`, `DeckConfigRepository`,
+  `SubdeckRepository`, `DeckMergeRepository` (`repository/`)
 - `decks/` (deck list, create, edit — `edit/` and `add_to_deck/`
   subfolders), `import/` (online-deck import, plus JSON, QR payload and
   species list from scan, paste or file — told apart by
@@ -335,6 +337,26 @@ erDiagram
         INTEGER next_review_date
     }
 
+    deck_subdecks {
+        TEXT deck_id PK
+        TEXT subdeck_id PK
+        TEXT name
+        INTEGER sort_order
+        INTEGER is_active
+    }
+
+    deck_subdeck_species {
+        TEXT deck_id PK
+        TEXT species_id PK
+        TEXT subdeck_id
+    }
+
+    deck_subdeck_unresolved_names {
+        TEXT deck_id PK
+        TEXT name PK
+        TEXT subdeck_id
+    }
+
     deck_config {
         TEXT deck_id PK
         REAL desired_retention
@@ -358,9 +380,19 @@ erDiagram
     }
 
     decks ||--o{ flashcard_stats : "contains"
+    decks ||--o{ deck_subdecks : "divided into"
+    deck_subdecks ||--o{ deck_subdeck_species : "holds"
+    deck_subdecks ||--o{ deck_subdeck_unresolved_names : "waits for"
     decks ||--o| deck_config : "configured by"
     decks ||--o| enrichment_jobs : "enriched by (cover job only)"
 ```
+
+A species is in at most one subdeck of a deck, and in none when it was added
+by hand. `deck_subdeck_unresolved_names` keeps the subdeck of a name not
+resolved yet, so the species it resolves to later lands there
+(`DecksService.addResolvedSpeciesToDeck`). Both reference their subdeck with
+a composite foreign key that cascades: a subdeck a deck update drops takes
+its rows with it, and its species stay in the deck without a subdeck.
 
 `enrichment_jobs` tracks only the one remaining sequential job (the deck's
 cover-image download), whose progress is the `cover_state` column;
@@ -576,6 +608,18 @@ deck only the rows of its active learning mode and name type, without the
 species that have no answer in it — one user-DB query across all decks, plus
 one reference-DB lookup when some deck is in genus or family mode.
 
+### Switched-off subdecks
+
+A species in a subdeck the user switched off (`deck_subdecks.is_active = 0`)
+is no card either, by the same rule and in the same places: its rows stay
+and keep their learning state, and are only left out when read. Card
+sourcing, `AnswerableCardsService.deckStat` and the reminders
+(`reviewDatesOfCards`, one more user-DB query across all decks) skip them;
+photo-gap tracking looks at the active species only. Multiple-choice
+distractors still come from the whole deck — a switched-off species is a
+fine wrong answer. Edit Deck keeps the last subdeck on while every species
+of the deck is in one, so a deck never loses all its cards that way.
+
 ### Key Parameters (per deck, configurable)
 
 | Parameter | Default | Description |
@@ -675,6 +719,64 @@ full architecture, the retry/resume state machine, the consent model, and
 the runtime model (foreground-only, paused during active review sessions).
 
 ---
+
+### 7.5 Deck format, subdecks and supersession
+
+A deck travels as JSON — the online catalog in `discere-data`, a shared
+deck as text, file or QR code (`CreateDeck`):
+
+```json
+{
+  "name": "Red Sea",
+  "description": "…",
+  "sourceId": "red-sea",
+  "updatedAt": "2026-10-01T00:00:00+02:00",
+  "speciesNames": ["Amphiprion bicinctus", "Pterois miles", "Carcharhinus longimanus"],
+  "subdecks": [
+    {"id": "level-1", "name": "Level 1", "speciesNames": ["Amphiprion bicinctus", "Pterois miles"]},
+    {"id": "level-2", "name": "Level 2", "speciesNames": ["Carcharhinus longimanus"]}
+  ],
+  "supersedes": ["red-sea-level-1", "red-sea-level-2"]
+}
+```
+
+- `speciesNames` is the whole deck, the union of its subdecks plus the
+  species in none, so an app that knows nothing of subdecks reads the same
+  deck. Reading fills in a subdeck name missing from it; a name listed in
+  two subdecks belongs to the first (logged as a warning).
+- `subdecks` is optional. Every subdeck is switched on after an import; a
+  deck update rewrites the structure to the catalog's (`DeckUpdateApplier`)
+  and keeps a subdeck's switch, a new subdeck comes switched on. A shared
+  deck carries its subdecks, not their switches.
+- `supersedes` lists the `sourceId`s of catalog entries this entry
+  replaces — a changed id, levels joined into one deck, a deck split in
+  two. Like `sourceId` and `updatedAt`, it is read from the catalog only,
+  never written into a shared deck.
+
+A local deck imported from an entry that another entry supersedes is not
+offered updates any more but a merge: "replaced by …" on its card
+(`DeckUpdateService.replacementFor`), "replaces your deck …" on the online
+tab. `DeckSupersession` answers which deck is superseded by which entry for
+both. The merge (`DeckMergeService`) runs after a dialog that names the
+decks, what happens to them and the species whose progress is lost:
+
+1. The entry becomes a local deck — the one already imported from it, or a
+   fresh import.
+2. Progress follows the species: for every species both hold, the
+   superseded deck's cards and photo-gap acknowledgement move to the target
+   (`DeckMergeRepository.moveSharedProgress`, one transaction per deck). A
+   card both hold in the same mode keeps the one reviewed last — the rule of
+   a reference-ID merge (`keepMostRecentlyReviewed`). A moved species
+   switches its subdeck in the target on.
+3. A freshly imported target takes the settings of the first superseded
+   deck, the place and favorite mark of the deleted ones, and keeps only
+   those subdecks switched on that hold a species the user was learning
+   (all of them, if none does).
+4. A superseded deck is deleted once every entry superseding it is a local
+   deck; until then it keeps the species the others still take.
+
+A merge that stops half way is finished by merging again: the target is
+found by its `sourceId`, and what has moved is not there to move twice.
 
 ## 8. Testing
 
