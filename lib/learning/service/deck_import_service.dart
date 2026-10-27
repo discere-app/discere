@@ -224,7 +224,9 @@ class DeckImportService {
 
     return (
       unresolved: unresolved,
-      deck: deck.withSpeciesIds({...?deck.speciesIds, ...resolved.values}),
+      deck: deck.copyWith(
+        speciesIds: {...?deck.speciesIds, ...resolved.values},
+      ),
       subdecks: subdecks,
     );
   }

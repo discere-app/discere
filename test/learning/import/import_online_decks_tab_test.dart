@@ -4,6 +4,9 @@ import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
@@ -96,6 +99,57 @@ void main() {
     expect(importedDecks![0].language, Language.de);
     expect(importedDecks![1].name, 'Deck Two');
     expect(importedDecks![1].language, Language.es);
+  });
+
+  testWidgets('an imported entry keeps the learning settings it brings', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      LanguageService.sharedPreferencesLanguageKey: Language.en.value,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    List<CreateDeck>? importedDecks;
+    final mockDecksService = MockDecksService();
+    when(mockDecksService.getDecksBySourceId()).thenAnswer((_) async => {});
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<LanguageService>.value(
+            value: LanguageService(prefs),
+          ),
+          ChangeNotifierProvider<DecksService>.value(value: mockDecksService),
+        ],
+        child: _buildApp(
+          ImportOnlineDecksTab(
+            loadDecks: () async => [
+              CreateDeck(
+                name: 'Reef genera',
+                description: 'desc',
+                speciesNames: {'Amphiprion ocellaris'},
+                learningMode: LearningMode.genus,
+                nameType: NameType.scientificName,
+                reviewMode: ReviewMode.multipleChoice,
+              ),
+            ],
+            onImportDecks: (selectedDecks) async {
+              importedDecks = selectedDecks;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('deck-checkbox-Reef genera')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('import_online_button')));
+    await tester.pumpAndSettle();
+
+    final imported = importedDecks!.single;
+    expect(imported.learningMode, LearningMode.genus);
+    expect(imported.nameType, NameType.scientificName);
+    expect(imported.reviewMode, ReviewMode.multipleChoice);
   });
 
   testWidgets(

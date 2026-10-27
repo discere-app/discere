@@ -106,9 +106,9 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     final selectedDecks = allDecks
         .where((deck) => _selectedDeckNames.contains(deck.name))
         .map(
-          (deck) => _applyLanguageOverride(
-            deck,
-            _languageOverridesByDeckName[deck.name] ?? defaultLanguage,
+          (deck) => deck.copyWith(
+            language:
+                _languageOverridesByDeckName[deck.name] ?? defaultLanguage,
           ),
         )
         .toList();
@@ -156,27 +156,6 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
         _expandedDeckNames.add(deckName);
       }
     });
-  }
-
-  CreateDeck _applyLanguageOverride(CreateDeck deck, Language override) {
-    return CreateDeck(
-      id: deck.id,
-      name: deck.name,
-      description: deck.description,
-      language: override,
-      speciesNames: deck.speciesNames == null
-          ? null
-          : Set<String>.from(deck.speciesNames!),
-      speciesIds: deck.speciesIds == null
-          ? null
-          : Set<String>.from(deck.speciesIds!),
-      subdecks: deck.subdecks,
-      supersedes: deck.supersedes,
-      imageUrl: deck.imageUrl,
-      sourceId: deck.sourceId,
-      updatedAt: deck.updatedAt,
-      coverImagePath: deck.coverImagePath,
-    );
   }
 
   @override
