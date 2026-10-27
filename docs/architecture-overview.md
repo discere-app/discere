@@ -727,6 +727,7 @@ deck as text, file or QR code (`CreateDeck`):
 
 ```json
 {
+  "formatVersion": 2,
   "name": "Red Sea",
   "description": "…",
   "sourceId": "red-sea",
@@ -743,6 +744,32 @@ deck as text, file or QR code (`CreateDeck`):
 }
 ```
 
+- `formatVersion` is the deck's format version, a whole number; a deck
+  without it is version 1 (`DeckFormat`, the one place that knows the
+  versions). It goes up only for a change an app that ignores it would read
+  wrongly or lossily: version 2 brought `subdecks` and `supersedes`, while
+  the learning settings, which an older app can safely skip, are optional
+  fields of version 1. What a missing field means is part of the format and
+  never changes, and the app reads every version up to
+  `DeckFormat.supportedVersion` for good, mapping an older one onto the
+  current model while reading — shared and community decks are never
+  migrated. The version read is always the declared one; a deck of a newer
+  version (or a malformed one) is never read in part: a shared one is turned
+  down with "needs a newer app version", a catalog entry is skipped.
+  Writing gives the lowest version that holds the deck — 2 with subdecks,
+  otherwise no field — so an app that reads only older versions still reads
+  every deck that needs nothing newer, and an app without subdecks imports
+  a version-2 deck flat from `speciesNames`.
+- The catalog keeps one index per format version, at a fixed path:
+  `data/decks/index.json` for version 1, `data/decks/v<N>/index.json` for
+  version N ≥ 2, each with the decks up to that version minus those an entry
+  of the same index supersedes. The app reads the index of its
+  `supportedVersion` (`AppConstants.deckCatalogIndexUrl`), so the online
+  tab, onboarding and the update check all compare against the same one.
+- `test/fixtures/decks/` holds real decks of every format version, run
+  through the shared import, the catalog and the database import
+  (`deck_format_fixtures_test.dart`). A new version adds files; none is
+  deleted or rewritten.
 - `speciesNames` is the whole deck, the union of its subdecks plus the
   species in none, so an app that knows nothing of subdecks reads the same
   deck. Reading fills in a subdeck name missing from it; a name listed in
