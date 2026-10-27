@@ -736,7 +736,10 @@ deck as text, file or QR code (`CreateDeck`):
     {"id": "level-1", "name": "Level 1", "speciesNames": ["Amphiprion bicinctus", "Pterois miles"]},
     {"id": "level-2", "name": "Level 2", "speciesNames": ["Carcharhinus longimanus"]}
   ],
-  "supersedes": ["red-sea-level-1", "red-sea-level-2"]
+  "supersedes": ["red-sea-level-1", "red-sea-level-2"],
+  "learningMode": "genus",
+  "nameType": "scientificName",
+  "reviewMode": "multipleChoice"
 }
 ```
 
@@ -752,6 +755,20 @@ deck as text, file or QR code (`CreateDeck`):
   replaces — a changed id, levels joined into one deck, a deck split in
   two. Like `sourceId` and `updatedAt`, it is read from the catalog only,
   never written into a shared deck.
+- `learningMode` (`species|genus|family`), `nameType`
+  (`commonName|scientificName`) and `reviewMode` (`flip|multipleChoice`)
+  are optional, each what an imported deck starts with; one left out starts
+  at the app's default (`DeckConfig`), the retention always at the user's.
+  An unknown value or one of the wrong type counts as left out (logged as a
+  warning) rather than failing the deck. The online import applies them as
+  they are — a deck short of names for multiple choice falls back to
+  flipping card by card in review — while a shared deck opens the create
+  page with them preselected, where multiple choice is offered by the same
+  rule as on the edit page. A shared deck always carries all three, from the
+  sharer's current deck config. They are a starting point: a deck update
+  ignores them, so the user's settings stay, and a change to them alone is
+  no update. A freshly imported merge target takes the settings of the deck
+  it supersedes instead (step 3 below).
 
 A local deck imported from an entry that another entry supersedes is not
 offered updates any more but a merge: "replaced by …" on its card
