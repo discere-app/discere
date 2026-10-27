@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/import/import_text_recognizer.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +106,45 @@ void main() {
       final result = await recognizer.recognize(
         base64Encode(gzip.encode(utf8.encode('[1, 2, 3]'))),
       );
+
+      expect(result, isA<UnrecognizedImport>());
+    });
+  });
+
+  group('format version', () {
+    Map<String, dynamic> deckJsonIn(Object version) => {
+      ...deck.toJson(),
+      'formatVersion': version,
+    };
+
+    final newerVersion = DeckFormat.supportedVersion + 1;
+
+    test('a deck JSON of a newer format is unsupported', () async {
+      final result = await recognizer.recognize(
+        jsonEncode(deckJsonIn(newerVersion)),
+      );
+
+      expect(result, isA<UnsupportedDeckFormat>());
+    });
+
+    test('a QR payload of a newer format is unsupported', () async {
+      final payload = await worker.encodeGzipBase64(deckJsonIn(newerVersion));
+
+      final result = await recognizer.recognize(payload);
+
+      expect(result, isA<UnsupportedDeckFormat>());
+    });
+
+    test('a deck JSON with a malformed version is unrecognized', () async {
+      final result = await recognizer.recognize(jsonEncode(deckJsonIn('x')));
+
+      expect(result, isA<UnrecognizedImport>());
+    });
+
+    test('a QR payload with a malformed version is unrecognized', () async {
+      final payload = await worker.encodeGzipBase64(deckJsonIn('x'));
+
+      final result = await recognizer.recognize(payload);
 
       expect(result, isA<UnrecognizedImport>());
     });

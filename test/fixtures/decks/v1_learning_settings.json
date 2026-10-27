@@ -1,0 +1,12 @@
+{
+  "name": "Riffbewohner",
+  "description": "Fische am Korallenriff",
+  "speciesNames": [
+    "Amphiprion ocellaris",
+    "Rhincodon typus"
+  ],
+  "learningMode": "genus",
+  "nameType": "scientificName",
+  "reviewMode": "multipleChoice",
+  "createdBy": "Discere-Team"
+}

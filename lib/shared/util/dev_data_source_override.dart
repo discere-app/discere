@@ -20,7 +20,7 @@ library;
 const String? devDeckCatalogIndexUrlOverride = null;
 // Example while testing:
 // const String? devDeckCatalogIndexUrlOverride =
-//     'https://raw.githubusercontent.com/discere-app/discere-data/test-data/data/decks/index.json';
+//     'https://raw.githubusercontent.com/discere-app/discere-data/test-data/data/decks/v2/index.json';
 
 /// Overrides `AppConstants.referenceDbManifestUrl`.
 const String? devReferenceDbManifestUrlOverride = null;

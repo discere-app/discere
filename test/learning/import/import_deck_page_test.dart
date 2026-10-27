@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/import_deck_page.dart';
 import 'package:discere/learning/import/import_text_recognizer.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
+import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -52,7 +55,7 @@ void main() {
             ),
           ),
           Provider<ImportTextRecognizer>.value(
-            value: const ImportTextRecognizer(DeckSerializationWorker()),
+            value: const ImportTextRecognizer(_InlineSerializationWorker()),
           ),
         ],
         child: MaterialApp(
@@ -128,4 +131,38 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('a deck of a newer format asks for an app update and stays put', (
+    tester,
+  ) async {
+    await pumpTextTab(tester);
+
+    await importText(
+      tester,
+      jsonEncode({
+        'formatVersion': DeckFormat.supportedVersion + 1,
+        'name': 'Reef Sharks',
+        'description': '',
+        'speciesNames': ['Carcharodon carcharias'],
+      }),
+    );
+
+    expect(find.byType(CreateDeckPage), findsNothing);
+    expect(
+      find.text(
+        lookupAppLocalizations(const Locale('en')).importDeckNeedsNewerApp,
+      ),
+      findsOneWidget,
+    );
+  });
+}
+
+/// Decodes on the test's own isolate: what a worker isolate sends back does
+/// not arrive while a widget test waits for the page to settle.
+class _InlineSerializationWorker extends DeckSerializationWorker {
+  const _InlineSerializationWorker();
+
+  @override
+  Future<Map<String, dynamic>> decodeJson(String payload) async =>
+      jsonDecode(payload) as Map<String, dynamic>;
 }

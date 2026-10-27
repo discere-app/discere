@@ -710,6 +710,7 @@
   "importTextFileButton": "Open file (.json, .txt)",
   "importTextButton": "Import",
   "importFormatUnrecognized": "Format not recognized. Expected deck JSON, the text of a deck QR code or a species list with one scientific name per line.",
+  "importDeckNeedsNewerApp": "This deck needs a newer version of Discere. Please update the app.",
   "importTabOnline": "Online Decks",
   "importTabScanner": "Scanner",
   "importTabText": "Text / File",
