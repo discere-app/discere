@@ -3,6 +3,9 @@ import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/create_subdeck.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -71,6 +74,9 @@ class DeckImportService {
   /// [subdecks] come from the imported deck the names were taken from. The
   /// names are what the user confirmed: one taken out leaves its subdeck,
   /// one added belongs to none.
+  ///
+  /// [learningMode], [nameType] and [reviewMode] are what the deck starts
+  /// with; one left out starts at the app's default.
   Future<({String deckId, List<String> unresolvedNames})>
   importDeckFromSpeciesNames({
     required String name,
@@ -79,6 +85,9 @@ class DeckImportService {
     Language? language,
     String? coverImagePath,
     List<CreateSubdeck>? subdecks,
+    LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
   }) async {
     final names = scientificNames.toSet();
     final resolution = await _resolveSpeciesIds(
@@ -88,6 +97,9 @@ class DeckImportService {
         language: language,
         speciesNames: names,
         coverImagePath: coverImagePath,
+        learningMode: learningMode,
+        nameType: nameType,
+        reviewMode: reviewMode,
         subdecks: [
           for (final subdeck in subdecks ?? const <CreateSubdeck>[])
             CreateSubdeck(
@@ -247,6 +259,9 @@ class DeckImportService {
           : Set<String>.from(source.speciesIds!),
       subdecks: source.subdecks,
       supersedes: source.supersedes,
+      learningMode: source.learningMode,
+      nameType: source.nameType,
+      reviewMode: source.reviewMode,
       imageUrl: source.imageUrl,
       sourceId: source.sourceId,
       updatedAt: source.updatedAt,

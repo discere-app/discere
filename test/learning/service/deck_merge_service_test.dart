@@ -22,6 +22,7 @@ CreateDeck _deck(
   List<String> speciesNames, {
   List<String>? supersedes,
   List<CreateSubdeck>? subdecks,
+  LearningMode? learningMode,
 }) => CreateDeck(
   name: 'Deck $sourceId',
   description: '',
@@ -29,6 +30,7 @@ CreateDeck _deck(
   speciesNames: speciesNames.toSet(),
   supersedes: supersedes,
   subdecks: subdecks,
+  learningMode: learningMode,
 );
 
 /// One catalog entry joining two levels, with a subdeck for each and one
@@ -163,6 +165,29 @@ void main() {
         positionOfLevel1,
       );
       expect(favorites.isFavoriteDeck(target), isTrue);
+    });
+
+    test('the first level\'s settings win over the ones the entry brings for '
+        'a new deck', () async {
+      await stack.deckConfigs.save(DeckConfig(deckId: level1));
+      final genusEntry = _deck(
+        'all',
+        [_greatWhite, _blueShark, _whaleShark, _hammerhead],
+        supersedes: ['level-1', 'level-2'],
+        learningMode: LearningMode.genus,
+      );
+
+      final merged = await service.merge(
+        await service.plan(genusEntry, [genusEntry]),
+      );
+      await stack.settled();
+
+      expect(
+        (await stack.deckConfigs.getOrDefault(
+          merged.targetDeckId,
+        )).learningMode,
+        LearningMode.species,
+      );
     });
 
     test('of the target\'s subdecks only those the moved species are in '

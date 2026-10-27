@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'package:discere/app/wiring/deck_lifecycle_wiring.dart';
 import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
@@ -14,7 +14,6 @@ import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/import/import_text_recognizer.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
-import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_merge_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
@@ -23,7 +22,6 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/deck_merge_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
@@ -187,55 +185,6 @@ LearningDeckServices buildLearningDeckServices({
     ],
   );
 }
-
-/// Fans deck lifecycle events out to the slices that own the follow-up work:
-/// a new deck gets its `deck_config` row, a deleted one has its queued
-/// enrichment cancelled.
-///
-/// [cancelDeckEnrichment] is filled in by the composition root once the
-/// enrichment queue exists. The two slices depend on each other — enrichment
-/// needs the deck service to resolve a deck's species, the deck service
-/// needs enrichment to cancel work — so one direction cannot be wired at
-/// construction time. That this is the one late binding, and that it sits in
-/// the composition root rather than as a mutable field on DecksService, is
-/// the point: every other caller gets an observer it cannot forget.
-class DeckLifecycleWiring implements DeckLifecycleObserver {
-  final DeckConfigRepository _deckConfigRepository;
-  final UserPreferencesService _userPreferences;
-  final UserDataWrites _writes;
-
-  /// Set by the composition root after the enrichment queue is built.
-  /// Absent until then, which only covers the window before the app runs.
-  void Function(String deckId)? cancelDeckEnrichment;
-
-  DeckLifecycleWiring({
-    required DeckConfigRepository deckConfigRepository,
-    required UserPreferencesService userPreferences,
-    required UserDataWrites userDataWrites,
-  }) : _deckConfigRepository = deckConfigRepository,
-       _userPreferences = userPreferences,
-       _writes = userDataWrites;
-
-  @override
-  void onDeckCreated(String deckId) {
-    // Not awaited by the deck service, so counted here: a restart must not
-    // close the database before the new deck has its configuration.
-    unawaited(
-      _writes.run(
-        () => _deckConfigRepository.saveIfAbsent(
-          DeckConfig(
-            deckId: deckId,
-            desiredRetention: _userPreferences.defaultDesiredRetention,
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  void onDeckDeleted(String deckId) => cancelDeckEnrichment?.call(deckId);
-}
-
 
 /// Builds the `learning` slice's review services, which is everything about
 /// answering flashcards.
