@@ -1,17 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:discere/learning/import/import_text_recognizer.dart';
-import 'package:discere/learning/import/remote_deck_service.dart';
-import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/deck_serialization_worker.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-import 'package:path/path.dart' as p;
-
-import '../../support/learning_test_stack.dart';
-
 /// Real decks of every format version the app has read, each as an author
 /// wrote it: the app reads every older format for good, so each one has to
 /// come through a shared import, the catalog and the import into the
@@ -20,12 +6,24 @@ import '../../support/learning_test_stack.dart';
 /// A new format version adds a file here. No file is ever deleted or
 /// rewritten: a file that stops being read is a deck some user holds that
 /// the app has stopped reading.
-const _fixtureDir = 'test/fixtures/decks';
+library;
 
-/// Guards against a directory listing that silently finds nothing: one
-/// minimal and one learning-settings deck of format 1, one subdeck deck of
-/// format 2.
-const _minimumFixtureCount = 3;
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:discere/learning/import/import_text_recognizer.dart';
+import 'package:discere/learning/import/remote_deck_service.dart';
+import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/deck_format.dart';
+import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
+
+import '../../support/learning_test_stack.dart';
+
+const _fixtureDir = 'test/fixtures/decks';
 
 final _fixtures =
     Directory(_fixtureDir)
@@ -76,8 +74,26 @@ void main() {
   const worker = DeckSerializationWorker();
   const recognizer = ImportTextRecognizer(worker);
 
-  test('the fixture directory holds every format version\'s decks', () {
-    expect(_fixtures.length, greaterThanOrEqualTo(_minimumFixtureCount));
+  test('every format version the app reads has a fixture deck', () {
+    final versions = <int>{};
+    for (final file in _fixtures) {
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      switch (DeckFormat.declaredIn(json)) {
+        case ReadableDeckFormat(:final version):
+          versions.add(version);
+        case final format:
+          fail('${p.basename(file.path)} is not readable: $format');
+      }
+    }
+
+    expect(
+      [
+        for (var version = 1; version <= DeckFormat.supportedVersion; version++)
+          if (!versions.contains(version)) version,
+      ],
+      isEmpty,
+      reason: 'format versions without a fixture deck',
+    );
   });
 
   for (final file in _fixtures) {

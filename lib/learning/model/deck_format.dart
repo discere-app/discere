@@ -51,14 +51,14 @@ abstract final class DeckFormat {
 
   static const _versionKey = 'formatVersion';
 
-  /// What a deck without [_versionKey] is.
-  static const _defaultVersion = 1;
+  /// The first version, and what a deck without [_versionKey] is.
+  static const _firstVersion = 1;
 
   /// The version [json] declares, judged against [supportedVersion]. Only a
   /// JSON integer counts as a version: `"2"` or `2.0` make a broken deck.
   static DeclaredDeckFormat declaredIn(Map<String, dynamic> json) {
-    final version = json[_versionKey] ?? _defaultVersion;
-    if (version is! int || version < _defaultVersion) {
+    final version = json[_versionKey] ?? _firstVersion;
+    if (version is! int || version < _firstVersion) {
       return const MalformedDeckFormat();
     }
     return version > supportedVersion
@@ -73,7 +73,7 @@ abstract final class DeckFormat {
   /// written.
   static int requiredVersion(Map<String, dynamic> json) {
     final subdecks = json['subdecks'];
-    return subdecks is List && subdecks.isNotEmpty ? 2 : _defaultVersion;
+    return subdecks is List && subdecks.isNotEmpty ? 2 : _firstVersion;
   }
 
   /// [json] with the field declaring its [requiredVersion] in front; without
@@ -81,6 +81,6 @@ abstract final class DeckFormat {
   /// carries no byte more than it needs.
   static Map<String, dynamic> declare(Map<String, dynamic> json) {
     final version = requiredVersion(json);
-    return {if (version != _defaultVersion) _versionKey: version, ...json};
+    return {if (version != _firstVersion) _versionKey: version, ...json};
   }
 }
