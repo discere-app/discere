@@ -16,6 +16,7 @@ import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -67,6 +68,25 @@ void _expectDeckOf(CreateDeck deck, Map<String, dynamic> json) {
   expect(deck.learningMode?.storageValue, json['learningMode']);
   expect(deck.nameType?.storageValue, json['nameType']);
   expect(deck.reviewMode?.storageValue, json['reviewMode']);
+}
+
+/// That [deck], shared again after importing the fixture [json], is the deck
+/// it describes as far as sharing carries it: the catalog's `supersedes`
+/// never travels, and the learning settings come from the sharer's deck
+/// config, so only a setting the fixture makes has to survive.
+void _expectSharedDeckOf(CreateDeck deck, Map<String, dynamic> json) {
+  expect(deck.name, json['name']);
+  expect(deck.description, json['description']);
+  expect(deck.speciesNames, _speciesNamesOf(json));
+  expect(_describeSubdecks(deck), _describeJsonSubdecks(json));
+  expect(deck.supersedes, isNull);
+  for (final (key, value) in [
+    ('learningMode', deck.learningMode?.storageValue),
+    ('nameType', deck.nameType?.storageValue),
+    ('reviewMode', deck.reviewMode?.storageValue),
+  ]) {
+    if (json[key] != null) expect(value, json[key], reason: key);
+  }
 }
 
 void main() {
@@ -133,6 +153,40 @@ void main() {
         );
         expect(imported.speciesNames, _speciesNamesOf(json));
         expect(_describeSubdecks(imported), _describeJsonSubdecks(json));
+      });
+
+      test('is shared again in the format version it needs', () async {
+        final stack = await LearningTestStack.open();
+        addTearDown(stack.close);
+        final recognized = await recognizer.recognize(text);
+        final deckId = (await stack.importService.importDecks([
+          (recognized as RecognizedDeck).deck,
+        ])).importedDeckIds.single;
+        final exportService = DeckExportService(
+          stack.decksService,
+          fileSaver: ({required fileName, required bytes, required mimeType}) =>
+              fail('sharing as text saves no file'),
+        );
+
+        final exportedJson = await exportService.exportDeckToJson(deckId);
+        final exportedPayload = await exportService.exportDeckToGzip(deckId);
+
+        for (final exported in [
+          jsonDecode(exportedJson) as Map<String, dynamic>,
+          await worker.decodeGzipBase64(exportedPayload),
+        ]) {
+          if (json['subdecks'] == null) {
+            expect(exported, isNot(contains('formatVersion')));
+          } else {
+            expect(exported['formatVersion'], 2);
+          }
+        }
+        final fromJson = await recognizer.recognize(exportedJson);
+        expect(fromJson, isA<RecognizedDeckJson>());
+        _expectSharedDeckOf((fromJson as RecognizedDeck).deck, json);
+        final fromPayload = await recognizer.recognize(exportedPayload);
+        expect(fromPayload, isA<RecognizedQrPayload>());
+        _expectSharedDeckOf((fromPayload as RecognizedDeck).deck, json);
       });
     });
   }
