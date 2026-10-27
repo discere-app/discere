@@ -1,5 +1,5 @@
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
-import 'package:discere/learning/import/widgets/deck_learning_settings_chips.dart';
+import 'package:discere/learning/import/widgets/deck_learning_settings_icons.dart';
 import 'package:discere/learning/import/widgets/deck_preview_image.dart';
 import 'package:discere/learning/import/widgets/expandable_description.dart';
 import 'package:discere/learning/import/widgets/status_label.dart';
@@ -111,7 +111,7 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                     // config, and a merge takes over the superseded deck's.
                     if (status == ImportOnlineDeckStatus.notImported) ...[
                       const SizedBox(height: AppSpacing.s8),
-                      DeckLearningSettingsChips(
+                      DeckLearningSettingsIcons(
                         learningMode:
                             deck.learningMode ?? DeckConfig.defaultLearningMode,
                         nameType: deck.nameType ?? DeckConfig.defaultNameType,

@@ -1,6 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/import/import_online_deck_list_tile.dart';
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
+import 'package:discere/learning/import/widgets/deck_learning_settings_icons.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/review_mode.dart';
@@ -36,14 +37,14 @@ void main() {
     );
   }
 
-  List<String> chipLabels(WidgetTester tester) => tester
-      .widgetList<Chip>(
+  List<String> settingTooltips(WidgetTester tester) => tester
+      .widgetList<Tooltip>(
         find.descendant(
-          of: find.byType(ImportOnlineDeckListTile),
-          matching: find.byType(Chip),
+          of: find.byType(DeckLearningSettingsIcons),
+          matching: find.byType(Tooltip),
         ),
       )
-      .map((chip) => (chip.label as Text).data!)
+      .map((tooltip) => tooltip.message!)
       .toList();
 
   CreateDeck deckWithSettings() => CreateDeck(
@@ -60,7 +61,11 @@ void main() {
     (tester) async {
       await pumpTile(tester, deckWithSettings());
 
-      expect(chipLabels(tester), ['Genus', 'Common Name', 'Multiple Choice']);
+      expect(settingTooltips(tester), [
+        'Learning Mode: Genus',
+        'Name Type: Common Name',
+        'Review Mode: Multiple Choice',
+      ]);
     },
   );
 
@@ -76,7 +81,11 @@ void main() {
       ),
     );
 
-    expect(chipLabels(tester), ['Species', 'Common Name', 'Flip Card']);
+    expect(settingTooltips(tester), [
+      'Learning Mode: Species',
+      'Name Type: Common Name',
+      'Review Mode: Flip Card',
+    ]);
   });
 
   testWidgets('tapping a learning setting selects the entry like the rest of '
@@ -88,7 +97,7 @@ void main() {
       onSelected: (value) => selected = value,
     );
 
-    await tester.tap(find.text('Genus'));
+    await tester.tap(find.byTooltip('Learning Mode: Genus'));
 
     expect(selected, isTrue);
   });
@@ -104,7 +113,7 @@ void main() {
       (tester) async {
         await pumpTile(tester, deckWithSettings(), status: status);
 
-        expect(find.byType(Chip), findsNothing);
+        expect(find.byType(DeckLearningSettingsIcons), findsNothing);
       },
     );
   }

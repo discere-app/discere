@@ -738,7 +738,7 @@
   },
   "importOnlineLearningSettingTooltip": "{setting}: {value}",
   "@importOnlineLearningSettingTooltip": {
-    "description": "Tooltip of a learning-setting chip in the online deck list, naming the setting the shown value belongs to",
+    "description": "Tooltip of a learning-setting icon in the online deck list, naming the setting the shown value belongs to",
     "placeholders": {
       "setting": {
         "type": "String"

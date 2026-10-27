@@ -7,16 +7,16 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
 /// The learning mode, name type and review mode a deck is reviewed with,
-/// one informational chip each.
-class DeckLearningSettingsChips extends StatelessWidget {
+/// one icon each.
+class DeckLearningSettingsIcons extends StatelessWidget {
   static const _style = LearningModeStyle();
-  static const double _iconSize = 14;
+  static const double _iconSize = 16;
 
   final LearningMode learningMode;
   final NameType nameType;
   final ReviewMode reviewMode;
 
-  const DeckLearningSettingsChips({
+  const DeckLearningSettingsIcons({
     super.key,
     required this.learningMode,
     required this.nameType,
@@ -26,38 +26,33 @@ class DeckLearningSettingsChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final theme = Theme.of(context);
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
 
-    // A bare value such as "Species" does not say which setting it is, so
-    // the tooltip (also read out by screen readers) names the setting.
-    Widget chip(IconData icon, String setting, String value) {
+    // The icons carry no label, so the tooltip is the value's only text and
+    // what screen readers read out; it names the setting too, since a bare
+    // value such as "Species" does not say which setting it is.
+    Widget iconWithTooltip(IconData icon, String setting, String value) {
       return Tooltip(
         message: loc.importOnlineLearningSettingTooltip(setting, value),
-        child: Chip(
-          avatar: Icon(icon, size: _iconSize),
-          label: Text(value),
-          labelStyle: theme.textTheme.labelSmall,
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
+        child: Icon(icon, size: _iconSize, color: color),
       );
     }
 
-    return Wrap(
-      spacing: AppSpacing.s4,
-      runSpacing: AppSpacing.s4,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: AppSpacing.s8,
       children: [
-        chip(
+        iconWithTooltip(
           _style.iconFor(learningMode),
           loc.settingsLearningModeLabel,
           _style.labelFor(learningMode, loc),
         ),
-        chip(
+        iconWithTooltip(
           _style.nameTypeIconFor(nameType),
           loc.settingsNameTypeLabel,
           _style.nameTypeLabelFor(nameType, loc),
         ),
-        chip(
+        iconWithTooltip(
           _style.reviewModeIconFor(reviewMode),
           loc.settingsReviewModeTitle,
           _style.reviewModeLabelFor(reviewMode, loc),
