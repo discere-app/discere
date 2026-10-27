@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -7,11 +8,13 @@ import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -320,6 +323,26 @@ Future<void> startApp(
     await tester.pump(const Duration(seconds: 1));
     await dismissDownloadDialog(tester);
   }
+}
+
+/// An HTTP client that answers the deck catalog index with [catalog]'s
+/// entries, for [startApp]'s `httpClient`. A function rather than a list, so
+/// a test can change the catalog between two visits to the online tab.
+MockClient deckCatalogClient(List<Map<String, Object?>> Function() catalog) {
+  return MockClient((request) async {
+    // Matched on the constant rather than a literal: a debug build may
+    // point it elsewhere (dev_data_source_override.dart).
+    if (request.url.toString() == AppConstants.deckCatalogIndexUrl) {
+      return http.Response(
+        jsonEncode(catalog()),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    // Thumbnails, iNaturalist: nothing the import flows depend on. 404
+    // rather than a 5xx, which would put the host into a cooldown.
+    return http.Response('{}', 404);
+  });
 }
 
 /// A helper to create a MockNotificationService with standard stubs

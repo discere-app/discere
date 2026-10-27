@@ -6,10 +6,10 @@ import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:flutter/material.dart';
 
-/// Icon/label/description text for [LearningMode] and [NameType], shared
-/// between deck_card.dart's badge and edit_deck_page.dart's settings
-/// section so both present the same enum values identically instead of
-/// each maintaining its own switch.
+/// Icon/label/description text for [LearningMode], [NameType] and
+/// [ReviewMode], shared between deck_card.dart's badge, edit_deck_page.dart's
+/// settings section and the online import list's icons so all present the
+/// same enum values identically instead of each maintaining its own switch.
 class LearningModeStyle {
   const LearningModeStyle();
 

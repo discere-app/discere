@@ -5,6 +5,7 @@ import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:json_annotation/json_annotation.dart';
 
@@ -19,9 +20,9 @@ class CreateDeck extends BaseDeck {
   final Set<String>? speciesNames;
 
   /// IDs of the installed reference database, set by the app — from names
-  /// it resolved ([withSpeciesIds]) or from species the user picked. Never
-  /// read from JSON: an ID there would be unchecked, and a shared deck
-  /// carries only scientific names ([toJson]).
+  /// it resolved or from species the user picked. Never read from JSON: an
+  /// ID there would be unchecked, and a shared deck carries only scientific
+  /// names ([toJson]).
   @JsonKey(includeFromJson: false, includeToJson: false)
   final Set<String>? speciesIds;
 
@@ -72,24 +73,41 @@ class CreateDeck extends BaseDeck {
     super.updatedAt,
   });
 
-  /// A copy with the resolved species ids filled in — the one change this
-  /// model sees, once a name lookup has turned names into ids.
-  CreateDeck withSpeciesIds(Set<String> speciesIds) => CreateDeck(
-    id: id,
-    name: name,
-    description: description,
-    coverImagePath: coverImagePath,
-    language: language,
-    speciesNames: speciesNames,
-    speciesIds: speciesIds,
-    subdecks: subdecks,
-    supersedes: supersedes,
-    learningMode: learningMode,
-    nameType: nameType,
-    reviewMode: reviewMode,
-    imageUrl: imageUrl,
-    sourceId: sourceId,
-    updatedAt: updatedAt,
+  /// [BaseDeck.copyWith], extended to this model's own fields, with the same
+  /// rule: null leaves a field as it is.
+  @override
+  CreateDeck copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? coverImagePath,
+    String? imageUrl,
+    Language? language,
+    String? sourceId,
+    DateTime? updatedAt,
+    Set<String>? speciesNames,
+    Set<String>? speciesIds,
+    List<CreateSubdeck>? subdecks,
+    List<String>? supersedes,
+    LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
+  }) => CreateDeck(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    coverImagePath: coverImagePath ?? this.coverImagePath,
+    imageUrl: imageUrl ?? this.imageUrl,
+    language: language ?? this.language,
+    sourceId: sourceId ?? this.sourceId,
+    updatedAt: updatedAt ?? this.updatedAt,
+    speciesNames: speciesNames ?? this.speciesNames,
+    speciesIds: speciesIds ?? this.speciesIds,
+    subdecks: subdecks ?? this.subdecks,
+    supersedes: supersedes ?? this.supersedes,
+    learningMode: learningMode ?? this.learningMode,
+    nameType: nameType ?? this.nameType,
+    reviewMode: reviewMode ?? this.reviewMode,
   );
 
   /// Reads a deck's JSON, holding its subdecks to what the format promises
@@ -183,25 +201,12 @@ class CreateDeck extends BaseDeck {
         '${dropped.join(', ')}',
       );
     }
-    return CreateDeck(
-      id: id,
-      name: name,
-      description: description,
-      coverImagePath: coverImagePath,
-      language: language,
+    return copyWith(
       speciesNames: {
         ...?speciesNames,
         for (final subdeck in subdecks) ...subdeck.speciesNames,
       },
-      speciesIds: speciesIds,
       subdecks: consistent,
-      supersedes: supersedes,
-      learningMode: learningMode,
-      nameType: nameType,
-      reviewMode: reviewMode,
-      imageUrl: imageUrl,
-      sourceId: sourceId,
-      updatedAt: updatedAt,
     );
   }
 }

@@ -140,7 +140,7 @@ class DeckImportService {
     await DecksService.runWithNotificationsSuppressed(() async {
       for (final deck in decks) {
         try {
-          final resolution = await _resolveSpeciesIds(_cloneDeck(deck));
+          final resolution = await _resolveSpeciesIds(deck);
           final importDeck = resolution.deck;
           final unresolved = resolution.unresolved;
           final deckId = await _decksService.createDeck(
@@ -224,7 +224,9 @@ class DeckImportService {
 
     return (
       unresolved: unresolved,
-      deck: deck.withSpeciesIds({...?deck.speciesIds, ...resolved.values}),
+      deck: deck.copyWith(
+        speciesIds: {...?deck.speciesIds, ...resolved.values},
+      ),
       subdecks: subdecks,
     );
   }
@@ -243,29 +245,5 @@ class DeckImportService {
     final service = _iNatNameResolutionService;
     if (service == null) return const {};
     return service.resolveNames(names);
-  }
-
-  CreateDeck _cloneDeck(CreateDeck source) {
-    return CreateDeck(
-      id: source.id,
-      name: source.name,
-      description: source.description,
-      language: source.language,
-      speciesNames: source.speciesNames == null
-          ? null
-          : Set<String>.from(source.speciesNames!),
-      speciesIds: source.speciesIds == null
-          ? null
-          : Set<String>.from(source.speciesIds!),
-      subdecks: source.subdecks,
-      supersedes: source.supersedes,
-      learningMode: source.learningMode,
-      nameType: source.nameType,
-      reviewMode: source.reviewMode,
-      imageUrl: source.imageUrl,
-      sourceId: source.sourceId,
-      updatedAt: source.updatedAt,
-      coverImagePath: source.coverImagePath,
-    );
   }
 }

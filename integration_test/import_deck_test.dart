@@ -1,4 +1,9 @@
+import 'package:discere/learning/import/widgets/deck_learning_settings_icons.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -138,6 +143,95 @@ void main() {
           species.map((s) => s.getBinomialName()),
           unorderedEquals(['Carcharodon carcharias', 'Sphyrna mokarran']),
         );
+      },
+      timeout: integrationTestTimeout,
+    );
+
+    testWidgets(
+      'an online deck shows the learning settings it starts with, and starts '
+      'with them',
+      (tester) async {
+        const deckName = 'Reef genera';
+        const sourceId = '7b2e4c1a-5d3f-4e8b-9a60-1c2d3e4f5a01';
+        await startApp(
+          tester,
+          notificationService: createMockNotificationService(),
+          httpClient: deckCatalogClient(
+            () => [
+              {
+                'name': deckName,
+                'description': '',
+                'sourceId': sourceId,
+                'updatedAt': '2026-09-01T00:00:00Z',
+                'speciesNames': [
+                  'Amphiprion ocellaris',
+                  'Carcharodon carcharias',
+                  'Rhincodon typus',
+                ],
+                // No nameType: the entry leaves it at the app's default.
+                'learningMode': 'genus',
+                'reviewMode': 'multipleChoice',
+              },
+            ],
+          ),
+        );
+
+        Future<Finder> openOnlineTile() async {
+          await tester.tap(find.byKey(const ValueKey('main_fab')));
+          await safePumpAndSettle(tester);
+          await tester.tap(
+            find.byIcon(Icons.download_for_offline_outlined).first,
+          );
+          final tile = find.byKey(const ValueKey('deck-checkbox-$deckName'));
+          await waitForFinder(tester, tile);
+          return tile;
+        }
+
+        Finder settingsIn(Finder tile) => find.descendant(
+          of: tile,
+          matching: find.byType(DeckLearningSettingsIcons),
+        );
+
+        final tile = await openOnlineTile();
+        final shown = tester.widget<DeckLearningSettingsIcons>(
+          settingsIn(tile),
+        );
+        expect(shown.learningMode, LearningMode.genus);
+        expect(shown.nameType, DeckConfig.defaultNameType);
+        expect(shown.reviewMode, ReviewMode.multipleChoice);
+
+        await tester.tap(tile);
+        await safePumpAndSettle(tester);
+        await tester.tap(find.byKey(const ValueKey('import_online_button')));
+        await tester.pump(const Duration(milliseconds: 500));
+        await dismissDownloadDialog(tester);
+        await waitForFinder(tester, find.text(deckName));
+
+        final context = tester.element(find.byType(MaterialApp));
+        final imported = (await Provider.of<DecksService>(
+          context,
+          listen: false,
+        ).getDecksBySourceId())[sourceId]!;
+        final config = await Provider.of<FlashcardService>(
+          context,
+          listen: false,
+        ).getDeckConfig(imported.id!);
+        expect(config.learningMode, LearningMode.genus);
+        expect(config.nameType, DeckConfig.defaultNameType);
+        expect(config.reviewMode, ReviewMode.multipleChoice);
+
+        // Imported, the entry's settings no longer apply: the deck's own
+        // config does.
+        final importedTile = await openOnlineTile();
+        expect(
+          find.descendant(
+            of: importedTile,
+            matching: find.byIcon(Icons.check_circle_outline),
+          ),
+          findsWidgets,
+          reason: 'the entry shows as already imported',
+        );
+        expect(settingsIn(importedTile), findsNothing);
       },
       timeout: integrationTestTimeout,
     );

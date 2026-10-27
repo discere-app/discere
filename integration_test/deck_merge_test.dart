@@ -1,12 +1,7 @@
-import 'dart:convert';
-
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
-import 'package:discere/shared/util/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 
 import 'test_utils.dart';
@@ -163,20 +158,7 @@ void main() {
       tester,
     ) async {
       var catalog = _catalogWithLevels;
-      final client = MockClient((request) async {
-        // Matched on the constant rather than a literal: a debug build may
-        // point it elsewhere (dev_data_source_override.dart).
-        if (request.url.toString() == AppConstants.deckCatalogIndexUrl) {
-          return http.Response(
-            jsonEncode(catalog),
-            200,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          );
-        }
-        // Thumbnails, iNaturalist: nothing this flow depends on. 404
-        // rather than a 5xx, which would put the host into a cooldown.
-        return http.Response('{}', 404);
-      });
+      final client = deckCatalogClient(() => catalog);
       await startApp(
         tester,
         notificationService: createMockNotificationService(),

@@ -5,6 +5,7 @@ import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _deckJson({
@@ -276,7 +277,7 @@ void main() {
     test('are kept when the species ids are filled in', () {
       final deck = CreateDeck.fromJson(
         _deckJson(settings: _genusSettings),
-      ).withSpeciesIds({'species-1'});
+      ).copyWith(speciesIds: {'species-1'});
 
       expect(_settingsOf(deck), _genus);
     });
@@ -300,6 +301,50 @@ void main() {
       // what was read.
       expect(deck.speciesNames, {'Aa aa', 'Bb bb'});
       expect(_settingsOf(deck), _genus);
+    });
+  });
+
+  group('CreateDeck.copyWith', () {
+    test('replacing the language keeps every other field', () {
+      const subdeck = CreateSubdeck(
+        id: 'l1',
+        name: 'Level 1',
+        speciesNames: {'Aa aa'},
+      );
+      final updatedAt = DateTime.utc(2026, 9, 1);
+      final deck = CreateDeck(
+        id: 'deck-1',
+        name: 'Red Sea',
+        description: 'Fishes',
+        coverImagePath: '/covers/red-sea.jpg',
+        language: Language.en,
+        speciesNames: {'Aa aa', 'Bb bb'},
+        speciesIds: {'species-1'},
+        subdecks: [subdeck],
+        supersedes: ['red-sea-old'],
+        learningMode: LearningMode.genus,
+        nameType: NameType.scientificName,
+        reviewMode: ReviewMode.multipleChoice,
+        imageUrl: 'https://example.org/red-sea.jpg',
+        sourceId: 'red-sea',
+        updatedAt: updatedAt,
+      );
+
+      final copy = deck.copyWith(language: Language.de);
+
+      expect(copy.language, Language.de);
+      expect(copy.id, 'deck-1');
+      expect(copy.name, 'Red Sea');
+      expect(copy.description, 'Fishes');
+      expect(copy.coverImagePath, '/covers/red-sea.jpg');
+      expect(copy.speciesNames, {'Aa aa', 'Bb bb'});
+      expect(copy.speciesIds, {'species-1'});
+      expect(copy.subdecks, [subdeck]);
+      expect(copy.supersedes, ['red-sea-old']);
+      expect(_settingsOf(copy), _genus);
+      expect(copy.imageUrl, 'https://example.org/red-sea.jpg');
+      expect(copy.sourceId, 'red-sea');
+      expect(copy.updatedAt, updatedAt);
     });
   });
 }

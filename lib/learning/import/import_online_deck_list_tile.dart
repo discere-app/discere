@@ -1,8 +1,10 @@
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
+import 'package:discere/learning/import/widgets/deck_learning_settings_icons.dart';
 import 'package:discere/learning/import/widgets/deck_preview_image.dart';
 import 'package:discere/learning/import/widgets/expandable_description.dart';
 import 'package:discere/learning/import/widgets/status_label.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
@@ -104,7 +106,19 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                         speciesCountLabel,
                         style: theme.textTheme.labelSmall,
                       ),
-                    if (status != ImportOnlineDeckStatus.notImported) ...[
+                    // Only an entry still to be imported starts from the
+                    // catalog's settings: an update keeps the user's deck
+                    // config, and a merge takes over the superseded deck's.
+                    if (status == ImportOnlineDeckStatus.notImported) ...[
+                      const SizedBox(height: AppSpacing.s8),
+                      DeckLearningSettingsIcons(
+                        learningMode:
+                            deck.learningMode ?? DeckConfig.defaultLearningMode,
+                        nameType: deck.nameType ?? DeckConfig.defaultNameType,
+                        reviewMode:
+                            deck.reviewMode ?? DeckConfig.defaultReviewMode,
+                      ),
+                    ] else ...[
                       const SizedBox(height: AppSpacing.s4),
                       StatusLabel(
                         status: status,
@@ -112,8 +126,7 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                       ),
                     ],
                     if (isSelected) ...[
-                      const SizedBox(height: AppSpacing.s4),
-                      const SizedBox(height: AppSpacing.s10),
+                      const SizedBox(height: AppSpacing.s12),
                       Text(
                         context.loc.createDeckLanguageLabel,
                         style: theme.textTheme.labelLarge?.copyWith(
