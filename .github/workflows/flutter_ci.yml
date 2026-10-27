@@ -254,6 +254,7 @@ jobs:
             files: >-
               integration_test/create_deck_test.dart
               integration_test/deck_lifecycle_test.dart
+              integration_test/deck_merge_test.dart
               integration_test/edit_deck_test.dart
               integration_test/export_import_test.dart
               integration_test/favorites_test.dart
