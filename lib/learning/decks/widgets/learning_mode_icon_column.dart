@@ -1,4 +1,5 @@
 import 'package:discere/learning/decks/learning_mode_style.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
@@ -25,9 +26,9 @@ class LearningModeIconColumn extends StatelessWidget {
     required NameType nameType,
     required ReviewMode reviewMode,
   }) =>
-      learningMode != LearningMode.species ||
-      nameType != NameType.commonName ||
-      reviewMode != ReviewMode.flip;
+      learningMode != DeckConfig.defaultLearningMode ||
+      nameType != DeckConfig.defaultNameType ||
+      reviewMode != DeckConfig.defaultReviewMode;
 
   @override
   Widget build(BuildContext context) {
@@ -44,17 +45,17 @@ class LearningModeIconColumn extends StatelessWidget {
     }
 
     final icons = [
-      if (learningMode != LearningMode.species)
+      if (learningMode != DeckConfig.defaultLearningMode)
         iconWithTooltip(
           _style.iconFor(learningMode),
           _style.labelFor(learningMode, loc),
         ),
-      if (nameType != NameType.commonName)
+      if (nameType != DeckConfig.defaultNameType)
         iconWithTooltip(
           _style.nameTypeIconFor(nameType),
           _style.nameTypeLabelFor(nameType, loc),
         ),
-      if (reviewMode != ReviewMode.flip)
+      if (reviewMode != DeckConfig.defaultReviewMode)
         iconWithTooltip(
           _style.reviewModeIconFor(reviewMode),
           _style.reviewModeLabelFor(reviewMode, loc),
