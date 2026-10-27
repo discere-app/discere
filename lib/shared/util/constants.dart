@@ -13,11 +13,14 @@ class AppConstants {
   static const String _prodDiscereDataContentBaseUrl =
       'https://raw.githubusercontent.com/discere-app/discere-data/main';
   static const String _prodDeckCatalogIndexUrl =
-      '$_prodDiscereDataContentBaseUrl/data/decks/index.json';
+      '$_prodDiscereDataContentBaseUrl/data/decks/v2/index.json';
   static const String _prodReferenceDbManifestUrl =
       '$_prodDiscereDataContentBaseUrl/data/reference-db/manifest.json';
 
-  /// The online deck catalog, fetched by `RemoteDeckService`. Always
+  /// The online deck catalog, fetched by `RemoteDeckService`. The catalog
+  /// keeps one index per deck format version, each listing the decks up to
+  /// it, so the path names the newest version the app reads
+  /// (`DeckFormat.supportedVersion`, which a test holds it to). Always
   /// production in a release/profile build; in a debug build, uses
   /// [devDeckCatalogIndexUrlOverride] instead if that's set — see its doc
   /// for how to point local runs at a test branch without any extra launch

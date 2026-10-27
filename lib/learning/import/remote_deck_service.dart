@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/util/constants.dart';
@@ -51,19 +52,36 @@ class RemoteDeckService {
               as List<dynamic>;
 
       final decks = <CreateDeck>[];
+      // The index holds the decks up to this app's format version; an entry
+      // of a newer one is skipped as a safeguard, and is no format error.
+      var newerEntries = 0;
       for (final entry in entries) {
         try {
           final map = Map<String, dynamic>.from(
             (entry as Map).cast<Object?, Object?>(),
           );
-          decks.add(CreateDeck.fromJson(map));
+          switch (DeckFormat.declaredIn(map)) {
+            case ReadableDeckFormat():
+              decks.add(CreateDeck.fromJson(map));
+            case NewerDeckFormat(:final version):
+              newerEntries++;
+              _log.warn(
+                'Skipping deck "${map['name']}" in index: format $version, '
+                'this app reads up to ${DeckFormat.supportedVersion}',
+              );
+            case MalformedDeckFormat():
+              _log.warn(
+                'Skipping deck "${map['name']}" in index: malformed format '
+                'version',
+              );
+          }
         } catch (e) {
           // A single malformed entry shouldn't break the whole list.
           _log.warn('Skipping malformed deck entry in index: $e');
         }
       }
 
-      if (decks.isEmpty && entries.isNotEmpty) {
+      if (decks.isEmpty && entries.length > newerEntries) {
         throw DataFormatException(
           'Could not load any deck details, even though entries were found.',
         );
