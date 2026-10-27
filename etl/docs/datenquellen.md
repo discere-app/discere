@@ -948,6 +948,7 @@ es keine, bleibt die mit der kleinsten alten ID.
 | `enrichment_taxonomy_work_species` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
 | `inat_photo_cache` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
 | `species_photo_gap_ack` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
+| `deck_subdeck_species` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt (liegen beide Arten in verschiedenen Subdecks desselben Decks, gilt das Subdeck der vorhandenen) |
 | `external_identifier_cache` | `entity_id`, roh bei Arten (höhere Taxa: `rang:name`, nicht betroffen) | die vorhandene Zeile bleibt |
 | `runtime_common_names` | `entity_key`, `species:<id>` bei Arten | kein Primärschlüssel; Duplikate sind Zeilen mit gleichem `entity_key`, `language_code`, `name` und `place_id` (NULL gleich NULL), davon bleibt die mit dem jüngsten `fetched_at` |
 | `runtime_common_name_search_documents` | `entity_key`, `species:<id>` bei Arten; `entity_id`, roh bei **allen** Rängen (ein Gattungsdokument trägt die ID der Gattung) | Dokumente zu einem zusammenführen: die vorhandene Zeile bleibt mit ihrem wissenschaftlichen Namen, je Sprache kommen die Namen der anderen hinzu, die Suchtexte werden aneinandergehängt; der Volltextindex folgt |
@@ -958,7 +959,8 @@ nachzuziehen, in der Nutzer-DB wie in den SharedPreferences; im Code steht
 sie in `lib/shared/persistence/reference_id/reference_id_tables.dart`. Nicht
 betroffen sind Tabellen, die über Namen oder Deck-IDs verweisen
 (`enrichment_taxonomy_work` über `rang:name`, `enrichment_unresolved_names`,
-`enrichment_jobs`, `decks`, `deck_config`), die Favoriten (Deck-IDs) und
+`deck_subdeck_unresolved_names`, `enrichment_jobs`, `decks`, `deck_config`,
+`deck_subdecks`), die Favoriten (Deck-IDs) und
 die gespeicherten Bilder (Dateinamen aus der URL). Export, Teilen und
 QR-Codes enthalten nur wissenschaftliche Namen (`CreateDeck.toJson`) und sind
 von einem Alias nicht betroffen.

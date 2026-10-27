@@ -23,6 +23,17 @@ Future<void> runDeckImportFlow(
   final result = await importAction(context.read<DeckImportService>());
   if (!context.mounted) return;
 
+  await offerImportDownload(context, result);
+  if (context.mounted && result.hasSuccess) Navigator.of(context).pop();
+}
+
+/// Shows what an import did and schedules the download the user picks for
+/// the decks it created — after any import, including the one a deck merge
+/// runs.
+Future<void> offerImportDownload(
+  BuildContext context,
+  DeckImportResult result,
+) async {
   // The user picks how much species data to download before anything is
   // scheduled - unlike other enrichment entry points, import always shows
   // this dialog, so it doubles as the download consent step.
@@ -60,6 +71,5 @@ Future<void> runDeckImportFlow(
           ),
         );
     }
-    Navigator.of(context).pop();
   }
 }

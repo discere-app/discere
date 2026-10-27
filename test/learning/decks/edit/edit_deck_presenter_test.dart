@@ -4,6 +4,7 @@ import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/learning/model/subdeck.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,6 +41,7 @@ EditDeckDraft _draft({
   NameType nameType = NameType.commonName,
   ReviewMode reviewMode = ReviewMode.flip,
   Set<String> speciesIds = const {},
+  Set<String> activeSubdeckIds = const {},
 }) {
   return EditDeckDraft(
     name: name,
@@ -51,6 +53,7 @@ EditDeckDraft _draft({
     nameType: nameType,
     reviewMode: reviewMode,
     speciesIds: speciesIds,
+    activeSubdeckIds: activeSubdeckIds,
   );
 }
 
@@ -170,6 +173,96 @@ void main() {
       final saved = _draft(coverImagePath: null);
       final current = _draft(coverImagePath: '/path/to/cover.jpg');
       expect(presenter.isDirty(current, saved), isTrue);
+    });
+  });
+
+  test('isDirty detects a subdeck switched on or off', () {
+    final saved = _draft(activeSubdeckIds: {'l1', 'l2'});
+    expect(presenter.isDirty(_draft(activeSubdeckIds: {'l1'}), saved), isTrue);
+    expect(
+      presenter.isDirty(_draft(activeSubdeckIds: {'l2', 'l1'}), saved),
+      isFalse,
+    );
+  });
+
+  group('EditDeckPresenter subdecks', () {
+    const bySpecies = {'sp-a': 'l1', 'sp-b': 'l2', 'sp-c': 'l2'};
+    const subdecks = [
+      Subdeck(deckId: 'd', id: 'l1', name: 'One', sortOrder: 0, isActive: true),
+      Subdeck(deckId: 'd', id: 'l2', name: 'Two', sortOrder: 1, isActive: true),
+    ];
+
+    test('counts the species of each subdeck among the given ones', () {
+      expect(
+        presenter.subdeckSpeciesCounts({'sp-a', 'sp-c', 'sp-x'}, bySpecies),
+        {'l1': 1, 'l2': 1},
+      );
+    });
+
+    test('a species in no subdeck stands outside them', () {
+      expect(
+        presenter.hasSpeciesOutsideSubdecks({'sp-a', 'sp-x'}, bySpecies),
+        isTrue,
+      );
+      expect(
+        presenter.hasSpeciesOutsideSubdecks({'sp-a', 'sp-b'}, bySpecies),
+        isFalse,
+      );
+    });
+
+    test('the last subdeck on cannot be switched off while every species is '
+        'in a subdeck', () {
+      expect(
+        presenter.canSwitchOffSubdeck(
+          subdeckId: 'l1',
+          activeSubdeckIds: {'l1'},
+          hasSpeciesOutsideSubdecks: false,
+        ),
+        isFalse,
+      );
+      expect(
+        presenter.canSwitchOffSubdeck(
+          subdeckId: 'l1',
+          activeSubdeckIds: {'l1', 'l2'},
+          hasSpeciesOutsideSubdecks: false,
+        ),
+        isTrue,
+      );
+      expect(
+        presenter.canSwitchOffSubdeck(
+          subdeckId: 'l1',
+          activeSubdeckIds: {'l1'},
+          hasSpeciesOutsideSubdecks: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('with none on and no species outside, every subdeck is on again', () {
+      expect(
+        presenter.effectiveActiveSubdecks(
+          activeSubdeckIds: const {},
+          subdecks: subdecks,
+          hasSpeciesOutsideSubdecks: false,
+        ),
+        {'l1', 'l2'},
+      );
+      expect(
+        presenter.effectiveActiveSubdecks(
+          activeSubdeckIds: const {},
+          subdecks: subdecks,
+          hasSpeciesOutsideSubdecks: true,
+        ),
+        isEmpty,
+      );
+      expect(
+        presenter.effectiveActiveSubdecks(
+          activeSubdeckIds: const {'l2'},
+          subdecks: subdecks,
+          hasSpeciesOutsideSubdecks: false,
+        ),
+        {'l2'},
+      );
     });
   });
 }

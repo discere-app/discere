@@ -1419,13 +1419,7 @@ void main() {
         signal: service,
         description: 'the in-flight name resolution to apply its mutation',
       );
-      // Records' `==` delegates to each field's own `==`, and Set has no
-      // value equality under plain `==` — destructure and compare fields
-      // individually rather than comparing the whole record.
-      expect(deckMutationPort.calls, hasLength(1));
-      final call = deckMutationPort.calls.single;
-      expect(call.deckId, 'deck-1');
-      expect(call.speciesIds, {'sp2'});
+      expect(deckMutationPort.calls, [(deckId: 'deck-1', speciesId: 'sp2')]);
       expect(await jobRepository.loadJob('deck-1'), isNull);
     },
   );
@@ -1563,11 +1557,15 @@ class _RecordingForegroundServiceKeeper
 }
 
 class _RecordingDeckSpeciesMutationPort implements DeckSpeciesMutationPort {
-  final List<({String deckId, Set<String> speciesIds})> calls = [];
+  final List<({String deckId, String speciesId})> calls = [];
 
   @override
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
-    calls.add((deckId: deckId, speciesIds: speciesIds));
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  }) async {
+    calls.add((deckId: deckId, speciesId: speciesId));
   }
 }
 

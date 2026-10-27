@@ -3,6 +3,7 @@ import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/learning/model/subdeck.dart';
 import 'package:discere/shared/model/language.dart';
 
 /// A snapshot of every field EditDeckPage lets the user edit, used to detect
@@ -20,6 +21,9 @@ class EditDeckDraft {
   final ReviewMode reviewMode;
   final Set<String> speciesIds;
 
+  /// The subdecks switched on; empty for a deck without subdecks.
+  final Set<String> activeSubdeckIds;
+
   const EditDeckDraft({
     required this.name,
     required this.description,
@@ -30,6 +34,7 @@ class EditDeckDraft {
     required this.nameType,
     required this.reviewMode,
     required this.speciesIds,
+    required this.activeSubdeckIds,
   });
 
   /// Partial update for the fields the async loaders deliver piecemeal
@@ -53,14 +58,15 @@ class EditDeckDraft {
       nameType: nameType ?? this.nameType,
       reviewMode: reviewMode ?? this.reviewMode,
       speciesIds: speciesIds ?? this.speciesIds,
+      activeSubdeckIds: activeSubdeckIds,
     );
   }
 }
 
-/// Pure derived state for EditDeckPage: unsaved-changes detection and
-/// multiple-choice review-mode validity. Kept free of BuildContext/widget
-/// state so it can be unit tested directly, mirroring the presenter pattern
-/// used elsewhere in catalog/.
+/// Pure derived state for EditDeckPage: unsaved-changes detection,
+/// multiple-choice review-mode validity, and which subdecks may be switched
+/// off. Kept free of BuildContext/widget state so it can be unit tested
+/// directly, mirroring the presenter pattern used elsewhere in catalog/.
 class EditDeckPresenter {
   /// As many distinct names as a distractor pool needs: the pool builder
   /// falls back to the whole deck, so a deck that holds them gives every
@@ -116,7 +122,53 @@ class EditDeckPresenter {
         current.learningMode != saved.learningMode ||
         current.nameType != saved.nameType ||
         current.reviewMode != saved.reviewMode ||
-        !_setEquals(current.speciesIds, saved.speciesIds);
+        !_setEquals(current.speciesIds, saved.speciesIds) ||
+        !_setEquals(current.activeSubdeckIds, saved.activeSubdeckIds);
+  }
+
+  /// Whether any of [speciesIds] belongs to no subdeck — such a species is
+  /// a card whichever subdecks are switched off.
+  bool hasSpeciesOutsideSubdecks(
+    Iterable<String> speciesIds,
+    Map<String, String> subdeckIdBySpeciesId,
+  ) => speciesIds.any((id) => !subdeckIdBySpeciesId.containsKey(id));
+
+  /// How many of [speciesIds] each subdeck holds.
+  Map<String, int> subdeckSpeciesCounts(
+    Iterable<String> speciesIds,
+    Map<String, String> subdeckIdBySpeciesId,
+  ) {
+    final counts = <String, int>{};
+    for (final id in speciesIds) {
+      final subdeckId = subdeckIdBySpeciesId[id];
+      if (subdeckId != null) counts[subdeckId] = (counts[subdeckId] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Whether [subdeckId] may be switched off: not when it is the last one on
+  /// and every species is in a subdeck — the deck would have no card left.
+  bool canSwitchOffSubdeck({
+    required String subdeckId,
+    required Set<String> activeSubdeckIds,
+    required bool hasSpeciesOutsideSubdecks,
+  }) =>
+      hasSpeciesOutsideSubdecks ||
+      activeSubdeckIds.any((id) => id != subdeckId);
+
+  /// [activeSubdeckIds], or every one of [subdecks] when none is on and no
+  /// species stands outside them any more — a draft that removes the last
+  /// such species must not leave the deck without a card. Called after any
+  /// mutation to species or subdecks, like [effectiveReviewMode].
+  Set<String> effectiveActiveSubdecks({
+    required Set<String> activeSubdeckIds,
+    required List<Subdeck> subdecks,
+    required bool hasSpeciesOutsideSubdecks,
+  }) {
+    if (activeSubdeckIds.isNotEmpty || hasSpeciesOutsideSubdecks) {
+      return activeSubdeckIds;
+    }
+    return {for (final subdeck in subdecks) subdeck.id};
   }
 
   bool _setEquals(Set<String> a, Set<String> b) {

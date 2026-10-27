@@ -30,6 +30,9 @@ import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/subdeck_repository.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
+import 'package:discere/learning/service/deck_merge_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
@@ -51,6 +54,9 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<TaxonomyRepository>(),
   MockSpec<FlashcardStatRepository>(),
   MockSpec<FlashcardStatModeRepository>(),
+  MockSpec<SubdeckRepository>(),
+  MockSpec<AnswerableCardsService>(),
+  MockSpec<DeckMergeService>(),
   MockSpec<TaxonAssignmentRepository>(),
   MockSpec<SpeciesPhotoGapAckRepository>(),
   MockSpec<ImageService>(),

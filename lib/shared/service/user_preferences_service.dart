@@ -14,6 +14,8 @@ class UserPreferencesService extends ChangeNotifier {
       'has_seen_species_detail_tutorial';
   static const String _hasSeenEditDeckTutorialKey =
       'has_seen_edit_deck_tutorial';
+  static const String _hasSeenEditDeckSubdecksTutorialKey =
+      'has_seen_edit_deck_subdecks_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';
   static const String _notificationHourKey = 'notification_hour';
   static const String _notificationMinuteKey = 'notification_minute';
@@ -89,6 +91,18 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenEditDeckTutorial(bool value) {
     _prefs.setBool(_hasSeenEditDeckTutorialKey, value);
+    notifyListeners();
+  }
+
+  /// Separate from [hasSeenEditDeckTutorial]: the subdeck step is shown the
+  /// first time a deck with subdecks is edited, which may be long after the
+  /// learning settings step.
+  bool get hasSeenEditDeckSubdecksTutorial {
+    return _prefs.getBool(_hasSeenEditDeckSubdecksTutorialKey) ?? false;
+  }
+
+  set hasSeenEditDeckSubdecksTutorial(bool value) {
+    _prefs.setBool(_hasSeenEditDeckSubdecksTutorialKey, value);
     notifyListeners();
   }
 

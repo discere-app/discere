@@ -1939,6 +1939,25 @@ CREATE TABLE flashcard_stats (
       expect(row['inat_taxon_id'], isNull, reason: table);
     }
   });
+
+  test('v21 -> v22 adds the subdeck tables', () async {
+    final db = await openInMemoryUserDatabase();
+    addTearDown(db.close);
+    const tables = [
+      'deck_subdecks',
+      'deck_subdeck_species',
+      'deck_subdeck_unresolved_names',
+    ];
+    for (final table in tables.reversed) {
+      await db.execute('DROP TABLE $table');
+    }
+
+    await UserDbSchema.upgrade(db, 21, UserDbSchema.version);
+
+    for (final table in tables) {
+      expect(await _tableExistsInTest(db, table), isTrue, reason: table);
+    }
+  });
 }
 
 Future<bool> _tableExistsInTest(Database db, String table) async {

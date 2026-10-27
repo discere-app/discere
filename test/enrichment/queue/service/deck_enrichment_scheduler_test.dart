@@ -183,8 +183,12 @@ class _InMemoryDecks
   }
 
   @override
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
-    speciesIdsByDeckId.putIfAbsent(deckId, () => {}).addAll(speciesIds);
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  }) async {
+    speciesIdsByDeckId.putIfAbsent(deckId, () => {}).add(speciesId);
   }
 }
 

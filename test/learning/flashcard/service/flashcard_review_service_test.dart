@@ -119,6 +119,7 @@ void main() {
         mockFlashcardStatRepo,
         mockModeStats,
         MockTaxonAssignmentRepository(),
+        MockSubdeckRepository(),
       ),
       userDataWrites: UserDataWrites(),
     );

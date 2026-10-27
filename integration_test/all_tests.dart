@@ -8,6 +8,7 @@ import 'about_page_test.dart' as about_page;
 import 'chunking_limit_test.dart' as chunking_limit;
 import 'create_deck_test.dart' as create_deck;
 import 'deck_lifecycle_test.dart' as deck_lifecycle;
+import 'deck_merge_test.dart' as deck_merge;
 import 'edit_deck_test.dart' as edit_deck;
 import 'enrichment_pipeline_test.dart' as enrichment_pipeline;
 import 'enrichment_shutdown_test.dart' as enrichment_shutdown;
@@ -30,6 +31,7 @@ import 'settings_test.dart' as settings;
 import 'smoke_test.dart' as smoke;
 import 'sources_page_test.dart' as sources_page;
 import 'species_search_test.dart' as species_search;
+import 'subdeck_test.dart' as subdeck;
 import 'watchlist_test.dart' as watchlist;
 
 void main() {
@@ -43,6 +45,8 @@ void main() {
   import_deck.main();
   deck_lifecycle.main();
   edit_deck.main();
+  subdeck.main();
+  deck_merge.main();
   enrichment_pipeline.main();
   enrichment_shutdown.main();
   favorites.main();

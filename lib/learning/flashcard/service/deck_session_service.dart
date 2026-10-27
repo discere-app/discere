@@ -11,6 +11,7 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 
@@ -63,6 +64,7 @@ class CardGradeResult {
 class DeckSessionService {
   final FlashcardReviewService _flashcardReviewService;
   final DecksService _decksService;
+  final AnswerableCardsService _answerableCards;
   final INatEnrichmentQueueService _enrichmentQueueService;
   final MultipleChoiceDistractorPoolService _distractorPoolService;
   final DeckSessionPresenter _sessionPresenter;
@@ -72,6 +74,7 @@ class DeckSessionService {
   const DeckSessionService({
     required FlashcardReviewService flashcardReviewService,
     required DecksService decksService,
+    required AnswerableCardsService answerableCards,
     required INatEnrichmentQueueService enrichmentQueueService,
     required MultipleChoiceDistractorPoolService distractorPoolService,
     required UserDataWrites userDataWrites,
@@ -79,6 +82,7 @@ class DeckSessionService {
   }) : _writes = userDataWrites,
        _flashcardReviewService = flashcardReviewService,
        _decksService = decksService,
+       _answerableCards = answerableCards,
        _enrichmentQueueService = enrichmentQueueService,
        _distractorPoolService = distractorPoolService,
        _sessionPresenter = sessionPresenter;
@@ -154,10 +158,13 @@ class DeckSessionService {
   /// [FlashcardReviewService.getUnacknowledgedPhotoGaps]). Asking for the
   /// species here would pay the whole deck's taxonomy load to read an id off
   /// each one.
+  ///
+  /// Only the species outside switched-off subdecks: the user does not learn
+  /// the others at the moment, so their photos are not worth asking about.
   Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
     String deckId,
   ) async {
-    final speciesIds = await _decksService.getSpeciesIdsByDeckIds([deckId]);
+    final speciesIds = await _answerableCards.activeSpecies(deckId);
     return _flashcardReviewService.getUnacknowledgedPhotoGaps(
       deckId,
       speciesIds,

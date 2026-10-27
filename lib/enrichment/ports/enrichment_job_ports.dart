@@ -9,7 +9,14 @@ abstract class DeckCoverStorePort {
 }
 
 abstract class DeckSpeciesMutationPort {
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds);
+  /// Adds [speciesId], which the name [resolvedName] of [deckId] resolved
+  /// to, to that deck. The name goes along because the deck may have more
+  /// to say about where a species listed under it belongs.
+  Future<void> addResolvedSpeciesToDeck(
+    String deckId,
+    String speciesId, {
+    required String resolvedName,
+  });
 }
 
 abstract class ScientificNameResolutionPort {

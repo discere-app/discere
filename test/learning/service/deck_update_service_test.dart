@@ -245,5 +245,38 @@ void main() {
 
       expect(preferences.getInt('deck_update_last_checked_at'), isNull);
     });
+
+    test('a superseded deck is offered for merging instead of an update, '
+        'until the merge has deleted it', () async {
+      final old = localDeck(id: 'deck-old', sourceId: 'src-old');
+      final updated = remoteDeck(
+        sourceId: 'src-old',
+        updatedAt: DateTime.utc(2026, 2, 1),
+      );
+      final successor = CreateDeck(
+        name: 'Successor',
+        description: 'desc',
+        sourceId: 'src-new',
+        supersedes: ['src-old'],
+      );
+      when(mockDeckRepository.getAllDecks()).thenAnswer((_) async => [old]);
+      when(
+        mockRemoteDeckService.fetchRemoteDecks(),
+      ).thenAnswer((_) async => [updated, successor]);
+
+      await service.checkForUpdates();
+
+      expect(service.replacementFor('deck-old'), same(successor));
+      expect(service.updateFor('deck-old'), isNull);
+      expect(service.catalog, [updated, successor]);
+
+      when(mockDeckRepository.getAllDecks()).thenAnswer(
+        (_) async => [localDeck(id: 'deck-new', sourceId: 'src-new')],
+      );
+      await service.reconcileWithLocalDecks();
+
+      expect(service.replacementFor('deck-old'), isNull);
+      expect(service.replacementFor('deck-new'), isNull);
+    });
   });
 }

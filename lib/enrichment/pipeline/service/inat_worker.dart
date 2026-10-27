@@ -355,7 +355,11 @@ class INatWorker {
     String speciesId,
   ) {
     return _deckMembershipLock.run(() async {
-      await _deckSpeciesMutationPort?.addSpeciesToDeck(deckId, {speciesId});
+      await _deckSpeciesMutationPort?.addResolvedSpeciesToDeck(
+        deckId,
+        speciesId,
+        resolvedName: name,
+      );
       await _ownershipRepository.registerResolvedSpeciesForDeck(
         speciesId,
         deckId,

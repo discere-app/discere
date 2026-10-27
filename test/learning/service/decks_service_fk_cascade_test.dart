@@ -4,6 +4,7 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -45,12 +46,14 @@ void main() {
       flashcardStatRepository,
       MockSpeciesRepository(),
       MockImageService(),
+      subdeckRepository: SubdeckRepository(database: database),
       deckConfigRepository: deckConfigRepository,
       lifecycleObserver: const NoopDeckLifecycleObserver(),
       answerableCards: AnswerableCardsService(
         flashcardStatRepository,
         MockFlashcardStatModeRepository(),
         MockTaxonAssignmentRepository(),
+        MockSubdeckRepository(),
       ),
       userDataWrites: UserDataWrites(),
     );
@@ -88,7 +91,7 @@ void main() {
       await decksService.updateDeckCoverPath(deckId, '/tmp/cover.jpg');
 
       expect(
-        await decksService.getSpeciesIdsByDeckIds([deckId]),
+        (await decksService.getSpeciesIdsGroupedByDeckId([deckId]))[deckId],
         {'sp1', 'sp2'},
         reason:
             'updateDeckCoverPath only touches coverImagePath — it must not '
@@ -130,7 +133,7 @@ void main() {
       await decksService.addSpeciesToDeck(deckId, {'sp2'});
 
       expect(
-        await decksService.getSpeciesIdsByDeckIds([deckId]),
+        (await decksService.getSpeciesIdsGroupedByDeckId([deckId]))[deckId],
         {'sp1', 'sp2'},
         reason:
             'both the originally-imported species and the one resolved '

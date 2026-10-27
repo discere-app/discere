@@ -6,8 +6,10 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,6 +50,7 @@ void main() {
   late Database userDb;
   late FlashcardStatRepository stats;
   late FlashcardStatModeRepository modeStats;
+  late SubdeckRepository subdecks;
   late AnswerableCardsService answerableCards;
   late MockSpeciesMediaService media;
   late FlashcardReviewService review;
@@ -112,10 +115,12 @@ void main() {
     });
     stats = FlashcardStatRepository(database: userDb);
     modeStats = FlashcardStatModeRepository(database: userDb);
+    subdecks = SubdeckRepository(database: userDb);
     answerableCards = AnswerableCardsService(
       stats,
       modeStats,
       TaxonAssignmentRepository(database: referenceDb),
+      subdecks,
     );
     media = MockSpeciesMediaService();
     // The tests look at which species a session asks for, not at the cards.
@@ -140,11 +145,11 @@ void main() {
   test('finds the species without an answer in family mode, and none in '
       'species mode', () async {
     expect(
-      await answerableCards.speciesWithoutAnswer(_deckId, LearningMode.family),
+      await answerableCards.speciesWithoutCard(_deckId, LearningMode.family),
       _withoutAnswer,
     );
     expect(
-      await answerableCards.speciesWithoutAnswer(_deckId, LearningMode.species),
+      await answerableCards.speciesWithoutCard(_deckId, LearningMode.species),
       isEmpty,
     );
   });
@@ -296,5 +301,112 @@ void main() {
       ),
       isEmpty,
     );
+  });
+
+  /// The great white alone in the first subdeck, the other two sharks in the
+  /// second, which is switched off; the two species without a family answer
+  /// in no subdeck.
+  group('a switched-off subdeck', () {
+    const greatWhite = 'discere:species:694';
+    const switchedOff = {'discere:species:834', 'discere:species:847'};
+
+    setUp(() async {
+      await subdecks.writeStructure(
+        _deckId,
+        const SubdeckStructure(
+          subdecks: [
+            (id: 'l1', name: 'Level 1'),
+            (id: 'l2', name: 'Level 2'),
+          ],
+          subdeckIdBySpeciesId: {
+            greatWhite: 'l1',
+            'discere:species:834': 'l2',
+            'discere:species:847': 'l2',
+          },
+          subdeckIdByUnresolvedName: {},
+        ),
+      );
+      await subdecks.setActiveSubdecks(_deckId, {'l1'});
+    });
+
+    test('holds no card: its species are neither initialized, counted nor '
+        'handed out, while species in no subdeck are', () async {
+      await review.initializeNextBatch(_deckId, _species);
+      await review.getFlashCardsForReview(_deckId, _species);
+
+      expect(await initializedIn(LearningMode.species), {
+        greatWhite,
+        ..._withoutAnswer,
+      });
+      final stat = await answerableCards.deckStat(
+        _deckId,
+        learningMode: LearningMode.species,
+        nameType: NameType.commonName,
+      );
+      expect(
+        (stat.totalCount, stat.uninitializedCount, stat.dueCount),
+        (3, 0, 3),
+      );
+      verify(
+        media.resolveAllFromCache({greatWhite, ..._withoutAnswer}),
+      ).called(1);
+    });
+
+    test('adds to the species without an answer in family mode', () async {
+      expect(
+        await answerableCards.speciesWithoutCard(_deckId, LearningMode.family),
+        {...switchedOff, ..._withoutAnswer},
+      );
+      await review.initializeNextBatch(_deckId, _family);
+      expect(await initializedIn(LearningMode.family), {greatWhite});
+    });
+
+    test('keeps the rows of its species unchanged, and switching it back on '
+        'carries on from them', () async {
+      await stats.insertOrUpdateFlashcardStats({
+        reviewed('discere:species:834', LearningMode.species),
+      });
+
+      await review.initializeNextBatch(_deckId, _species);
+      await review.getFlashCardsForReview(_deckId, _species);
+      final kept = await rowOf('discere:species:834', LearningMode.species);
+      expect(kept!.nextReviewDate, DateTime(2026, 9, 3));
+      expect((kept.stability, kept.difficulty), (4.2, 5.1));
+      expect(
+        (await rowOf('discere:species:847', LearningMode.species))!
+            .nextReviewDate,
+        isNull,
+      );
+
+      await subdecks.setActiveSubdecks(_deckId, {'l1', 'l2'});
+      final stat = await answerableCards.deckStat(
+        _deckId,
+        learningMode: LearningMode.species,
+        nameType: NameType.commonName,
+      );
+      // The three initialized above, and the reviewed one, due again.
+      expect(
+        (stat.totalCount, stat.uninitializedCount, stat.dueCount),
+        (5, 1, 4),
+      );
+    });
+
+    test('counts in no reminder', () async {
+      await stats.insertOrUpdateFlashcardStats({
+        reviewed(greatWhite, LearningMode.species),
+        reviewed('discere:species:834', LearningMode.species),
+      });
+
+      expect(await answerableCards.reviewDatesOfCards(), [
+        DateTime(2026, 9, 3),
+      ]);
+    });
+
+    test('is left out of the active species', () async {
+      expect(await answerableCards.activeSpecies(_deckId), {
+        greatWhite,
+        ..._withoutAnswer,
+      });
+    });
   });
 }
