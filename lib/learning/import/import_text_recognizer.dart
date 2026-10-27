@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:discere/learning/decks/species_name_line.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 
 /// What [ImportTextRecognizer] made of a pasted, picked or scanned text.
@@ -37,6 +38,12 @@ final class RecognizedSpeciesList extends RecognizedImport {
   const RecognizedSpeciesList(this.speciesNames);
 }
 
+/// A deck in one of the encodings above, but of a format version only a
+/// newer app reads (see `DeckFormat`).
+final class UnsupportedDeckFormat extends RecognizedImport {
+  const UnsupportedDeckFormat();
+}
+
 /// None of the formats above.
 final class UnrecognizedImport extends RecognizedImport {
   const UnrecognizedImport();
@@ -52,7 +59,9 @@ final class UnrecognizedImport extends RecognizedImport {
 /// not even with its whitespace removed, since a genus has no digits. A text
 /// whose head points to a deck encoding but does not decode as one is
 /// unrecognized; it is never retried as a species list, since a deck payload
-/// is never a list of names.
+/// is never a list of names. A deck that decodes but declares a format
+/// version only a newer app reads is told apart from an unrecognized text,
+/// so the user learns to update the app rather than that the text is broken.
 class ImportTextRecognizer {
   /// What base64 is made of, once whitespace is removed: a payload passed on
   /// as text often comes back wrapped by a mail or messenger client, and
@@ -75,22 +84,18 @@ class ImportTextRecognizer {
     final trimmed = text.trim();
 
     if (trimmed.startsWith('{')) {
-      final deck = await _decodeDeck(
+      return _recognizeDeck(
         () => _serializationWorker.decodeJson(trimmed),
+        RecognizedDeckJson.new,
       );
-      return deck == null
-          ? const UnrecognizedImport()
-          : RecognizedDeckJson(deck);
     }
 
     final compact = trimmed.replaceAll(_whitespaceRun, '');
     if (_isGzipBase64(compact)) {
-      final deck = await _decodeDeck(
+      return _recognizeDeck(
         () => _serializationWorker.decodeGzipBase64(compact),
+        RecognizedQrPayload.new,
       );
-      return deck == null
-          ? const UnrecognizedImport()
-          : RecognizedQrPayload(deck);
     }
 
     final speciesNames = _parseSpeciesList(trimmed);
@@ -110,19 +115,27 @@ class ImportTextRecognizer {
         head[1] == _gzipMagic[1];
   }
 
-  /// The decoded deck, or null when the text has the shape of a deck
-  /// encoding but does not hold one: malformed JSON or gzip, or a JSON
-  /// object without the fields a deck needs.
-  Future<CreateDeck?> _decodeDeck(
+  /// The decoded deck as [recognized] wraps it, checked against the format
+  /// versions the app reads before it is read; unrecognized when the text
+  /// has the shape of a deck encoding but does not hold one: malformed JSON
+  /// or gzip, a malformed format version, or a JSON object without the
+  /// fields a deck needs.
+  Future<RecognizedImport> _recognizeDeck(
     Future<Map<String, dynamic>> Function() decode,
+    RecognizedDeck Function(CreateDeck deck) recognized,
   ) async {
     try {
-      return CreateDeck.fromJson(await decode());
+      final json = await decode();
+      return switch (DeckFormat.declaredIn(json)) {
+        ReadableDeckFormat() => recognized(CreateDeck.fromJson(json)),
+        NewerDeckFormat() => const UnsupportedDeckFormat(),
+        MalformedDeckFormat() => const UnrecognizedImport(),
+      };
     } on FormatException {
-      return null;
+      return const UnrecognizedImport();
     } on TypeError {
       // What the generated fromJson throws for a missing or mistyped field.
-      return null;
+      return const UnrecognizedImport();
     }
   }
 

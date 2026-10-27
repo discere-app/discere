@@ -86,23 +86,22 @@ class ImportDeckPage extends StatelessWidget {
     );
     if (!context.mounted) return;
 
-    final prefill = switch (recognized) {
-      RecognizedDeck(:final deck) => deck,
-      RecognizedSpeciesList(:final speciesNames) => CreateDeck(
-        name: sourceFileName ?? '',
-        description: '',
-        speciesNames: speciesNames,
-      ),
-      UnrecognizedImport() => null,
-    };
-    if (prefill == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.importFormatUnrecognized),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
+    final CreateDeck prefill;
+    switch (recognized) {
+      case RecognizedDeck(:final deck):
+        prefill = deck;
+      case RecognizedSpeciesList(:final speciesNames):
+        prefill = CreateDeck(
+          name: sourceFileName ?? '',
+          description: '',
+          speciesNames: speciesNames,
+        );
+      case UnsupportedDeckFormat():
+        _showImportError(context, context.loc.importDeckNeedsNewerApp);
+        return;
+      case UnrecognizedImport():
+        _showImportError(context, context.loc.importFormatUnrecognized);
+        return;
     }
 
     final created = await Navigator.of(context).push<bool>(
@@ -123,5 +122,14 @@ class ImportDeckPage extends StatelessWidget {
     if (created == true && context.mounted) {
       Navigator.of(context).pop();
     }
+  }
+
+  void _showImportError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
   }
 }
