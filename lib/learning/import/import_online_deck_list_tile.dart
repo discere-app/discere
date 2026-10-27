@@ -126,8 +126,7 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                       ),
                     ],
                     if (isSelected) ...[
-                      const SizedBox(height: AppSpacing.s4),
-                      const SizedBox(height: AppSpacing.s10),
+                      const SizedBox(height: AppSpacing.s12),
                       Text(
                         context.loc.createDeckLanguageLabel,
                         style: theme.textTheme.labelLarge?.copyWith(
