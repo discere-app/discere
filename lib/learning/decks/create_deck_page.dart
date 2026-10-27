@@ -1,12 +1,20 @@
 import 'dart:async';
 
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
+import 'package:discere/learning/decks/deck_mode_fields.dart';
+import 'package:discere/learning/decks/deck_mode_presenter.dart';
 import 'package:discere/learning/decks/species_field_presenter.dart';
 import 'package:discere/learning/decks/species_field_summary.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/model/create_subdeck.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -33,6 +41,12 @@ class CreateDeckPage extends StatefulWidget {
   /// a name taken out of it leaves its subdeck.
   final List<CreateSubdeck>? initialSubdecks;
 
+  /// Learning settings of an imported deck, shown for the user to keep or
+  /// change; one left out starts at the app's default.
+  final LearningMode? initialLearningMode;
+  final NameType? initialNameType;
+  final ReviewMode? initialReviewMode;
+
   const CreateDeckPage({
     super.key,
     this.initialSpeciesNames,
@@ -41,6 +55,9 @@ class CreateDeckPage extends StatefulWidget {
     this.initialLanguage,
     this.initialImageUrl,
     this.initialSubdecks,
+    this.initialLearningMode,
+    this.initialNameType,
+    this.initialReviewMode,
   });
 
   @override
@@ -54,9 +71,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   /// name is not looked up once per keystroke.
   static const _speciesCheckDelay = Duration(milliseconds: 400);
   static const _speciesFieldPresenter = SpeciesFieldPresenter();
+  static const _modePresenter = DeckModePresenter();
 
   late final ImageService _imageService;
   late final DeckImportService _deckImportService;
+  late final DecksService _decksService;
 
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -64,6 +83,13 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
 
   String? _coverImagePath; // always a local file path once set
   Language _selectedLanguage = Language.getSystemLanguage();
+  late LearningMode _learningMode;
+  late NameType _nameType;
+
+  /// The review mode the user chose. The deck gets [_effectiveReviewMode]:
+  /// the choice is kept while the species do not support it, so names
+  /// added back bring multiple choice back.
+  late ReviewMode _reviewMode;
   bool _isCreating = false;
 
   Timer? _speciesCheckTimer;
@@ -71,11 +97,21 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   int _speciesCheckGeneration = 0;
   SpeciesFieldCheck? _speciesCheck;
 
+  /// The species the last finished check found, which decide whether
+  /// multiple choice is offered. `null` until a pre-filled list has had its
+  /// first check — until then the chosen review mode stands.
+  List<Species>? _checkedSpecies = const [];
+
   @override
   void initState() {
     super.initState();
     _imageService = Provider.of<ImageService>(context, listen: false);
     _deckImportService = Provider.of<DeckImportService>(context, listen: false);
+    _decksService = Provider.of<DecksService>(context, listen: false);
+    _learningMode =
+        widget.initialLearningMode ?? DeckConfig.defaultLearningMode;
+    _nameType = widget.initialNameType ?? DeckConfig.defaultNameType;
+    _reviewMode = widget.initialReviewMode ?? DeckConfig.defaultReviewMode;
     final initialSpeciesNames = widget.initialSpeciesNames;
     if (initialSpeciesNames != null && initialSpeciesNames.isNotEmpty) {
       _speciesController.text = initialSpeciesNames.join('\n');
@@ -93,7 +129,10 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     _speciesController.addListener(_onSpeciesTextChanged);
     // A pre-filled list is checked right away: it arrives whole, there is
     // no typing to wait out.
-    if (_scheduledSpeciesText.isNotEmpty) unawaited(_checkSpecies());
+    if (_scheduledSpeciesText.isNotEmpty) {
+      _checkedSpecies = null;
+      unawaited(_checkSpecies());
+    }
   }
 
   @override
@@ -119,7 +158,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   }
 
   /// Looks the field's lines up with the same resolution deck creation uses,
-  /// so the summary says exactly what creating the deck will find.
+  /// so the summary says exactly what creating the deck will find — and
+  /// whether its species support multiple choice.
   Future<void> _checkSpecies() async {
     final generation = ++_speciesCheckGeneration;
     final lines = _speciesFieldPresenter.lines(_speciesController.text);
@@ -128,11 +168,15 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
       final resolved = speciesNames.isEmpty
           ? const <String, String>{}
           : await _deckImportService.resolveSpeciesNames(speciesNames);
+      final species = await _decksService.getSpeciesByIds(
+        resolved.values.toSet(),
+      );
       if (!_isCurrentSpeciesCheck(generation)) return;
       setState(() {
         _speciesCheck = lines.isEmpty
             ? null
             : _speciesFieldPresenter.check(lines, resolved);
+        _checkedSpecies = species;
       });
     } catch (error, stackTrace) {
       // The summary is a preview; creating the deck resolves the names again
@@ -150,6 +194,16 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   /// then would show the verdict on text that is no longer in the field.
   bool _isCurrentSpeciesCheck(int generation) =>
       mounted && generation == _speciesCheckGeneration;
+
+  ReviewMode get _effectiveReviewMode => _modePresenter.effectiveReviewMode(
+    reviewMode: _reviewMode,
+    distinctNameCount: _modePresenter.distinctNameCount(
+      _checkedSpecies,
+      _selectedLanguage,
+      _learningMode,
+      _nameType,
+    ),
+  );
 
   Future<void> _handleImageSelected(String? path) async {
     if (path == null) {
@@ -207,6 +261,9 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             language: _selectedLanguage,
             coverImagePath: _coverImagePath,
             subdecks: widget.initialSubdecks,
+            learningMode: _learningMode,
+            nameType: _nameType,
+            reviewMode: _effectiveReviewMode,
           );
       final coverImageUrl = _coverImagePath == null
           ? widget.initialImageUrl?.trim()
@@ -370,6 +427,27 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   value: _selectedLanguage,
                   onChanged: (newValue) {
                     setState(() => _selectedLanguage = newValue);
+                  },
+                ),
+                AppSpacing.heightS24,
+
+                // ── Learning Settings ─────────────────────────────────
+                DeckFormFieldLabel(label: context.loc.settingsLearningTitle),
+                AppSpacing.heightS8,
+                DeckModeFields(
+                  species: _checkedSpecies,
+                  language: _selectedLanguage,
+                  learningMode: _learningMode,
+                  nameType: _nameType,
+                  reviewMode: _effectiveReviewMode,
+                  onLearningModeChanged: (mode) {
+                    setState(() => _learningMode = mode);
+                  },
+                  onNameTypeChanged: (type) {
+                    setState(() => _nameType = type);
+                  },
+                  onReviewModeChanged: (mode) {
+                    setState(() => _reviewMode = mode);
                   },
                 ),
 

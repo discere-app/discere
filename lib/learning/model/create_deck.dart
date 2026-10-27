@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_subdeck.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:json_annotation/json_annotation.dart';
 
@@ -34,6 +37,23 @@ class CreateDeck extends BaseDeck {
   @JsonKey(includeToJson: false)
   final List<String>? supersedes;
 
+  /// The learning mode a deck imported from this one starts with — written
+  /// from the sharer's deck config, ignored by a catalog update, as after
+  /// the import the setting is the user's. `null` where the deck sets none.
+  @JsonKey(fromJson: _learningModeFromJson, toJson: _learningModeToJson)
+  final LearningMode? learningMode;
+
+  /// The name type a deck imported from this one starts with, like
+  /// [learningMode].
+  @JsonKey(fromJson: _nameTypeFromJson, toJson: _nameTypeToJson)
+  final NameType? nameType;
+
+  /// The review mode a deck imported from this one starts with, like
+  /// [learningMode]. Not checked against the deck's names: a card short of
+  /// answer options falls back to flipping during review on its own.
+  @JsonKey(fromJson: _reviewModeFromJson, toJson: _reviewModeToJson)
+  final ReviewMode? reviewMode;
+
   CreateDeck({
     super.id,
     required super.name,
@@ -44,6 +64,9 @@ class CreateDeck extends BaseDeck {
     this.speciesIds,
     this.subdecks,
     this.supersedes,
+    this.learningMode,
+    this.nameType,
+    this.reviewMode,
     super.imageUrl,
     super.sourceId,
     super.updatedAt,
@@ -61,6 +84,9 @@ class CreateDeck extends BaseDeck {
     speciesIds: speciesIds,
     subdecks: subdecks,
     supersedes: supersedes,
+    learningMode: learningMode,
+    nameType: nameType,
+    reviewMode: reviewMode,
     imageUrl: imageUrl,
     sourceId: sourceId,
     updatedAt: updatedAt,
@@ -81,6 +107,50 @@ class CreateDeck extends BaseDeck {
   static CreateDeck fromJsonString(String jsonText) {
     final map = jsonDecode(jsonText) as Map<String, dynamic>;
     return CreateDeck.fromJson(map);
+  }
+
+  static LearningMode? _learningModeFromJson(Object? json) => _fromStorageValue(
+    json,
+    'learningMode',
+    LearningMode.values,
+    (mode) => mode.storageValue,
+  );
+
+  static NameType? _nameTypeFromJson(Object? json) => _fromStorageValue(
+    json,
+    'nameType',
+    NameType.values,
+    (type) => type.storageValue,
+  );
+
+  static ReviewMode? _reviewModeFromJson(Object? json) => _fromStorageValue(
+    json,
+    'reviewMode',
+    ReviewMode.values,
+    (mode) => mode.storageValue,
+  );
+
+  static String? _learningModeToJson(LearningMode? mode) => mode?.storageValue;
+
+  static String? _nameTypeToJson(NameType? type) => type?.storageValue;
+
+  static String? _reviewModeToJson(ReviewMode? mode) => mode?.storageValue;
+
+  /// The one of [values] whose storage value [json] is, or `null`. A value
+  /// only a newer app knows, or one of the wrong type, reads as a deck that
+  /// sets none, rather than as no deck at all.
+  static T? _fromStorageValue<T>(
+    Object? json,
+    String key,
+    List<T> values,
+    String Function(T value) storageValueOf,
+  ) {
+    if (json == null) return null;
+    for (final value in values) {
+      if (storageValueOf(value) == json) return value;
+    }
+    _log.warn('Ignoring the unknown $key "$json"');
+    return null;
   }
 
   CreateDeck _withConsistentSubdecks() {
@@ -126,6 +196,9 @@ class CreateDeck extends BaseDeck {
       speciesIds: speciesIds,
       subdecks: consistent,
       supersedes: supersedes,
+      learningMode: learningMode,
+      nameType: nameType,
+      reviewMode: reviewMode,
       imageUrl: imageUrl,
       sourceId: sourceId,
       updatedAt: updatedAt,

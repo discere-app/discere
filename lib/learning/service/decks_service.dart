@@ -80,6 +80,8 @@ class DecksService extends ChangeNotifier {
 
   /// Creates [deck] with its species, divided into [subdecks] — the deck's
   /// own subdecks with their names resolved, as the import works them out.
+  /// It starts with the learning mode, name type and review mode [deck]
+  /// carries.
   Future<String> createDeck(
     CreateDeck deck, {
     SubdeckStructure subdecks = SubdeckStructure.none,
@@ -95,7 +97,12 @@ class DecksService extends ChangeNotifier {
     if (subdecks.subdecks.isNotEmpty) {
       await _subdeckRepository.writeStructure(id, subdecks);
     }
-    _lifecycleObserver.onDeckCreated(id);
+    _lifecycleObserver.onDeckCreated(
+      id,
+      learningMode: deck.learningMode,
+      nameType: deck.nameType,
+      reviewMode: deck.reviewMode,
+    );
     _notifyListenersIfEnabled();
     return id;
   }
@@ -210,6 +217,8 @@ class DecksService extends ChangeNotifier {
     return await _toViewModels(decks);
   }
 
+  /// [deckId] in the form it is shared in, with its current learning mode,
+  /// name type and review mode for the deck imported from it to start with.
   Future<CreateDeck> getCreateDeck(String deckId) async {
     final List<BaseDeck> decks = await _getRawDecksByIds({deckId});
     if (decks.isEmpty) {
@@ -222,6 +231,7 @@ class DecksService extends ChangeNotifier {
     final subdecks = await _subdeckRepository.getSubdecks(deckId);
     final subdeckIdBySpeciesId = await _subdeckRepository
         .getSubdeckIdBySpeciesId(deckId);
+    final config = await _deckConfigRepository.getOrDefault(deckId);
 
     return CreateDeck(
       id: deck.id,
@@ -246,6 +256,9 @@ class DecksService extends ChangeNotifier {
                   },
                 ),
             ],
+      learningMode: config.learningMode,
+      nameType: config.nameType,
+      reviewMode: config.reviewMode,
       sourceId: deck.sourceId,
       updatedAt: deck.updatedAt,
       coverImagePath: deck.coverImagePath,

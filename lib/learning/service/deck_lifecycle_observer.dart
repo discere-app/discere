@@ -1,3 +1,7 @@
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
+
 /// Notified when a deck comes into existence or goes away, so state owned
 /// elsewhere can follow along.
 ///
@@ -13,8 +17,15 @@
 /// nothing in its type said so. [NoopDeckLifecycleObserver] makes "nothing
 /// should follow" a choice a caller states out loud.
 abstract interface class DeckLifecycleObserver {
-  /// A deck was created, manually or by import.
-  void onDeckCreated(String deckId);
+  /// A deck was created, manually or by import, to start with
+  /// [learningMode], [nameType] and [reviewMode] — one that is `null` starts
+  /// at the app's default.
+  void onDeckCreated(
+    String deckId, {
+    LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
+  });
 
   /// A deck was deleted. Its rows are already gone by the time this runs.
   void onDeckDeleted(String deckId);
@@ -26,7 +37,12 @@ class NoopDeckLifecycleObserver implements DeckLifecycleObserver {
   const NoopDeckLifecycleObserver();
 
   @override
-  void onDeckCreated(String deckId) {}
+  void onDeckCreated(
+    String deckId, {
+    LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
+  }) {}
 
   @override
   void onDeckDeleted(String deckId) {}

@@ -8,6 +8,12 @@ import 'package:discere/learning/model/review_mode.dart';
 /// Created automatically with defaults when a deck is first accessed. Stored
 /// in the `deck_config` table.
 class DeckConfig {
+  /// What a deck asks for and how when nothing chose otherwise — named so a
+  /// form that shows them before any config exists starts from the same.
+  static const defaultLearningMode = LearningMode.species;
+  static const defaultNameType = NameType.commonName;
+  static const defaultReviewMode = ReviewMode.flip;
+
   final String deckId;
 
   /// Target recall probability at review time (0.70–0.97).
@@ -39,9 +45,9 @@ class DeckConfig {
     this.maximumIntervalDays = 36500,
     this.learningSteps = const [Duration(minutes: 1), Duration(minutes: 10)],
     this.relearningSteps = const [Duration(minutes: 10)],
-    this.learningMode = LearningMode.species,
-    this.nameType = NameType.commonName,
-    this.reviewMode = ReviewMode.flip,
+    this.learningMode = defaultLearningMode,
+    this.nameType = defaultNameType,
+    this.reviewMode = defaultReviewMode,
   });
 
   factory DeckConfig.fromMap(Map<String, dynamic> map) {

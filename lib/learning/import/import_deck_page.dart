@@ -114,6 +114,9 @@ class ImportDeckPage extends StatelessWidget {
           initialLanguage: prefill.language,
           initialImageUrl: prefill.imageUrl,
           initialSubdecks: prefill.subdecks,
+          initialLearningMode: prefill.learningMode,
+          initialNameType: prefill.nameType,
+          initialReviewMode: prefill.reviewMode,
         ),
       ),
     );

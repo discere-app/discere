@@ -3,6 +3,8 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -302,7 +304,12 @@ class _RecordingLifecycleObserver implements DeckLifecycleObserver {
   _RecordingLifecycleObserver({required this.onDeleted});
 
   @override
-  void onDeckCreated(String deckId) {}
+  void onDeckCreated(
+    String deckId, {
+    LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
+  }) {}
 
   @override
   void onDeckDeleted(String deckId) => onDeleted(deckId);

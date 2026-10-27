@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:discere/app/wiring/deck_lifecycle_wiring.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
@@ -9,10 +10,11 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../mocks.mocks.dart';
@@ -33,10 +35,15 @@ const fixtureSpeciesIds = {
 /// and an in-memory user database, wired the way the app wires them, so a
 /// test sees what the user would — names resolved, cascades fired.
 ///
-/// Requires `TestWidgetsFlutterBinding.ensureInitialized()`.
+/// Requires `TestWidgetsFlutterBinding.ensureInitialized()`. Starts from
+/// empty preferences, as it starts from an empty user database.
 class LearningTestStack {
-  LearningTestStack._(this._tempDir, this.referenceDb, this.userDb)
-    : stats = FlashcardStatRepository(database: userDb),
+  LearningTestStack._(
+    this._tempDir,
+    this.referenceDb,
+    this.userDb,
+    this.preferences,
+  ) : stats = FlashcardStatRepository(database: userDb),
       deckRepository = DeckRepository(database: userDb),
       deckConfigs = DeckConfigRepository(database: userDb),
       subdecks = SubdeckRepository(database: userDb),
@@ -53,6 +60,7 @@ class LearningTestStack {
   final DeckConfigRepository deckConfigs;
   final SubdeckRepository subdecks;
   final SpeciesRepository speciesRepository;
+  final UserPreferencesService preferences;
   final UserDataWrites writes = UserDataWrites();
 
   late final AnswerableCardsService answerableCards = AnswerableCardsService(
@@ -69,7 +77,11 @@ class LearningTestStack {
     MockImageService(),
     subdeckRepository: subdecks,
     deckConfigRepository: deckConfigs,
-    lifecycleObserver: const NoopDeckLifecycleObserver(),
+    lifecycleObserver: DeckLifecycleWiring(
+      deckConfigRepository: deckConfigs,
+      userPreferences: preferences,
+      userDataWrites: writes,
+    ),
     answerableCards: answerableCards,
     userDataWrites: writes,
   );
@@ -87,10 +99,20 @@ class LearningTestStack {
     await File('test/fixtures/discere_reference_test.db').copy(path);
     final referenceDb = await databaseFactoryFfi.openDatabase(path);
     final userDb = await openInMemoryUserDatabase();
-    return LearningTestStack._(tempDir, referenceDb, userDb);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = UserPreferencesService(
+      await SharedPreferences.getInstance(),
+    );
+    return LearningTestStack._(tempDir, referenceDb, userDb, preferences);
   }
 
+  /// Completes once the writes a deck creation leaves running — its
+  /// `deck_config` row — are done.
+  Future<void> settled() => writes.drained();
+
   Future<void> close() async {
+    // Closed under a write still running, the database would fail it.
+    await settled();
     await userDb.close();
     await referenceDb.close();
     await _tempDir.delete(recursive: true);
