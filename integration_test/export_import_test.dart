@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
+import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -471,6 +474,100 @@ void main() {
         final reimportedDeckFinder = find.text(originalDeckName);
         await waitForFinder(tester, reimportedDeckFinder);
         expect(reimportedDeckFinder, findsOneWidget);
+      },
+      timeout: integrationTestTimeout,
+    );
+
+    testWidgets(
+      'A shared deck brings its learning mode to the copy imported from it',
+      (tester) async {
+        await startApp(
+          tester,
+          notificationService: createMockNotificationService(),
+        );
+        await createTestDeck(tester, name: 'Genus Deck');
+        await safePumpAndSettle(tester);
+
+        final context = tester.element(find.byType(MaterialApp));
+        final decksService = Provider.of<DecksService>(context, listen: false);
+        final flashcardService = Provider.of<FlashcardService>(
+          context,
+          listen: false,
+        );
+        final deckExportService = Provider.of<DeckExportService>(
+          context,
+          listen: false,
+        );
+        final original = (await decksService.getAllDecks()).singleWhere(
+          (deck) => deck.stored.name == 'Genus Deck',
+        );
+        final originalId = original.stored.id!;
+        await flashcardService.saveDeckConfig(
+          (await flashcardService.getDeckConfig(
+            originalId,
+          )).copyWith(learningMode: LearningMode.genus),
+        );
+
+        // The same JSON the share page's "JSON text" option hands to the
+        // share sheet.
+        final sharedJson = await deckExportService.exportDeckToJson(
+          originalId,
+        );
+        await decksService.deleteDeck(originalId);
+        await waitForAbsence(tester, find.text('Genus Deck'));
+
+        await tester.tap(find.byKey(const ValueKey('main_fab')));
+        await safePumpAndSettle(tester);
+        await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
+        // Use pump() because the Online tab shows a loading spinner
+        await tester.pump(const Duration(milliseconds: 500));
+        await safePumpAndSettle(tester);
+        await tester.tap(find.byKey(const ValueKey('import_tab_text')));
+        await safePumpAndSettle(tester);
+        await tester.enterText(find.byType(TextField), sharedJson);
+        await tester.tap(find.byKey(const ValueKey('import_text_button')));
+
+        // The create page opens with the shared deck's learning mode chosen.
+        // It sits at the end of a lazily built list, so it exists only once
+        // scrolled to.
+        await waitForFinder(
+          tester,
+          find.byKey(const Key('create_deck_name_field')),
+        );
+        final learningModeButton = find.byKey(
+          const Key('learning_mode_segmented_button'),
+        );
+        await tester.scrollUntilVisible(
+          learningModeButton,
+          200,
+          scrollable: find
+              .descendant(
+                of: find.byType(CreateDeckPage),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        expect(
+          tester
+              .widget<SegmentedButton<LearningMode>>(learningModeButton)
+              .selected,
+          {LearningMode.genus},
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey('create_deck_submit_button')),
+        );
+        await dismissDownloadDialog(tester);
+        await safePumpAndSettle(tester);
+        await waitForFinder(tester, find.text('Genus Deck'));
+
+        final copy = (await decksService.getAllDecks()).singleWhere(
+          (deck) => deck.stored.name == 'Genus Deck',
+        );
+        expect(
+          (await flashcardService.getDeckConfig(copy.stored.id!)).learningMode,
+          LearningMode.genus,
+        );
       },
       timeout: integrationTestTimeout,
     );

@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
+import 'package:discere/learning/decks/deck_mode_presenter.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/delete_deck_button.dart';
 import 'package:discere/learning/decks/edit/delete_deck_dialog.dart';
@@ -59,6 +60,7 @@ enum _DeckLoadState { loading, loaded, failed }
 
 class _EditDeckPageState extends State<EditDeckPage> {
   static const EditDeckPresenter _presenter = EditDeckPresenter();
+  static const _modePresenter = DeckModePresenter();
   static final _log = Logger.forType(_EditDeckPageState);
   late final DecksService _decksService;
   late final ImageService _imageService;
@@ -99,8 +101,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// wholesale on save.
   late EditDeckDraft _saved;
 
-  int _distinctNameCount = 0;
-
   /// Applies one change to the draft the user is editing.
   ///
   /// Every such change needs the same three steps: mutate, re-validate the
@@ -127,20 +127,19 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _subdeckIdBySpeciesId,
   );
 
-  /// Recomputes [_distinctNameCount] and reverts to flip mode if multiple
-  /// choice is selected but the deck no longer has enough distinct names —
-  /// after a draft change, or right after loading a saved combination that
-  /// is already invalid. Call within the same setState as the change.
+  /// Reverts to flip mode if multiple choice is selected but the deck no
+  /// longer has enough distinct names — after a draft change, or right after
+  /// loading a saved combination that is already invalid. Call within the
+  /// same setState as the change.
   void _enforceReviewModeValidity() {
-    _distinctNameCount = _presenter.distinctNameCount(
-      _species,
-      _selectedLanguage,
-      _learningMode,
-      _nameType,
-    );
-    _reviewMode = _presenter.effectiveReviewMode(
+    _reviewMode = _modePresenter.effectiveReviewMode(
       reviewMode: _reviewMode,
-      distinctNameCount: _distinctNameCount,
+      distinctNameCount: _modePresenter.distinctNameCount(
+        _species,
+        _selectedLanguage,
+        _learningMode,
+        _nameType,
+      ),
     );
   }
 
@@ -603,7 +602,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 learningMode: _learningMode,
                 nameType: _nameType,
                 reviewMode: _reviewMode,
-                distinctNameCount: _distinctNameCount,
+                species: _species,
                 onLanguageChanged: (newValue) =>
                     _applyDraftChange(() => _selectedLanguage = newValue),
                 onRetentionChanged: (v) =>

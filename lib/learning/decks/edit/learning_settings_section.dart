@@ -1,6 +1,6 @@
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
-import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
-import 'package:discere/learning/decks/learning_mode_style.dart';
+import 'package:discere/learning/decks/deck_mode_fields.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
@@ -13,22 +13,19 @@ import 'package:flutter/material.dart';
 /// Edit-deck section for the deck's learning configuration: language,
 /// learning mode, name type, review mode, and desired retention. Language
 /// lives here (rather than with the basic-info fields) because it's
-/// functionally coupled to the rest — it affects [distinctNameCount] (via
-/// distinct common names per language) and therefore multiple-choice
-/// availability, the same kind of dependency this section already manages
-/// between learning mode, name type, and review mode. Multiple choice is
-/// only selectable when enough distinct answer names exist
-/// ([distinctNameCount] vs. [EditDeckPresenter.minSpeciesForMultipleChoice]).
+/// functionally coupled to the rest — it decides the distinct common names
+/// per language and therefore multiple-choice availability, the same kind
+/// of dependency [DeckModeFields] manages between learning mode, name type,
+/// and review mode.
 class LearningSettingsSection extends StatelessWidget {
-  static const _style = LearningModeStyle();
-  static const _presenter = EditDeckPresenter();
-
   final Language language;
   final double desiredRetention;
   final LearningMode learningMode;
   final NameType nameType;
   final ReviewMode reviewMode;
-  final int distinctNameCount;
+
+  /// The deck's species, which decide whether multiple choice is offered.
+  final List<Species> species;
   final ValueChanged<Language> onLanguageChanged;
   final ValueChanged<double> onRetentionChanged;
   final ValueChanged<LearningMode> onLearningModeChanged;
@@ -46,7 +43,7 @@ class LearningSettingsSection extends StatelessWidget {
     required this.learningMode,
     required this.nameType,
     required this.reviewMode,
-    required this.distinctNameCount,
+    required this.species,
     required this.onLanguageChanged,
     required this.onRetentionChanged,
     required this.onLearningModeChanged,
@@ -61,9 +58,6 @@ class LearningSettingsSection extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final pct = (desiredRetention * 100).round();
-    final canUseMultipleChoice = _presenter.canUseMultipleChoice(
-      distinctNameCount,
-    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,109 +86,16 @@ class LearningSettingsSection extends StatelessWidget {
                   onChanged: onLanguageChanged,
                 ),
                 AppSpacing.heightS16,
-                Text(
-                  context.loc.settingsLearningModeLabel,
-                  style: theme.textTheme.titleMedium,
+                DeckModeFields(
+                  species: species,
+                  language: language,
+                  learningMode: learningMode,
+                  nameType: nameType,
+                  reviewMode: reviewMode,
+                  onLearningModeChanged: onLearningModeChanged,
+                  onNameTypeChanged: onNameTypeChanged,
+                  onReviewModeChanged: onReviewModeChanged,
                 ),
-                AppSpacing.heightS8,
-                SegmentedButton<LearningMode>(
-                  key: const Key('learning_mode_segmented_button'),
-                  segments: [
-                    for (final mode in LearningMode.values)
-                      ButtonSegment<LearningMode>(
-                        value: mode,
-                        icon: Icon(_style.iconFor(mode)),
-                        label: Text(_style.labelFor(mode, context.loc)),
-                      ),
-                  ],
-                  selected: {learningMode},
-                  onSelectionChanged: (selection) {
-                    onLearningModeChanged(selection.single);
-                  },
-                ),
-                AppSpacing.heightS8,
-                Text(
-                  _style.descriptionFor(learningMode, context.loc),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                AppSpacing.heightS16,
-                Text(
-                  context.loc.settingsNameTypeLabel,
-                  style: theme.textTheme.titleMedium,
-                ),
-                AppSpacing.heightS8,
-                SegmentedButton<NameType>(
-                  key: const Key('name_type_segmented_button'),
-                  segments: [
-                    for (final type in NameType.values)
-                      ButtonSegment<NameType>(
-                        value: type,
-                        icon: Icon(_style.nameTypeIconFor(type)),
-                        label: Text(_style.nameTypeLabelFor(type, context.loc)),
-                      ),
-                  ],
-                  selected: {nameType},
-                  onSelectionChanged: (selection) {
-                    onNameTypeChanged(selection.single);
-                  },
-                ),
-                AppSpacing.heightS8,
-                Text(
-                  _style.nameTypeDescriptionFor(nameType, context.loc),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                AppSpacing.heightS16,
-                Text(
-                  context.loc.settingsReviewModeLabel,
-                  style: theme.textTheme.titleMedium,
-                ),
-                AppSpacing.heightS8,
-                SegmentedButton<ReviewMode>(
-                  key: const Key('review_mode_segmented_button'),
-                  segments: [
-                    ButtonSegment<ReviewMode>(
-                      value: ReviewMode.flip,
-                      icon: Icon(_style.reviewModeIconFor(ReviewMode.flip)),
-                      label: Text(context.loc.settingsReviewModeFlip),
-                    ),
-                    ButtonSegment<ReviewMode>(
-                      value: ReviewMode.multipleChoice,
-                      icon: Icon(
-                        _style.reviewModeIconFor(ReviewMode.multipleChoice),
-                      ),
-                      label: Text(context.loc.settingsReviewModeMultipleChoice),
-                      enabled: canUseMultipleChoice,
-                    ),
-                  ],
-                  selected: {reviewMode},
-                  onSelectionChanged: (selection) {
-                    onReviewModeChanged(selection.single);
-                  },
-                ),
-                AppSpacing.heightS8,
-                Text(
-                  reviewMode == ReviewMode.multipleChoice
-                      ? context.loc.settingsReviewModeDescriptionMultipleChoice
-                      : context.loc.settingsReviewModeDescriptionFlip,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                if (!canUseMultipleChoice) ...[
-                  AppSpacing.heightS8,
-                  Text(
-                    context.loc.settingsReviewModeInsufficientSpecies(
-                      distinctNameCount,
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.error,
-                    ),
-                  ),
-                ],
                 AppSpacing.heightS16,
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

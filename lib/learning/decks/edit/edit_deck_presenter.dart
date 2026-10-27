@@ -1,5 +1,3 @@
-import 'package:discere/catalog/model/species.dart';
-import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
@@ -63,52 +61,13 @@ class EditDeckDraft {
   }
 }
 
-/// Pure derived state for EditDeckPage: unsaved-changes detection,
-/// multiple-choice review-mode validity, and which subdecks may be switched
-/// off. Kept free of BuildContext/widget state so it can be unit tested
-/// directly, mirroring the presenter pattern used elsewhere in catalog/.
+/// Pure derived state for EditDeckPage: unsaved-changes detection and which
+/// subdecks may be switched off. Kept free of BuildContext/widget state so
+/// it can be unit tested directly, mirroring the presenter pattern used
+/// elsewhere in catalog/. Multiple-choice validity is the create page's too,
+/// and sits in `DeckModePresenter`.
 class EditDeckPresenter {
-  /// As many distinct names as a distractor pool needs: the pool builder
-  /// falls back to the whole deck, so a deck that holds them gives every
-  /// card its answer options (see `MultipleChoiceDistractorPoolService`).
-  static const int minSpeciesForMultipleChoice =
-      AnswerOptionsPresenter.minimumPoolSize;
-
-  final AnswerOptionsPresenter _answerOptionsPresenter;
-
-  const EditDeckPresenter({
-    AnswerOptionsPresenter answerOptionsPresenter =
-        const AnswerOptionsPresenter(),
-  }) : _answerOptionsPresenter = answerOptionsPresenter;
-
-  /// Number of distinct primary names available as multiple-choice
-  /// distractors for [species] under [language]/[learningMode]/[nameType].
-  int distinctNameCount(
-    List<Species> species,
-    Language language,
-    LearningMode learningMode,
-    NameType nameType,
-  ) => _answerOptionsPresenter
-      .distinctPrimaryNames(species, language, learningMode, nameType)
-      .length;
-
-  bool canUseMultipleChoice(int distinctNameCount) =>
-      distinctNameCount >= minSpeciesForMultipleChoice;
-
-  /// Reverts [reviewMode] to flip if multiple choice is selected but
-  /// [distinctNameCount] no longer supports it (e.g. species removed,
-  /// learning mode, name type, or language changed). Called after any
-  /// mutation to species/language/learning mode/name type.
-  ReviewMode effectiveReviewMode({
-    required ReviewMode reviewMode,
-    required int distinctNameCount,
-  }) {
-    if (reviewMode == ReviewMode.multipleChoice &&
-        !canUseMultipleChoice(distinctNameCount)) {
-      return ReviewMode.flip;
-    }
-    return reviewMode;
-  }
+  const EditDeckPresenter();
 
   /// Whether [current] differs from [saved] in any field the Save button
   /// cares about. Name/description are trimmed before comparing, matching
@@ -159,7 +118,7 @@ class EditDeckPresenter {
   /// [activeSubdeckIds], or every one of [subdecks] when none is on and no
   /// species stands outside them any more — a draft that removes the last
   /// such species must not leave the deck without a card. Called after any
-  /// mutation to species or subdecks, like [effectiveReviewMode].
+  /// mutation to species or subdecks, like the review-mode check.
   Set<String> effectiveActiveSubdecks({
     required Set<String> activeSubdeckIds,
     required List<Subdeck> subdecks,

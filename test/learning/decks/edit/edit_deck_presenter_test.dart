@@ -1,5 +1,3 @@
-import 'package:discere/catalog/model/classification.dart';
-import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
@@ -7,29 +5,6 @@ import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/model/subdeck.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-Species _species(String id, String genus, String epithet) {
-  return Species(
-    id,
-    id,
-    'fishbase',
-    epithet,
-    const {},
-    Classification(
-      genus,
-      const {},
-      null,
-      'Family',
-      const {},
-      'Order',
-      const {},
-      'Class',
-      const {},
-      null,
-    ),
-    const [],
-  );
-}
 
 EditDeckDraft _draft({
   String name = 'Deck',
@@ -59,73 +34,6 @@ EditDeckDraft _draft({
 
 void main() {
   const presenter = EditDeckPresenter();
-
-  group('EditDeckPresenter.distinctNameCount / canUseMultipleChoice', () {
-    test('counts distinct binomial names across species', () {
-      final species = [
-        _species('sp1', 'Genus1', 'one'),
-        _species('sp2', 'Genus2', 'two'),
-        _species('sp3', 'Genus3', 'three'),
-      ];
-
-      final count = presenter.distinctNameCount(
-        species,
-        Language.en,
-        LearningMode.species,
-        NameType.commonName,
-      );
-
-      expect(count, 3);
-      expect(presenter.canUseMultipleChoice(count), isFalse);
-    });
-
-    test('canUseMultipleChoice is true once the count reaches the minimum', () {
-      expect(
-        presenter.canUseMultipleChoice(
-          EditDeckPresenter.minSpeciesForMultipleChoice,
-        ),
-        isTrue,
-      );
-      expect(
-        presenter.canUseMultipleChoice(
-          EditDeckPresenter.minSpeciesForMultipleChoice - 1,
-        ),
-        isFalse,
-      );
-    });
-  });
-
-  group('EditDeckPresenter.effectiveReviewMode', () {
-    test(
-      'reverts multipleChoice to flip when there are not enough distinct names',
-      () {
-        final result = presenter.effectiveReviewMode(
-          reviewMode: ReviewMode.multipleChoice,
-          distinctNameCount: EditDeckPresenter.minSpeciesForMultipleChoice - 1,
-        );
-
-        expect(result, ReviewMode.flip);
-      },
-    );
-
-    test('keeps multipleChoice when there are enough distinct names', () {
-      final result = presenter.effectiveReviewMode(
-        reviewMode: ReviewMode.multipleChoice,
-        distinctNameCount: EditDeckPresenter.minSpeciesForMultipleChoice,
-      );
-
-      expect(result, ReviewMode.multipleChoice);
-    });
-
-    test('leaves flip mode untouched regardless of distinct name count', () {
-      final result = presenter.effectiveReviewMode(
-        reviewMode: ReviewMode.flip,
-        distinctNameCount: 0,
-      );
-
-      expect(result, ReviewMode.flip);
-    });
-  });
 
   group('EditDeckPresenter.isDirty', () {
     test('returns false when current equals saved', () {
