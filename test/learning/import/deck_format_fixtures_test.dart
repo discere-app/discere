@@ -1,0 +1,142 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:discere/learning/import/import_text_recognizer.dart';
+import 'package:discere/learning/import/remote_deck_service.dart';
+import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
+
+import '../../support/learning_test_stack.dart';
+
+/// Real decks of every format version the app has read, each as an author
+/// wrote it: the app reads every older format for good, so each one has to
+/// come through a shared import, the catalog and the import into the
+/// database as the deck its file describes.
+///
+/// A new format version adds a file here. No file is ever deleted or
+/// rewritten: a file that stops being read is a deck some user holds that
+/// the app has stopped reading.
+const _fixtureDir = 'test/fixtures/decks';
+
+/// Guards against a directory listing that silently finds nothing: one
+/// minimal and one learning-settings deck of format 1, one subdeck deck of
+/// format 2.
+const _minimumFixtureCount = 3;
+
+final _fixtures =
+    Directory(_fixtureDir)
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.json'))
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+
+/// Every species of the deck [json] describes: its `speciesNames` and the
+/// names of its subdecks.
+Set<String> _speciesNamesOf(Map<String, dynamic> json) => {
+  ...(json['speciesNames'] as List).cast<String>(),
+  for (final subdeck in _subdecksOf(json))
+    ...(subdeck['speciesNames'] as List).cast<String>(),
+};
+
+List<Map<String, dynamic>> _subdecksOf(Map<String, dynamic> json) =>
+    ((json['subdecks'] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+/// Each subdeck as `id name: species`, comparable across reading and the
+/// database.
+List<String> _describeSubdecks(CreateDeck deck) => [
+  for (final subdeck in deck.subdecks ?? const [])
+    '${subdeck.id} ${subdeck.name}: ${subdeck.speciesNames.toSet()}',
+];
+
+List<String> _describeJsonSubdecks(Map<String, dynamic> json) => [
+  for (final subdeck in _subdecksOf(json))
+    '${subdeck['id']} ${subdeck['name']}: '
+        '${(subdeck['speciesNames'] as List).cast<String>().toSet()}',
+];
+
+/// That [deck] is what the fixture [json] describes.
+void _expectDeckOf(CreateDeck deck, Map<String, dynamic> json) {
+  expect(deck.name, json['name']);
+  expect(deck.description, json['description']);
+  expect(deck.speciesNames, _speciesNamesOf(json));
+  expect(_describeSubdecks(deck), _describeJsonSubdecks(json));
+  expect(deck.supersedes, json['supersedes']);
+  expect(deck.learningMode?.storageValue, json['learningMode']);
+  expect(deck.nameType?.storageValue, json['nameType']);
+  expect(deck.reviewMode?.storageValue, json['reviewMode']);
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const worker = DeckSerializationWorker();
+  const recognizer = ImportTextRecognizer(worker);
+
+  test('the fixture directory holds every format version\'s decks', () {
+    expect(_fixtures.length, greaterThanOrEqualTo(_minimumFixtureCount));
+  });
+
+  for (final file in _fixtures) {
+    final name = p.basename(file.path);
+    final text = file.readAsStringSync();
+    final json = jsonDecode(text) as Map<String, dynamic>;
+
+    group(name, () {
+      test('is recognized as deck JSON', () async {
+        final result = await recognizer.recognize(text);
+
+        expect(result, isA<RecognizedDeckJson>());
+        _expectDeckOf((result as RecognizedDeck).deck, json);
+      });
+
+      test('is recognized as a QR payload', () async {
+        final payload = await worker.encodeGzipBase64(json);
+
+        final result = await recognizer.recognize(payload);
+
+        expect(result, isA<RecognizedQrPayload>());
+        _expectDeckOf((result as RecognizedDeck).deck, json);
+      });
+
+      test('is imported with its species and subdecks', () async {
+        final stack = await LearningTestStack.open();
+        addTearDown(stack.close);
+        final recognized = await recognizer.recognize(text);
+
+        final result = await stack.importService.importDecks([
+          (recognized as RecognizedDeck).deck,
+        ]);
+
+        expect(result.unresolvedNames, isEmpty);
+        final imported = await stack.decksService.getCreateDeck(
+          result.importedDeckIds.single,
+        );
+        expect(imported.speciesNames, _speciesNamesOf(json));
+        expect(_describeSubdecks(imported), _describeJsonSubdecks(json));
+      });
+    });
+  }
+
+  test('a catalog index of all fixtures lists every deck', () async {
+    final entries = [
+      for (final file in _fixtures) jsonDecode(file.readAsStringSync()),
+    ];
+    final service = RemoteDeckService(
+      client: MockClient(
+        (request) async =>
+            http.Response.bytes(utf8.encode(jsonEncode(entries)), 200),
+      ),
+    );
+
+    final decks = await service.fetchRemoteDecks();
+
+    expect(decks, hasLength(entries.length));
+    for (final (index, deck) in decks.indexed) {
+      _expectDeckOf(deck, entries[index] as Map<String, dynamic>);
+    }
+  });
+}

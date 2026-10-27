@@ -1,0 +1,25 @@
+{
+  "formatVersion": 2,
+  "name": "Haie nach Level",
+  "description": "Haie, vom Bekannten zum Seltenen",
+  "sourceId": "haie",
+  "speciesNames": [
+    "Carcharodon carcharias",
+    "Rhincodon typus",
+    "Sphyrna lewini",
+    "Galeocerdo cuvier"
+  ],
+  "subdecks": [
+    {
+      "id": "level-1",
+      "name": "Level 1",
+      "speciesNames": ["Carcharodon carcharias", "Rhincodon typus"]
+    },
+    {
+      "id": "level-2",
+      "name": "Level 2",
+      "speciesNames": ["Sphyrna lewini"]
+    }
+  ],
+  "supersedes": ["haie-level-1", "haie-level-2"]
+}

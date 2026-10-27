@@ -1,0 +1,9 @@
+{
+  "name": "Haie",
+  "description": "Große Haie der offenen See",
+  "speciesNames": [
+    "Carcharodon carcharias",
+    "Prionace glauca",
+    "Galeocerdo cuvier"
+  ]
+}
