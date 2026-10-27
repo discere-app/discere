@@ -32,7 +32,7 @@ class DeckLearningSettingsChips extends StatelessWidget {
     // the tooltip (also read out by screen readers) names the setting.
     Widget chip(IconData icon, String setting, String value) {
       return Tooltip(
-        message: '$setting: $value',
+        message: loc.importOnlineLearningSettingTooltip(setting, value),
         child: Chip(
           avatar: Icon(icon, size: _iconSize),
           label: Text(value),
