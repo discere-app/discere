@@ -157,6 +157,32 @@ void main() {
       expect(json.containsKey('subdecks'), isFalse);
     });
 
+    test('a deck with subdecks declares format version 2', () {
+      final json = CreateDeck.fromJson(
+        _deckJson(
+          subdecks: [
+            {
+              'id': 'l1',
+              'name': 'Level 1',
+              'speciesNames': ['Aa aa'],
+            },
+          ],
+        ),
+      ).toJson();
+
+      expect(json['formatVersion'], 2);
+    });
+
+    test('a deck without subdecks declares no format version, its learning '
+        'settings notwithstanding', () {
+      final json = CreateDeck.fromJson(
+        _deckJson(supersedes: ['red-sea-1'], settings: _genusSettings),
+      ).toJson();
+
+      expect(json.containsKey('formatVersion'), isFalse);
+      expect(json['learningMode'], 'genus');
+    });
+
     test('leaves supersedes out: it refers to the catalog', () {
       final json = CreateDeck.fromJson(
         _deckJson(supersedes: ['red-sea-1']),

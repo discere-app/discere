@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_subdeck.dart';
+import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
@@ -118,8 +119,9 @@ class CreateDeck extends BaseDeck {
   factory CreateDeck.fromJson(Map<String, dynamic> json) =>
       _$CreateDeckFromJson(json)._withConsistentSubdecks();
 
+  /// The deck's JSON, declaring the lowest format version that holds it.
   @override
-  Map<String, dynamic> toJson() => _$CreateDeckToJson(this);
+  Map<String, dynamic> toJson() => DeckFormat.declare(_$CreateDeckToJson(this));
 
   /// Parse from a raw JSON string (e.g. pasted text).
   static CreateDeck fromJsonString(String jsonText) {
