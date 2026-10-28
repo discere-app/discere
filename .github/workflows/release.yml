@@ -34,8 +34,46 @@ permissions:
   contents: write
 
 jobs:
+  # The app reads the deck catalog index of its format version live from
+  # discere-data; were it missing or empty, every user of this release would
+  # get a broken online tab. Checked before anything is built.
+  catalog-check:
+    name: Check deck catalog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Code Generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Check deck catalog
+        run: flutter test release_check/
+
   build:
     name: Build Android APK & App Bundle
+    needs: catalog-check
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag
