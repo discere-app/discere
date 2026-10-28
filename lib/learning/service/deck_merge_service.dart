@@ -135,7 +135,6 @@ class DeckMergeService {
       for (final speciesId in handover.intoEntry)
         ?merged.subdeckIdBySpeciesId[speciesId],
     };
-    final active = merged.activeSubdeckIds;
     return DeckMergePlan._(
       entry: entry,
       target: target,
@@ -147,11 +146,11 @@ class DeckMergeService {
         merged.speciesIds,
         merged.subdeckIdBySpeciesId,
       ),
-      suggestedActiveSubdeckIds: active != null
-          ? {...active, ...learned}
-          : learned.isNotEmpty
-          ? learned
-          : {for (final subdeck in merged.subdecks) subdeck.id},
+      suggestedActiveSubdeckIds: _suggestedActiveSubdecks(
+        target,
+        active: merged.activeSubdeckIds,
+        learned: learned,
+      ),
       supersession: supersession,
     );
   }
@@ -232,15 +231,31 @@ class DeckMergeService {
     }
   }
 
-  /// The species of the merged deck and its subdecks: [target]'s as
-  /// stored, with the ones it has on, or — for [entry] not imported yet —
-  /// what importing it would store, with all of them on.
+  /// [DeckMergePlan.suggestedActiveSubdeckIds], from the subdecks the
+  /// merged deck has [active] and the ones the species whose progress moves
+  /// into it are in ([learned]).
+  Set<String> _suggestedActiveSubdecks(
+    BaseDeck? target, {
+    required Set<String> active,
+    required Set<String> learned,
+  }) {
+    // An imported target keeps what it has on and gains what was learned.
+    if (target != null) return {...active, ...learned};
+    // A fresh import keeps only what was learned...
+    if (learned.isNotEmpty) return learned;
+    // ...and, with nothing to say which ones the user wants, all of them.
+    return active;
+  }
+
+  /// The species of the merged deck and its subdecks, with the ones it has
+  /// on: [target]'s as stored or — for [entry] not imported yet — what
+  /// importing it would store, with all of them on.
   Future<
     ({
       Set<String> speciesIds,
       List<SubdeckHeading> subdecks,
       Map<String, String> subdeckIdBySpeciesId,
-      Set<String>? activeSubdeckIds,
+      Set<String> activeSubdeckIds,
     })
   >
   _mergedSubdecks(
@@ -257,7 +272,9 @@ class DeckMergeService {
         speciesIds: resolved.values.toSet(),
         subdecks: structure.subdecks,
         subdeckIdBySpeciesId: structure.subdeckIdBySpeciesId,
-        activeSubdeckIds: null,
+        activeSubdeckIds: {
+          for (final subdeck in structure.subdecks) subdeck.id,
+        },
       );
     }
     final stored = await _subdecks.getSubdecks(target.id!);
