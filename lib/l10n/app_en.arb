@@ -580,8 +580,8 @@
   },
   "editDeckSubdecksTitle": "Subdecks",
   "editDeckSubdecksDescription": "Only species of switched-on subdecks come up for review. Switching one off keeps your progress.",
-  "editDeckSubdeckSpeciesCount": "{count, plural, =1{1 species} other{{count} species}}",
-  "@editDeckSubdeckSpeciesCount": {
+  "subdeckSpeciesCount": "{count, plural, =1{1 species} other{{count} species}}",
+  "@subdeckSpeciesCount": {
     "placeholders": {
       "count": {
         "type": "int"

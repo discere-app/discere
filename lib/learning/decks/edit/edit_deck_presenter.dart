@@ -62,10 +62,11 @@ class EditDeckDraft {
 }
 
 /// Pure derived state for EditDeckPage: unsaved-changes detection and which
-/// subdecks may be switched off. Kept free of BuildContext/widget state so
-/// it can be unit tested directly, mirroring the presenter pattern used
-/// elsewhere in catalog/. Multiple-choice validity is the create page's too,
-/// and sits in `DeckModePresenter`.
+/// subdecks a draft leaves switched on. Kept free of BuildContext/widget
+/// state so it can be unit tested directly, mirroring the presenter pattern
+/// used elsewhere in catalog/. Multiple-choice validity is the create page's
+/// too, and sits in `DeckModePresenter`; which subdecks may be switched off
+/// is the merge dialog's too, and sits in `SubdeckMembership`.
 class EditDeckPresenter {
   const EditDeckPresenter();
 
@@ -84,36 +85,6 @@ class EditDeckPresenter {
         !_setEquals(current.speciesIds, saved.speciesIds) ||
         !_setEquals(current.activeSubdeckIds, saved.activeSubdeckIds);
   }
-
-  /// Whether any of [speciesIds] belongs to no subdeck — such a species is
-  /// a card whichever subdecks are switched off.
-  bool hasSpeciesOutsideSubdecks(
-    Iterable<String> speciesIds,
-    Map<String, String> subdeckIdBySpeciesId,
-  ) => speciesIds.any((id) => !subdeckIdBySpeciesId.containsKey(id));
-
-  /// How many of [speciesIds] each subdeck holds.
-  Map<String, int> subdeckSpeciesCounts(
-    Iterable<String> speciesIds,
-    Map<String, String> subdeckIdBySpeciesId,
-  ) {
-    final counts = <String, int>{};
-    for (final id in speciesIds) {
-      final subdeckId = subdeckIdBySpeciesId[id];
-      if (subdeckId != null) counts[subdeckId] = (counts[subdeckId] ?? 0) + 1;
-    }
-    return counts;
-  }
-
-  /// Whether [subdeckId] may be switched off: not when it is the last one on
-  /// and every species is in a subdeck — the deck would have no card left.
-  bool canSwitchOffSubdeck({
-    required String subdeckId,
-    required Set<String> activeSubdeckIds,
-    required bool hasSpeciesOutsideSubdecks,
-  }) =>
-      hasSpeciesOutsideSubdecks ||
-      activeSubdeckIds.any((id) => id != subdeckId);
 
   /// [activeSubdeckIds], or every one of [subdecks] when none is on and no
   /// species stands outside them any more — a draft that removes the last

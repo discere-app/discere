@@ -94,57 +94,10 @@ void main() {
   });
 
   group('EditDeckPresenter subdecks', () {
-    const bySpecies = {'sp-a': 'l1', 'sp-b': 'l2', 'sp-c': 'l2'};
     const subdecks = [
       Subdeck(deckId: 'd', id: 'l1', name: 'One', sortOrder: 0, isActive: true),
       Subdeck(deckId: 'd', id: 'l2', name: 'Two', sortOrder: 1, isActive: true),
     ];
-
-    test('counts the species of each subdeck among the given ones', () {
-      expect(
-        presenter.subdeckSpeciesCounts({'sp-a', 'sp-c', 'sp-x'}, bySpecies),
-        {'l1': 1, 'l2': 1},
-      );
-    });
-
-    test('a species in no subdeck stands outside them', () {
-      expect(
-        presenter.hasSpeciesOutsideSubdecks({'sp-a', 'sp-x'}, bySpecies),
-        isTrue,
-      );
-      expect(
-        presenter.hasSpeciesOutsideSubdecks({'sp-a', 'sp-b'}, bySpecies),
-        isFalse,
-      );
-    });
-
-    test('the last subdeck on cannot be switched off while every species is '
-        'in a subdeck', () {
-      expect(
-        presenter.canSwitchOffSubdeck(
-          subdeckId: 'l1',
-          activeSubdeckIds: {'l1'},
-          hasSpeciesOutsideSubdecks: false,
-        ),
-        isFalse,
-      );
-      expect(
-        presenter.canSwitchOffSubdeck(
-          subdeckId: 'l1',
-          activeSubdeckIds: {'l1', 'l2'},
-          hasSpeciesOutsideSubdecks: false,
-        ),
-        isTrue,
-      );
-      expect(
-        presenter.canSwitchOffSubdeck(
-          subdeckId: 'l1',
-          activeSubdeckIds: {'l1'},
-          hasSpeciesOutsideSubdecks: true,
-        ),
-        isTrue,
-      );
-    });
 
     test('with none on and no species outside, every subdeck is on again', () {
       expect(

@@ -576,8 +576,8 @@
   },
   "editDeckSubdecksTitle": "Subdecks",
   "editDeckSubdecksDescription": "Nur Arten eingeschalteter Subdecks kommen in deinen Lernsessions vor. Beim Ausschalten bleibt dein Fortschritt erhalten.",
-  "editDeckSubdeckSpeciesCount": "{count, plural, =1{1 Art} other{{count} Arten}}",
-  "@editDeckSubdeckSpeciesCount": {
+  "subdeckSpeciesCount": "{count, plural, =1{1 Art} other{{count} Arten}}",
+  "@subdeckSpeciesCount": {
     "placeholders": {
       "count": {
         "type": "int"
