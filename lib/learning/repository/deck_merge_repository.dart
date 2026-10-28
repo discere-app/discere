@@ -17,7 +17,7 @@ class DeckMergeRepository {
       _injectedDb ?? await DatabaseHelper.userDb;
 
   /// Moves to [toDeckId] the progress [fromDeckId] holds for the species
-  /// both decks hold, in one transaction, and returns those species.
+  /// both decks hold, in one transaction.
   ///
   /// Progress follows the species: its cards and its photo-gap
   /// acknowledgement change deck, and it leaves its subdeck in
@@ -26,12 +26,12 @@ class DeckMergeRepository {
   /// collision ([keepMostRecentlyReviewed]): the one reviewed last. In
   /// [toDeckId] the subdecks the species are in are switched on — the user
   /// was learning them.
-  Future<Set<String>> moveSharedProgress({
+  Future<void> moveSharedProgress({
     required String fromDeckId,
     required String toDeckId,
   }) async {
     final db = await _database;
-    return db.transaction((txn) async {
+    await db.transaction((txn) async {
       final rows = await txn.rawQuery(
         '''
         SELECT rowid AS row_id, deck_id, species_id, learning_mode, name_type,
@@ -45,7 +45,7 @@ class DeckMergeRepository {
       ''',
         [fromDeckId, toDeckId, fromDeckId, toDeckId],
       );
-      if (rows.isEmpty) return const <String>{};
+      if (rows.isEmpty) return;
 
       final cards = <(Object?, Object?, Object?), List<IdRow>>{};
       for (final row in rows) {
@@ -78,7 +78,6 @@ class DeckMergeRepository {
         _moveSpecies(batch, speciesId, fromDeckId, toDeckId);
       }
       await batch.commit(noResult: true);
-      return species;
     });
   }
 

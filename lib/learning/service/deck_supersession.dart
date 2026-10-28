@@ -61,4 +61,33 @@ class DeckSupersession {
       orElse: () => entries.first,
     );
   }
+
+  /// Where the species of the local decks [entry] supersedes go when it is
+  /// merged (`DeckMergeService.merge`): each to the first entry superseding
+  /// its deck that holds it — [entry] by [entrySpecies], any other by its
+  /// local deck's in [speciesByDeckId], one not imported by none. Returns
+  /// the species that go into [entry], and for each superseded deck the ones
+  /// no entry takes.
+  ({Set<String> intoEntry, Map<String, Set<String>> leftByDeckId})
+  speciesHandover(
+    CreateDeck entry, {
+    required Set<String> entrySpecies,
+    required Map<String, Set<String>> speciesByDeckId,
+  }) {
+    final intoEntry = <String>{};
+    final leftByDeckId = <String, Set<String>>{};
+    for (final deck in decksSupersededBy(entry)) {
+      var left = speciesByDeckId[deck.id] ?? const <String>{};
+      for (final e in entriesSuperseding(deck)) {
+        final isEntry = e.sourceId == entry.sourceId;
+        final held = isEntry
+            ? entrySpecies
+            : speciesByDeckId[localDeckOf(e)?.id] ?? const <String>{};
+        if (isEntry) intoEntry.addAll(left.intersection(held));
+        left = left.difference(held);
+      }
+      leftByDeckId[deck.id!] = left;
+    }
+    return (intoEntry: intoEntry, leftByDeckId: leftByDeckId);
+  }
 }

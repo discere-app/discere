@@ -3,6 +3,7 @@ import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/repository/deck_merge_repository.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_merge_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,6 +53,16 @@ void main() {
   late LearningTestStack stack;
   late FavoriteService favorites;
   late DeckMergeService service;
+
+  /// Merges [entry] as planned, with the subdecks the plan suggests.
+  Future<({String targetDeckId, DeckImportResult? importResult})>
+  mergeAsSuggested(CreateDeck entry, List<CreateDeck> catalog) async {
+    final plan = await service.plan(entry, catalog);
+    return service.merge(
+      plan,
+      activeSubdeckIds: plan.suggestedActiveSubdeckIds,
+    );
+  }
 
   Future<String> import(CreateDeck deck) async =>
       (await stack.importService.importDecks([deck])).importedDeckIds.single;
@@ -136,9 +147,7 @@ void main() {
         whereArgs: [level1],
       )).single['sortOrder'];
 
-      final merged = await service.merge(
-        await service.plan(_joined, [_joined]),
-      );
+      final merged = await mergeAsSuggested(_joined, [_joined]);
       final target = merged.targetDeckId;
 
       expect(merged.importResult?.importedDeckIds, [target]);
@@ -177,9 +186,7 @@ void main() {
         learningMode: LearningMode.genus,
       );
 
-      final merged = await service.merge(
-        await service.plan(genusEntry, [genusEntry]),
-      );
+      final merged = await mergeAsSuggested(genusEntry, [genusEntry]);
       await stack.settled();
 
       expect(
@@ -188,22 +195,6 @@ void main() {
         )).learningMode,
         LearningMode.species,
       );
-    });
-
-    test('of the target\'s subdecks only those the moved species are in '
-        'stay switched on', () async {
-      final merged = await service.merge(
-        await service.plan(_joined, [_joined]),
-      );
-
-      final subdecks = await stack.decksService.getSubdecks(
-        merged.targetDeckId,
-      );
-      expect(subdecks.map((s) => (s.id, s.isActive)), [
-        ('s1', true),
-        ('s2', true),
-        ('s3', false),
-      ]);
     });
 
     test('a merge that stopped half way is finished by merging again, with '
@@ -216,7 +207,12 @@ void main() {
 
       final plan = await service.plan(_joined, [_joined]);
       expect(plan.target?.id, target);
-      final merged = await service.merge(plan);
+      // The interrupted merge never chose its subdecks: all are still on.
+      expect(plan.suggestedActiveSubdeckIds, {'s1', 's2', 's3'});
+      final merged = await service.merge(
+        plan,
+        activeSubdeckIds: plan.suggestedActiveSubdeckIds,
+      );
 
       expect(merged.targetDeckId, target);
       expect(merged.importResult, isNull);
@@ -232,27 +228,113 @@ void main() {
       );
     });
 
-    test(
-      'an entry already imported keeps its own settings and subdecks',
-      () async {
+    test('an entry already imported keeps its own settings', () async {
+      final target = await import(_joined);
+
+      await mergeAsSuggested(_joined, [_joined]);
+
+      expect(
+        (await stack.deckConfigs.getOrDefault(target)).learningMode,
+        LearningMode.species,
+      );
+    });
+
+    group('the target\'s subdecks', () {
+      Future<List<(String, bool)>> subdecksOf(String deckId) async => [
+        for (final s in await stack.decksService.getSubdecks(deckId))
+          (s.id, s.isActive),
+      ];
+
+      test('the plan lists them with their species and suggests, for a '
+          'fresh import, those the moved species are in', () async {
+        final plan = await service.plan(_joined, [_joined]);
+
+        expect(plan.subdecks, [
+          (id: 's1', name: 'One'),
+          (id: 's2', name: 'Two'),
+          (id: 's3', name: 'New'),
+        ]);
+        expect(plan.subdeckMembership.speciesCounts, {
+          's1': 1,
+          's2': 1,
+          's3': 1,
+        });
+        expect(plan.subdeckMembership.hasSpeciesOutsideSubdecks, isTrue);
+        expect(plan.suggestedActiveSubdeckIds, {'s1', 's2'});
+      });
+
+      test('a fresh import whose subdecks hold no moved species suggests all '
+          'of them', () async {
+        final entry = _deck(
+          'all',
+          [_greatWhite, _hammerhead, _clownfish],
+          supersedes: ['level-1', 'level-2'],
+          subdecks: [
+            CreateSubdeck(id: 'a', name: 'A', speciesNames: {_hammerhead}),
+            CreateSubdeck(id: 'b', name: 'B', speciesNames: {_clownfish}),
+          ],
+        );
+
+        final plan = await service.plan(entry, [entry]);
+
+        expect(plan.suggestedActiveSubdeckIds, {'a', 'b'});
+      });
+
+      test('an entry already imported suggests the ones it has on and those '
+          'the moved species are in', () async {
         final target = await import(_joined);
         await stack.decksService.setActiveSubdecks(target, {'s3'});
+        await stack.decksService.deleteDeck(level2);
 
-        await service.merge(await service.plan(_joined, [_joined]));
+        final plan = await service.plan(_joined, [_joined]);
 
-        expect(
-          (await stack.deckConfigs.getOrDefault(target)).learningMode,
-          LearningMode.species,
+        expect(plan.suggestedActiveSubdeckIds, {'s1', 's3'});
+      });
+
+      test('a target without subdecks has none to choose', () async {
+        final entry = _deck(
+          'all',
+          [_greatWhite, _whaleShark],
+          supersedes: ['level-1', 'level-2'],
         );
-        // Moved species switch their subdecks on; the user's own choice stays.
-        final subdecks = await stack.decksService.getSubdecks(target);
-        expect(subdecks.map((s) => (s.id, s.isActive)), [
-          ('s1', true),
+
+        final plan = await service.plan(entry, [entry]);
+
+        expect(plan.subdecks, isEmpty);
+        expect(plan.suggestedActiveSubdeckIds, isEmpty);
+      });
+
+      test('a fresh import has exactly the chosen ones on, even one off that '
+          'holds a moved species', () async {
+        final plan = await service.plan(_joined, [_joined]);
+
+        final merged = await service.merge(
+          plan,
+          activeSubdeckIds: {'s2', 's3'},
+        );
+
+        expect(await subdecksOf(merged.targetDeckId), [
+          ('s1', false),
           ('s2', true),
           ('s3', true),
         ]);
-      },
-    );
+      });
+
+      test('an entry already imported has exactly the chosen ones on, even '
+          'one off that holds a moved species', () async {
+        final target = await import(_joined);
+        await stack.decksService.setActiveSubdecks(target, {'s3'});
+        final plan = await service.plan(_joined, [_joined]);
+
+        await service.merge(plan, activeSubdeckIds: {'s2'});
+
+        expect(await subdecksOf(target), [
+          ('s1', false),
+          ('s2', true),
+          ('s3', false),
+        ]);
+      });
+    });
   });
 
   group('one deck split into two entries', () {
@@ -277,7 +359,7 @@ void main() {
       expect(plan.deleted, isEmpty);
       expect(plan.lostSpeciesNames, isEmpty);
 
-      final merged = await service.merge(plan);
+      final merged = await service.merge(plan, activeSubdeckIds: const {});
 
       expect(await deckSourceIds(), {'old', 'sharks'});
       expect(await cards(), {
@@ -288,14 +370,15 @@ void main() {
     });
 
     test('the second merge takes the rest and deletes the deck', () async {
-      final sharksId = (await service.merge(
-        await service.plan(sharks, catalog),
-      )).targetDeckId;
+      final sharksId = (await mergeAsSuggested(sharks, catalog)).targetDeckId;
 
       final plan = await service.plan(fish, catalog);
       expect(plan.deleted.map((d) => d.id), [old]);
       expect(plan.lostSpeciesNames, isEmpty);
-      final fishId = (await service.merge(plan)).targetDeckId;
+      final fishId = (await service.merge(
+        plan,
+        activeSubdeckIds: const {},
+      )).targetDeckId;
 
       expect(await deckSourceIds(), {'sharks', 'fish'});
       expect(await cards(), {

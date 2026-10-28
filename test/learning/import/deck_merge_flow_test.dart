@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/import/deck_merge_flow.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/repository/deck_merge_repository.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_merge_service.dart';
@@ -26,15 +27,31 @@ final _entry = CreateDeck(
   supersedes: ['level-1'],
 );
 
+/// [_entry] with two subdecks, the second holding no species of level 1.
+final _entryWithSubdecks = _entry.copyWith(
+  speciesNames: {'Carcharodon carcharias', 'Rhincodon typus'},
+  subdecks: [
+    CreateSubdeck(
+      id: 'one',
+      name: 'One',
+      speciesNames: {'Carcharodon carcharias'},
+    ),
+    CreateSubdeck(id: 'two', name: 'Two', speciesNames: {'Rhincodon typus'}),
+  ],
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late MockDeckMergeService mergeService;
   late DeckUpdateService updateService;
 
-  /// A real plan for merging [_entry] into a local `level-1` deck — the
+  /// A real plan for merging [entry] into a local `level-1` deck — the
   /// merge itself is what the test holds back.
-  Future<DeckMergePlan> realPlan(WidgetTester tester) async =>
+  Future<DeckMergePlan> realPlan(
+    WidgetTester tester, [
+    CreateDeck? entry,
+  ]) async =>
       (await tester.runAsync(() async {
         final stack = await LearningTestStack.open();
         addTearDown(() => tester.runAsync(stack.close));
@@ -56,7 +73,7 @@ void main() {
             await SharedPreferences.getInstance(),
           ),
           userDataWrites: stack.writes,
-        ).plan(_entry, [_entry]);
+        ).plan(entry ?? _entry, [entry ?? _entry]);
       }))!;
 
   setUp(() async {
@@ -120,7 +137,9 @@ void main() {
     final merging =
         Completer<({String targetDeckId, DeckImportResult? importResult})>();
     when(mergeService.plan(any, any)).thenAnswer((_) async => plan);
-    when(mergeService.merge(any)).thenAnswer((_) => merging.future);
+    when(
+      mergeService.merge(any, activeSubdeckIds: anyNamed('activeSubdeckIds')),
+    ).thenAnswer((_) => merging.future);
     final host = await pumpHost(tester);
 
     final first = runDeckMergeFlow(host, entry: _entry, catalog: [_entry]);
@@ -130,7 +149,9 @@ void main() {
 
     final second = runDeckMergeFlow(host, entry: _entry, catalog: [_entry]);
     await confirmIfAsked(tester);
-    verify(mergeService.merge(any)).called(1);
+    verify(
+      mergeService.merge(any, activeSubdeckIds: anyNamed('activeSubdeckIds')),
+    ).called(1);
     verify(mergeService.plan(any, any)).called(1);
 
     merging.complete((targetDeckId: 'target', importResult: null));
@@ -144,7 +165,7 @@ void main() {
     final plan = await realPlan(tester);
     when(mergeService.plan(any, any)).thenAnswer((_) async => plan);
     when(
-      mergeService.merge(any),
+      mergeService.merge(any, activeSubdeckIds: anyNamed('activeSubdeckIds')),
     ).thenAnswer((_) async => throw StateError('x'));
     final host = await pumpHost(tester);
 
@@ -155,5 +176,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('deck_merge_progress_dialog')), findsNothing);
     expect(find.textContaining('Merging failed'), findsOneWidget);
+  });
+
+  testWidgets('the merge gets the subdecks chosen in the dialog', (
+    tester,
+  ) async {
+    final plan = await realPlan(tester, _entryWithSubdecks);
+    expect(plan.suggestedActiveSubdeckIds, {'one'});
+    when(mergeService.plan(any, any)).thenAnswer((_) async => plan);
+    when(
+      mergeService.merge(any, activeSubdeckIds: anyNamed('activeSubdeckIds')),
+    ).thenAnswer((_) async => (targetDeckId: 'target', importResult: null));
+    final host = await pumpHost(tester);
+
+    final flow = runDeckMergeFlow(
+      host,
+      entry: _entryWithSubdecks,
+      catalog: [_entryWithSubdecks],
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('deck_merge_subdeck_checkbox_two')));
+    await tester.pump();
+    await confirmIfAsked(tester);
+
+    expect(await flow, isTrue);
+    verify(
+      mergeService.merge(plan, activeSubdeckIds: {'one', 'two'}),
+    ).called(1);
   });
 }

@@ -1,5 +1,7 @@
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/subdeck_membership.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_merge_repository.dart';
 import 'package:discere/learning/repository/subdeck_repository.dart';
@@ -30,6 +32,20 @@ class DeckMergePlan {
   /// their progress goes with the deck. Scientific names, sorted.
   final List<String> lostSpeciesNames;
 
+  /// The subdecks of the merged deck, in their order; empty when it has
+  /// none.
+  final List<SubdeckHeading> subdecks;
+
+  /// How the merged deck's species lie in [subdecks].
+  final SubdeckMembership subdeckMembership;
+
+  /// Those of [subdecks] suggested to be on after the merge: the ones the
+  /// species whose progress moves into the target are in, and for a
+  /// [target] already imported those it has on. For a fresh import all of
+  /// them when no such species is in one — nothing then says which ones the
+  /// user wants.
+  final Set<String> suggestedActiveSubdeckIds;
+
   final DeckSupersession _supersession;
 
   const DeckMergePlan._({
@@ -38,6 +54,9 @@ class DeckMergePlan {
     required this.superseded,
     required this.deleted,
     required this.lostSpeciesNames,
+    required this.subdecks,
+    required this.subdeckMembership,
+    required this.suggestedActiveSubdeckIds,
     required DeckSupersession supersession,
   }) : _supersession = supersession;
 }
@@ -95,33 +114,61 @@ class DeckMergeService {
           deck,
     ];
     final target = supersession.localDeckOf(entry);
-    final lostIds = await _speciesWithoutSuccessor(
+    final speciesByDeckId = await _decksService.getSpeciesIdsGroupedByDeckId({
+      ?target?.id,
+      for (final deck in superseded) ...[
+        deck.id!,
+        for (final e in supersession.entriesSuperseding(deck))
+          ?supersession.localDeckOf(e)?.id,
+      ],
+    });
+    final merged = await _mergedSubdecks(entry, target, speciesByDeckId);
+    final handover = supersession.speciesHandover(
       entry,
-      target,
-      deleted,
-      supersession,
+      entrySpecies: merged.speciesIds,
+      speciesByDeckId: speciesByDeckId,
     );
-    final lost = await _decksService.getSpeciesByIds(lostIds);
+    final lost = await _decksService.getSpeciesByIds({
+      for (final deck in deleted) ...?handover.leftByDeckId[deck.id],
+    });
+    final learned = {
+      for (final speciesId in handover.intoEntry)
+        ?merged.subdeckIdBySpeciesId[speciesId],
+    };
+    final active = merged.activeSubdeckIds;
     return DeckMergePlan._(
       entry: entry,
       target: target,
       superseded: superseded,
       deleted: deleted,
       lostSpeciesNames: lost.map((s) => s.getBinomialName()).toList()..sort(),
+      subdecks: merged.subdecks,
+      subdeckMembership: SubdeckMembership.of(
+        merged.speciesIds,
+        merged.subdeckIdBySpeciesId,
+      ),
+      suggestedActiveSubdeckIds: active != null
+          ? {...active, ...learned}
+          : learned.isNotEmpty
+          ? learned
+          : {for (final subdeck in merged.subdecks) subdeck.id},
       supersession: supersession,
     );
   }
 
   /// Carries out [plan] and returns the merged deck, with the result of
   /// importing it when the merge did — for the caller to offer its
-  /// download, as after any import.
+  /// download, as after any import. Of the merged deck's subdecks, exactly
+  /// [activeSubdeckIds] are on afterwards; a deck without subdecks has none
+  /// to switch.
   ///
   /// Each deck's progress moves in a transaction of its own. A merge that
   /// stops in between is finished by merging again: the target is found by
   /// its `sourceId`, and what has moved already is not there to move twice.
   Future<({String targetDeckId, DeckImportResult? importResult})> merge(
-    DeckMergePlan plan,
-  ) => _writes.run(() async {
+    DeckMergePlan plan, {
+    required Set<String> activeSubdeckIds,
+  }) => _writes.run(() async {
     final existing = plan.target;
     DeckImportResult? imported;
     final String targetId;
@@ -133,7 +180,6 @@ class DeckMergeService {
       targetId = imported.importedDeckIds.single;
     }
 
-    final movedIntoTarget = <String>{};
     for (final deck in plan.superseded) {
       // Into every local deck that supersedes it, not only this target: a
       // merge into another entry that stopped half way would otherwise lose
@@ -143,15 +189,19 @@ class DeckMergeService {
             ? targetId
             : plan._supersession.localDeckOf(entry)?.id;
         if (into == null) continue;
-        final moved = await _mergeRepository.moveSharedProgress(
+        await _mergeRepository.moveSharedProgress(
           fromDeckId: deck.id!,
           toDeckId: into,
         );
-        if (into == targetId) movedIntoTarget.addAll(moved);
       }
     }
+    // After the moves: each switches on the target's subdecks of what it
+    // moves, and the user's choice has the last word.
+    if (plan.subdecks.isNotEmpty) {
+      await _decksService.setActiveSubdecks(targetId, activeSubdeckIds);
+    }
     if (imported != null) {
-      await _settleImportedTarget(targetId, plan, movedIntoTarget);
+      await _settleImportedTarget(targetId, plan);
     }
     for (final deck in plan.deleted) {
       await _decksService.deleteDeck(deck.id!);
@@ -161,11 +211,10 @@ class DeckMergeService {
 
   /// A freshly imported target takes the place of the decks it replaces:
   /// the settings of the first, the position and favorite mark of the
-  /// deleted ones, and only the subdecks the user was learning.
+  /// deleted ones.
   Future<void> _settleImportedTarget(
     String targetId,
     DeckMergePlan plan,
-    Set<String> moved,
   ) async {
     if (plan.superseded.isNotEmpty) {
       final config = await _deckConfigs.getOrDefault(plan.superseded.first.id!);
@@ -181,49 +230,47 @@ class DeckMergeService {
         !_favorites.isFavoriteDeck(targetId)) {
       _favorites.toggleDeck(targetId);
     }
-    // The import switched every subdeck on. Without a moved species in any,
-    // there is nothing to say which ones the user wants, so they stay on.
-    final subdeckBySpecies = await _subdecks.getSubdeckIdBySpeciesId(targetId);
-    final learned = {
-      for (final speciesId in moved) ?subdeckBySpecies[speciesId],
-    };
-    if (learned.isNotEmpty) {
-      await _decksService.setActiveSubdecks(targetId, learned);
-    }
   }
 
-  /// The species of [deleted] that none of the entries superseding them
-  /// holds: [entry]'s by its names, the others' by their local decks.
-  Future<Set<String>> _speciesWithoutSuccessor(
+  /// The species of the merged deck and its subdecks: [target]'s as
+  /// stored, with the ones it has on, or — for [entry] not imported yet —
+  /// what importing it would store, with all of them on.
+  Future<
+    ({
+      Set<String> speciesIds,
+      List<SubdeckHeading> subdecks,
+      Map<String, String> subdeckIdBySpeciesId,
+      Set<String>? activeSubdeckIds,
+    })
+  >
+  _mergedSubdecks(
     CreateDeck entry,
     BaseDeck? target,
-    List<BaseDeck> deleted,
-    DeckSupersession supersession,
+    Map<String, Set<String>> speciesByDeckId,
   ) async {
-    if (deleted.isEmpty) return const {};
-    final successorIds = {
-      for (final deck in deleted)
-        for (final e in supersession.entriesSuperseding(deck))
-          ?supersession.localDeckOf(e)?.id,
-    };
-    final speciesByDeckId = await _decksService.getSpeciesIdsGroupedByDeckId({
-      ...deleted.map((deck) => deck.id!),
-      ...successorIds,
-    });
-    final entrySpecies = target != null
-        ? speciesByDeckId[target.id] ?? const <String>{}
-        : (await _importService.resolveSpeciesNames(
-            entry.speciesNames?.toList() ?? const [],
-          )).values.toSet();
-    Set<String> heldBy(CreateDeck e) => e.sourceId == entry.sourceId
-        ? entrySpecies
-        : speciesByDeckId[supersession.localDeckOf(e)?.id] ?? const {};
-
-    return {
-      for (final deck in deleted)
-        ...(speciesByDeckId[deck.id] ?? const <String>{}).difference({
-          for (final e in supersession.entriesSuperseding(deck)) ...heldBy(e),
-        }),
-    };
+    if (target == null) {
+      final resolved = await _importService.resolveSpeciesNames(
+        entry.speciesNames?.toList() ?? const [],
+      );
+      final structure = SubdeckStructure.resolve(entry.subdecks, resolved);
+      return (
+        speciesIds: resolved.values.toSet(),
+        subdecks: structure.subdecks,
+        subdeckIdBySpeciesId: structure.subdeckIdBySpeciesId,
+        activeSubdeckIds: null,
+      );
+    }
+    final stored = await _subdecks.getSubdecks(target.id!);
+    return (
+      speciesIds: speciesByDeckId[target.id] ?? const <String>{},
+      subdecks: [for (final s in stored) (id: s.id, name: s.name)],
+      subdeckIdBySpeciesId: await _subdecks.getSubdeckIdBySpeciesId(
+        target.id!,
+      ),
+      activeSubdeckIds: {
+        for (final s in stored)
+          if (s.isActive) s.id,
+      },
+    );
   }
 }

@@ -244,6 +244,26 @@ void main() {
       await safePumpAndSettle(tester);
       final confirm = find.byKey(const Key('deck_merge_confirm_button'));
       await waitForFinder(tester, confirm, description: 'the merge dialog');
+      // Both levels hold a species the user was learning, so both are
+      // suggested; the user takes level 2 out.
+      final level2Checkbox = find.byKey(
+        const Key('deck_merge_subdeck_checkbox_level-2'),
+      );
+      for (final id in ['level-1', 'level-2']) {
+        expect(
+          tester
+              .widget<CheckboxListTile>(
+                find.byKey(Key('deck_merge_subdeck_checkbox_$id')),
+              )
+              .value,
+          isTrue,
+          reason: '$id is suggested',
+        );
+      }
+      await tester.ensureVisible(level2Checkbox);
+      await safePumpAndSettle(tester);
+      await tester.tap(level2Checkbox);
+      await safePumpAndSettle(tester);
       await tester.tap(confirm);
       await tester.pump(const Duration(milliseconds: 500));
       await dismissDownloadDialog(tester);
@@ -254,7 +274,7 @@ void main() {
       );
 
       // The level decks are gone, the joined deck is there with both
-      // levels as subdecks.
+      // levels as subdecks, and only the chosen one on.
       final decks = await db.query(
         'decks',
         columns: ['id', 'name', 'sourceId', 'sortOrder'],
@@ -273,7 +293,7 @@ void main() {
       );
       expect(subdecks, [
         {'subdeck_id': 'level-1', 'is_active': 1},
-        {'subdeck_id': 'level-2', 'is_active': 1},
+        {'subdeck_id': 'level-2', 'is_active': 0},
       ]);
 
       // Progress followed the species; of the two white shark cards, the

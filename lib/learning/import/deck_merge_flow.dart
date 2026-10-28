@@ -57,15 +57,15 @@ Future<bool> _runDeckMergeFlow(
   final host = navigator.context;
   try {
     final plan = await mergeService.plan(entry, catalog);
-    if (!context.mounted || !await showDeckMergeDialog(context, plan)) {
-      return false;
-    }
+    if (!context.mounted) return false;
+    final activeSubdeckIds = await showDeckMergeDialog(context, plan);
+    if (activeSubdeckIds == null) return false;
     // Asked before the merge starts, not within it: the merge counts as a
     // write sequence for the in-app restart, which a dialog must never be.
     // The progress dialog stays outside it for the same reason.
     final merged = await _withProgressDialog(
       navigator,
-      () => mergeService.merge(plan),
+      () => mergeService.merge(plan, activeSubdeckIds: activeSubdeckIds),
     );
     await updateService.reconcileWithLocalDecks();
     final imported = merged.importResult;

@@ -80,4 +80,34 @@ void main() {
 
     expect(supersession.replacementFor(_local('c')), isNull);
   });
+
+  test('a species goes to the first entry superseding its deck that holds '
+      'it, and one no entry holds is left', () {
+    final sharks = _entry('sharks', supersedes: ['old']);
+    final fish = _entry('fish', supersedes: ['old']);
+    final old = _local('old');
+    final speciesByDeckId = {
+      old.id!: {'shark', 'eel', 'ray'},
+      'local-sharks': {'shark'},
+    };
+
+    ({Set<String> intoEntry, Map<String, Set<String>> leftByDeckId}) handover(
+      List<CreateDeck> catalog,
+    ) => DeckSupersession(
+      catalog: catalog,
+      localDecks: [old, _local('sharks')],
+    ).speciesHandover(
+      fish,
+      entrySpecies: {'shark', 'eel'},
+      speciesByDeckId: speciesByDeckId,
+    );
+
+    final afterSharks = handover([sharks, fish]);
+    expect(afterSharks.intoEntry, {'eel'});
+    expect(afterSharks.leftByDeckId, {
+      old.id!: {'ray'},
+    });
+
+    expect(handover([fish, sharks]).intoEntry, {'shark', 'eel'});
+  });
 }

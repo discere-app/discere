@@ -413,6 +413,7 @@
       }
     }
   },
+  "deckMergeDialogSubdecks": "Welche Subdecks willst du lernen? Du kannst das später beim Bearbeiten des Decks ändern.",
   "deckMergeConfirmButton": "Zusammenführen",
   "deckMergeInProgress": "Decks werden zusammengeführt …",
   "deckMergeError": "Zusammenführen fehlgeschlagen: {message}",

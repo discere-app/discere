@@ -417,6 +417,7 @@
       }
     }
   },
+  "deckMergeDialogSubdecks": "Which subdecks do you want to learn? You can change this later when editing the deck.",
   "deckMergeConfirmButton": "Merge",
   "deckMergeInProgress": "Merging decks…",
   "deckMergeError": "Merging failed: {message}",
