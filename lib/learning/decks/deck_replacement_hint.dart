@@ -1,3 +1,4 @@
+import 'package:discere/learning/decks/widgets/deck_status_line.dart';
 import 'package:discere/learning/import/deck_merge_flow.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
@@ -5,7 +6,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// One-line "replaced by …" hint on a deck card, shown when
+/// "Replaced by …" status line on a deck card, shown when
 /// [DeckUpdateService] knows of a catalog entry that supersedes this deck —
 /// tapping it offers to merge the deck into that entry. The same status
 /// line as [DeckUpdateHint], which a superseded deck never shows: it is not
@@ -17,13 +18,10 @@ class DeckReplacementHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Selector<DeckUpdateService, CreateDeck?>(
       selector: (context, service) => service.replacementFor(deckId),
       builder: (context, replacement, child) {
         if (replacement == null) return const SizedBox.shrink();
-        final color = theme.colorScheme.primary;
 
         return InkWell(
           key: Key('deck_card_replacement_button_$deckId'),
@@ -33,22 +31,10 @@ class DeckReplacementHint extends StatelessWidget {
             catalog: context.read<DeckUpdateService>().catalog,
           ),
           borderRadius: BorderRadius.circular(4),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Icon(Icons.merge_type, size: 14, color: color),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    context.loc.deckReplacedByHint(replacement.name),
-                    style: theme.textTheme.bodySmall?.copyWith(color: color),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+          child: DeckStatusLine(
+            icon: Icons.merge_type,
+            text: context.loc.deckReplacedByHint(replacement.name),
+            color: Theme.of(context).colorScheme.primary,
           ),
         );
       },
