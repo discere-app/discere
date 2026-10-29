@@ -3,6 +3,7 @@ import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_state_style.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_status_visual.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/widgets/deck_status_line.dart';
 import 'package:discere/learning/decks/widgets/state_explain_row.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -11,8 +12,8 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// One-line enrichment status shown on a deck card: current state with icon,
-/// a tap-to-explain dialog listing all states, and a retry button when the
+/// Enrichment status line on a deck card: current state with icon, a
+/// tap-to-explain dialog listing all states, and a retry button when the
 /// last enrichment attempt failed.
 class DeckEnrichmentHint extends StatefulWidget {
   final String deckId;
@@ -42,8 +43,6 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
       selector: (context, service) => service.deckInfo(widget.deckId),
       builder: (context, info, child) {
@@ -64,32 +63,17 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
               child: InkWell(
                 onTap: () => _showStateExplainDialog(context, info.state),
                 borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      Icon(hint.icon, size: 14, color: hint.color),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          hint.text,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: hint.color,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (!canRetry) ...[
-                        const SizedBox(width: 4),
-                        Icon(
+                child: DeckStatusLine(
+                  icon: hint.icon,
+                  text: hint.text,
+                  color: hint.color,
+                  trailing: canRetry
+                      ? null
+                      : Icon(
                           Icons.info_outline,
                           size: 12,
                           color: hint.color.withValues(alpha: 0.7),
                         ),
-                      ],
-                    ],
-                  ),
                 ),
               ),
             ),

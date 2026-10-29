@@ -7,6 +7,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_enrichment_hint.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -142,7 +143,7 @@ void main() {
         await tester.pumpWidget(_buildApp(enrichmentQueueService));
         await tester.pumpAndSettle();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
       },
     );
 
@@ -166,7 +167,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Last updated just now · names may have been refined'),
+          find.text('Updated just now · names may have changed'),
           findsOneWidget,
         );
       },
@@ -190,7 +191,7 @@ void main() {
         await tester.pumpWidget(_buildApp(enrichmentQueueService));
         await tester.pumpAndSettle();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
       },
     );
 
@@ -215,7 +216,7 @@ void main() {
         await tester.pumpWidget(_buildApp(enrichmentQueueService));
         await tester.pumpAndSettle();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
         expect(find.text('Loading base data …'), findsNothing);
 
         // Simulate refreshStaleBaseImages resetting the deck's base
@@ -233,7 +234,7 @@ void main() {
         await tester.pump();
 
         expect(find.text('Loading base data …'), findsOneWidget);
-        expect(find.text('Last updated just now'), findsNothing);
+        expect(find.text('Updated just now'), findsNothing);
 
         // BaseWorker finishes reprocessing: back to done.
         enrichmentQueueService.setInfo(
@@ -248,8 +249,51 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
         expect(find.text('Loading base data …'), findsNothing);
+      },
+    );
+  });
+
+  group('DeckEnrichmentHint layout', () {
+    testWidgets(
+      'wraps the completion text with the names mention on a narrow card '
+      'instead of cutting it off',
+      (tester) async {
+        tester.view.physicalSize = const Size(200, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: DateTime.now(),
+            lastAttemptedAt: null,
+            sessionCompletedAt: DateTime.now(),
+            includesCommonNames: true,
+          ),
+        );
+
+        await tester.pumpWidget(_buildApp(enrichmentQueueService));
+        await tester.pumpAndSettle();
+
+        const text = 'Updated just now · names may have changed';
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.text(text),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(paragraph.didExceedMaxLines, isFalse);
+        final lineTops = paragraph
+            .getBoxesForSelection(
+              const TextSelection(baseOffset: 0, extentOffset: text.length),
+            )
+            .map((box) => box.top)
+            .toSet();
+        expect(lineTops.length, greaterThan(1));
       },
     );
   });
