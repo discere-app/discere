@@ -955,8 +955,8 @@
   "inatDeckStateDescCooldown": "iNaturalist antwortet gerade nicht. Die Anreicherung wird automatisch fortgesetzt, sobald wieder Anfragen möglich sind.",
   "inatDeckStateDescPaused": "Die Anreicherung pausiert kurz und wird automatisch fortgesetzt.",
   "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie direkt hier oder über das Bearbeiten-Menü erneut starten.",
-  "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
-  "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
+  "inatDeckStatusUpdatedNow": "Gerade eben ergänzt",
+  "inatDeckStatusUpdatedMinutes": "Ergänzt vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {
     "placeholders": {
       "count": {
@@ -964,7 +964,7 @@
       }
     }
   },
-  "inatDeckStatusUpdatedHours": "Zuletzt ergänzt: vor {count} Std.",
+  "inatDeckStatusUpdatedHours": "Ergänzt vor {count} Std.",
   "@inatDeckStatusUpdatedHours": {
     "placeholders": {
       "count": {
@@ -972,7 +972,7 @@
       }
     }
   },
-  "inatDeckStatusUpdatedDays": "Zuletzt ergänzt: vor {count} Tg.",
+  "inatDeckStatusUpdatedDays": "Ergänzt vor {count} Tg.",
   "@inatDeckStatusUpdatedDays": {
     "placeholders": {
       "count": {
@@ -980,7 +980,7 @@
       }
     }
   },
-  "inatDeckStatusNamesRefined": "Namen ggf. aktualisiert",
+  "inatDeckStatusNamesRefined": "Namen evtl. geändert",
   "inatProgressTitle": "Anreicherung wird geladen",
   "inatProgressMessage": "Arten werden angereichert… ({completed}/{total})",
   "@inatProgressMessage": {

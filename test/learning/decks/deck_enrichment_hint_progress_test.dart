@@ -142,7 +142,7 @@ void main() {
         await tester.pumpWidget(_buildApp(enrichmentQueueService));
         await tester.pumpAndSettle();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
       },
     );
 
@@ -166,7 +166,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Last updated just now · names may have been refined'),
+          find.text('Updated just now · names may have changed'),
           findsOneWidget,
         );
       },
@@ -190,7 +190,7 @@ void main() {
         await tester.pumpWidget(_buildApp(enrichmentQueueService));
         await tester.pumpAndSettle();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
       },
     );
 
@@ -215,7 +215,7 @@ void main() {
         await tester.pumpWidget(_buildApp(enrichmentQueueService));
         await tester.pumpAndSettle();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
         expect(find.text('Loading base data …'), findsNothing);
 
         // Simulate refreshStaleBaseImages resetting the deck's base
@@ -233,7 +233,7 @@ void main() {
         await tester.pump();
 
         expect(find.text('Loading base data …'), findsOneWidget);
-        expect(find.text('Last updated just now'), findsNothing);
+        expect(find.text('Updated just now'), findsNothing);
 
         // BaseWorker finishes reprocessing: back to done.
         enrichmentQueueService.setInfo(
@@ -248,7 +248,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Updated just now'), findsOneWidget);
         expect(find.text('Loading base data …'), findsNothing);
       },
     );

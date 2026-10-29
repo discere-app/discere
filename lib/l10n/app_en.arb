@@ -959,8 +959,8 @@
   "inatDeckStateDescCooldown": "iNaturalist is not responding right now. Enrichment will resume automatically as soon as requests succeed again.",
   "inatDeckStateDescPaused": "Enrichment is paused briefly and will resume automatically.",
   "inatDeckStateDescFailed": "Enrichment failed. You can restart it right here or from 'Edit deck'.",
-  "inatDeckStatusUpdatedNow": "Last updated just now",
-  "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",
+  "inatDeckStatusUpdatedNow": "Updated just now",
+  "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Updated 1 min ago} other {Updated {count} min ago}}",
   "@inatDeckStatusUpdatedMinutes": {
     "placeholders": {
       "count": {
@@ -968,7 +968,7 @@
       }
     }
   },
-  "inatDeckStatusUpdatedHours": "{count, plural, =1 {Last updated 1 hour ago} other {Last updated {count} hours ago}}",
+  "inatDeckStatusUpdatedHours": "{count, plural, =1 {Updated 1 hour ago} other {Updated {count} hours ago}}",
   "@inatDeckStatusUpdatedHours": {
     "placeholders": {
       "count": {
@@ -976,7 +976,7 @@
       }
     }
   },
-  "inatDeckStatusUpdatedDays": "{count, plural, =1 {Last updated 1 day ago} other {Last updated {count} days ago}}",
+  "inatDeckStatusUpdatedDays": "{count, plural, =1 {Updated 1 day ago} other {Updated {count} days ago}}",
   "@inatDeckStatusUpdatedDays": {
     "placeholders": {
       "count": {
@@ -984,7 +984,7 @@
       }
     }
   },
-  "inatDeckStatusNamesRefined": "names may have been refined",
+  "inatDeckStatusNamesRefined": "names may have changed",
   "inatProgressTitle": "Downloading Enrichment",
   "inatProgressMessage": "Enriching species… ({completed}/{total})",
   "@inatProgressMessage": {
