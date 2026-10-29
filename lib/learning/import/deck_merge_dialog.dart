@@ -1,28 +1,37 @@
+import 'package:discere/learning/import/deck_merge_subdeck_selection.dart';
 import 'package:discere/learning/service/deck_merge_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 /// Asks whether to carry out [plan]: names the target and the decks it
 /// takes progress from, which of them go and which stay, and the species
-/// whose progress is lost. Resolves to `true` only on confirmation.
-Future<bool> showDeckMergeDialog(
+/// whose progress is lost — and, for a target with subdecks, lets the user
+/// choose the ones to have on, starting from the plan's suggestion.
+/// Resolves to the chosen subdecks on confirmation (empty for a target
+/// without any), and to `null` when the user declines.
+Future<Set<String>?> showDeckMergeDialog(
   BuildContext context,
   DeckMergePlan plan,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (_) => _DeckMergeDialog(plan: plan),
-  );
-  return confirmed ?? false;
-}
+) => showDialog<Set<String>>(
+  context: context,
+  builder: (_) => _DeckMergeDialog(plan: plan),
+);
 
-class _DeckMergeDialog extends StatelessWidget {
+class _DeckMergeDialog extends StatefulWidget {
   final DeckMergePlan plan;
 
   const _DeckMergeDialog({required this.plan});
 
   @override
+  State<_DeckMergeDialog> createState() => _DeckMergeDialogState();
+}
+
+class _DeckMergeDialogState extends State<_DeckMergeDialog> {
+  late Set<String> _activeSubdeckIds = widget.plan.suggestedActiveSubdeckIds;
+
+  @override
   Widget build(BuildContext context) {
+    final plan = widget.plan;
     final loc = context.loc;
     final theme = Theme.of(context);
     final kept = [
@@ -93,18 +102,31 @@ class _DeckMergeDialog extends StatelessWidget {
                 ),
               ),
             ],
+            if (plan.subdecks.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              DeckMergeSubdeckSelection(
+                subdecks: plan.subdecks,
+                membership: plan.subdeckMembership,
+                activeSubdeckIds: _activeSubdeckIds,
+                onChanged: (subdeckId, active) => setState(
+                  () => _activeSubdeckIds = active
+                      ? {..._activeSubdeckIds, subdeckId}
+                      : _activeSubdeckIds.difference({subdeckId}),
+                ),
+              ),
+            ],
           ],
         ),
       ),
       actions: [
         TextButton(
           key: const Key('deck_merge_cancel_button'),
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => Navigator.of(context).pop(),
           child: Text(loc.commonCancel),
         ),
         FilledButton(
           key: const Key('deck_merge_confirm_button'),
-          onPressed: () => Navigator.of(context).pop(true),
+          onPressed: () => Navigator.of(context).pop(_activeSubdeckIds),
           child: Text(loc.deckMergeConfirmButton),
         ),
       ],

@@ -67,12 +67,8 @@ void main() {
       await card(_new, 'sp-shared');
       await card(_new, 'sp-only-new');
 
-      final moved = await repository.moveSharedProgress(
-        fromDeckId: _old,
-        toDeckId: _new,
-      );
+      await repository.moveSharedProgress(fromDeckId: _old, toDeckId: _new);
 
-      expect(moved, {'sp-shared'});
       expect(await cards(), [
         ('deck-new', 'sp-only-new/species', 0.0),
         ('deck-new', 'sp-shared/genus', 1.5),

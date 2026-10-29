@@ -23,6 +23,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/model/subdeck.dart';
+import 'package:discere/learning/model/subdeck_membership.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
@@ -116,16 +117,15 @@ class _EditDeckPageState extends State<EditDeckPage> {
       _activeSubdeckIds = _presenter.effectiveActiveSubdecks(
         activeSubdeckIds: _activeSubdeckIds,
         subdecks: _subdecks,
-        hasSpeciesOutsideSubdecks: _hasSpeciesOutsideSubdecks,
+        hasSpeciesOutsideSubdecks:
+            _subdeckMembership.hasSpeciesOutsideSubdecks,
       );
       _updateDirtyState(setStateIfChanged: false);
     });
   }
 
-  bool get _hasSpeciesOutsideSubdecks => _presenter.hasSpeciesOutsideSubdecks(
-    _speciesIdsFor(_species),
-    _subdeckIdBySpeciesId,
-  );
+  SubdeckMembership get _subdeckMembership =>
+      SubdeckMembership.of(_speciesIdsFor(_species), _subdeckIdBySpeciesId);
 
   /// Reverts to flip mode if multiple choice is selected but the deck no
   /// longer has enough distinct names — after a draft change, or right after
@@ -540,20 +540,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
   }
 
   Widget _buildSubdeckSection() {
-    final speciesIds = _speciesIdsFor(_species);
+    final membership = _subdeckMembership;
     return SubdeckSection(
       titleKey: _subdecksKey,
       subdecks: _subdecks,
       activeSubdeckIds: _activeSubdeckIds,
-      speciesCounts: _presenter.subdeckSpeciesCounts(
-        speciesIds,
-        _subdeckIdBySpeciesId,
-      ),
-      canSwitchOff: (subdeckId) => _presenter.canSwitchOffSubdeck(
-        subdeckId: subdeckId,
-        activeSubdeckIds: _activeSubdeckIds,
-        hasSpeciesOutsideSubdecks: _hasSpeciesOutsideSubdecks,
-      ),
+      speciesCounts: membership.speciesCounts,
+      canSwitchOff: (subdeckId) =>
+          membership.canSwitchOff(subdeckId, _activeSubdeckIds),
       onChanged: (subdeckId, active) => _applyDraftChange(
         () => _activeSubdeckIds = active
             ? {..._activeSubdeckIds, subdeckId}

@@ -804,7 +804,13 @@ offered updates any more but a merge: "replaced by …" on its card
 (`DeckUpdateService.replacementFor`), "replaces your deck …" on the online
 tab. `DeckSupersession` answers which deck is superseded by which entry for
 both. The merge (`DeckMergeService`) runs after a dialog that names the
-decks, what happens to them and the species whose progress is lost:
+decks, what happens to them and the species whose progress is lost. For a
+target with subdecks the dialog also asks which of them to have on. It
+suggests those holding a species whose progress moves into the target, plus
+— for a target already imported — the ones it has on; for a fresh import
+with no such species in any subdeck, all of them. The last one chosen cannot
+be unchecked while every species is in a subdeck, the edit page's rule
+(`SubdeckMembership`):
 
 1. The entry becomes a local deck — the one already imported from it, or a
    fresh import.
@@ -813,11 +819,10 @@ decks, what happens to them and the species whose progress is lost:
    (`DeckMergeRepository.moveSharedProgress`, one transaction per deck). A
    card both hold in the same mode keeps the one reviewed last — the rule of
    a reference-ID merge (`keepMostRecentlyReviewed`). A moved species
-   switches its subdeck in the target on.
+   switches its subdeck in the receiving deck on; in the target, exactly
+   the subdecks chosen in the dialog are on afterwards.
 3. A freshly imported target takes the settings of the first superseded
-   deck, the place and favorite mark of the deleted ones, and keeps only
-   those subdecks switched on that hold a species the user was learning
-   (all of them, if none does).
+   deck and the place and favorite mark of the deleted ones.
 4. A superseded deck is deleted once every entry superseding it is a local
    deck; until then it keeps the species the others still take.
 

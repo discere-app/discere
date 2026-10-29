@@ -15,7 +15,7 @@ class SubdeckSection extends StatelessWidget {
   final Map<String, int> speciesCounts;
 
   /// Whether a subdeck that is on may be switched off
-  /// (`EditDeckPresenter.canSwitchOffSubdeck`).
+  /// (`SubdeckMembership.canSwitchOff`).
   final bool Function(String subdeckId) canSwitchOff;
 
   final void Function(String subdeckId, bool active) onChanged;
@@ -82,7 +82,7 @@ class SubdeckSection extends StatelessWidget {
       key: Key('edit_deck_subdeck_switch_${subdeck.id}'),
       title: Text(subdeck.name),
       subtitle: Text(
-        context.loc.editDeckSubdeckSpeciesCount(speciesCounts[subdeck.id] ?? 0),
+        context.loc.subdeckSpeciesCount(speciesCounts[subdeck.id] ?? 0),
       ),
       value: active,
       onChanged: enabled ? (value) => onChanged(subdeck.id, value) : null,
