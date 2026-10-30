@@ -23,6 +23,7 @@ import 'package:share_plus_platform_interface/share_plus_platform_interface.dart
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'mocks.mocks.dart';
+import 'offline_http_overrides.dart';
 
 const integrationTestTimeout = Timeout(Duration(minutes: 2));
 
@@ -37,9 +38,9 @@ const integrationTestTimeout = Timeout(Duration(minutes: 2));
 const runsOnCi = bool.fromEnvironment('DISCERE_CI');
 
 // Arbitrary — only needs to be a valid version. The background update check
-// this triggers on subsequent startApp() calls always fails fast (and fails
-// open, keeping the seeded fixture) thanks to _FastFailHttpOverrides below,
-// so no real manifest/version ever gets compared against this.
+// this triggers on subsequent startApp() calls has its connection refused by
+// OfflineHttpOverrides (and fails open, keeping the seeded fixture), so no
+// real manifest/version ever gets compared against this.
 const _fixtureReferenceDbVersion = 1;
 
 /// Copies the bundled reference-DB test fixture (a small, curated species
@@ -224,23 +225,14 @@ Finder editDeckSegment(Key buttonKey, IconData icon) => find.descendant(
   skipOffstage: false,
 );
 
-/// Forces all HTTP connections to fail quickly in tests.
-/// Background operations like image downloads won't block the test loop.
-class _FastFailHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..connectionTimeout = const Duration(milliseconds: 50);
-  }
-}
-
 /// Global initialization for all integration tests.
 /// - Ensures the binding is localized.
 /// - Sets the frame policy to fullyLive for visual feedback.
 /// - Grants necessary Android permissions via adb.
-/// - Overrides HTTP to fail fast so background downloads don't block tests.
+/// - Refuses every HTTP connection (see [OfflineHttpOverrides]), so no test
+///   reaches a real server unless it injects its own client or downloader.
 Future<void> initializeIntegrationTest() async {
-  HttpOverrides.global = _FastFailHttpOverrides();
+  HttpOverrides.global = OfflineHttpOverrides();
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   await grantManualPermissions();

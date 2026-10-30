@@ -17,8 +17,8 @@ import 'test_utils.dart';
 // (matching the first-launch download-confirm screen) instead of installing
 // silently or only warning about cellular data use.
 //
-// All HTTP is forced to fail fast in integration tests (see test_utils.dart's
-// _FastFailHttpOverrides), so a real manifest fetch can never report a newer
+// Every HTTP connection is refused in integration tests (see
+// OfflineHttpOverrides), so a real manifest fetch can never report a newer
 // version here. The app is therefore started with a stand-in downloader that
 // answers with one, and the check itself — version comparison, the update
 // state the UI listens to — runs for real from there, as do the production
@@ -131,9 +131,9 @@ void main() {
         await safePumpAndSettle(tester);
 
         expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
-        // It can't succeed here (HTTP is forced to fail fast — see this
-        // file's top comment), so the notice reports the failure, in words,
-        // instead of silently doing nothing.
+        // It can't succeed here (the stand-in downloader fails every
+        // download), so the notice reports the failure, in words, instead of
+        // silently doing nothing.
         await waitForFinder(
           tester,
           find.byKey(const Key('reference_db_download_failed_notice')),
