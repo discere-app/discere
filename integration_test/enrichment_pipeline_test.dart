@@ -107,8 +107,8 @@ void main() {
         await safePumpAndSettle(tester);
 
         // BaseWorker claims the freshly-scheduled base-image work and
-        // attempts a download. HTTP is forced to fail fast in tests (see
-        // _FastFailHttpOverrides), so this quickly records a failed attempt
+        // attempts a download. Every HTTP connection is refused in tests (see
+        // OfflineHttpOverrides), so this quickly records a failed attempt
         // (state moves off 'pending') instead of hanging — proving the
         // queue service actually starts and runs BaseWorker once
         // processEnrichmentJobs is enabled.

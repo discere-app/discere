@@ -275,6 +275,7 @@ jobs:
             files: >-
               integration_test/about_page_test.dart
               integration_test/notification_test.dart
+              integration_test/offline_http_overrides_test.dart
               integration_test/reference_db_apply_test.dart
               integration_test/reference_db_background_update_test.dart
               integration_test/settings_test.dart

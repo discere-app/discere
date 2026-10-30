@@ -20,6 +20,7 @@ import 'learning_modes_test.dart' as learning_modes;
 import 'manual_card_activation_test.dart' as manual_card_activation;
 import 'no_photo_found_test.dart' as no_photo_found;
 import 'notification_test.dart' as notification;
+import 'offline_http_overrides_test.dart' as offline_http_overrides;
 import 'online_search_test.dart' as online_search;
 import 'reference_db_apply_test.dart' as reference_db_apply;
 import 'reference_db_background_update_test.dart' as reference_db_background_update;
@@ -36,6 +37,7 @@ import 'watchlist_test.dart' as watchlist;
 
 void main() {
   smoke.main();
+  offline_http_overrides.main();
   chunking_limit.main();
   notification.main();
   settings.main();
