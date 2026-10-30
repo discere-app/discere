@@ -81,11 +81,7 @@ void main() {
     mergeService = MockDeckMergeService();
     final deckRepository = MockDeckRepository();
     when(deckRepository.getAllDecks()).thenAnswer((_) async => []);
-    updateService = DeckUpdateService(
-      deckRepository,
-      MockRemoteDeckService(),
-      await SharedPreferences.getInstance(),
-    );
+    updateService = DeckUpdateService(deckRepository, MockRemoteDeckService());
   });
 
   /// Pumps a page and returns a context to start flows from — the way a

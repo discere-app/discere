@@ -253,7 +253,6 @@ void main() {
               value: DeckUpdateService(
                 MockDeckRepository(),
                 MockRemoteDeckService(),
-                MockSharedPreferences(),
               ),
             ),
             ChangeNotifierProvider<INatEnrichmentQueueService>.value(

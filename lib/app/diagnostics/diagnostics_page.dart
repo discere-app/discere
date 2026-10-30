@@ -238,7 +238,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   Future<void> _checkDeckCatalogUpdatesNow() async {
     setState(() => _isCheckingDeckUpdates = true);
     try {
-      await _deckUpdateService.checkForUpdates(force: true);
+      await _deckUpdateService.checkForUpdates();
       if (!mounted) return;
       _showSnackBar(
         context.loc.diagnosticsCheckDeckUpdatesDone(

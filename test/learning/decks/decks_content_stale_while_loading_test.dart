@@ -218,11 +218,7 @@ Widget _buildApp({
         value: enrichmentQueueService,
       ),
       ChangeNotifierProvider<DeckUpdateService>.value(
-        value: DeckUpdateService(
-          MockDeckRepository(),
-          MockRemoteDeckService(),
-          MockSharedPreferences(),
-        ),
+        value: DeckUpdateService(MockDeckRepository(), MockRemoteDeckService()),
       ),
     ],
     child: MaterialApp(
