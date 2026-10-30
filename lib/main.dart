@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:timezone/data/latest.dart' as tz;
 
 const _nativeSplashHardTimeout = Duration(seconds: 15);
@@ -43,6 +44,11 @@ Future<void> main({
     DeviceOrientation.portraitDown,
   ]);
 
+  // Read once, here rather than in the bootstrap: everything that reports
+  // the app's version takes it from this one object, and a host test that
+  // builds BootstrapApp has no platform to read it from.
+  final packageInfo = await PackageInfo.fromPlatform();
+
   // Belt-and-suspenders: BootstrapApp removes the native splash on its first
   // frame. This timer guarantees the splash is removed even if the engine
   // never reaches that frame (e.g. plugin init deadlock). No-op in the happy
@@ -57,6 +63,7 @@ Future<void> main({
 
   runApp(
     BootstrapApp(
+      packageInfo: packageInfo,
       notificationService: notificationService,
       processEnrichmentJobs: processEnrichmentJobs,
       referenceDbDownloader: referenceDbDownloader,

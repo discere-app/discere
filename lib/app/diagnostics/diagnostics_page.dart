@@ -19,6 +19,7 @@ import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -177,6 +178,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   }
 
   Future<DiagnosticsPageData> _load() async {
+    final packageInfo = context.read<PackageInfo>();
     final prefs = await SharedPreferences.getInstance();
     final data = await DiagnosticsPageData.load(
       diagnostics: _diagnostics,
@@ -187,6 +189,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       decksService: _decksService,
       sourceService: _sourceService,
       logPersistence: LogDiagnosticsPersistence(prefs, logFile: _logFile),
+      packageInfo: packageInfo,
     );
     _lastRefreshedAt = DateTime.now();
     return data;

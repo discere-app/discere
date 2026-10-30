@@ -11,6 +11,7 @@ import 'package:mockito/mockito.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../mocks.mocks.dart';
+import 'bootstrap_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,7 @@ void main() {
       shared: buildSharedServices(
         sharedPreferences: await SharedPreferences.getInstance(),
         diagnostics: localDiagnostics,
+        packageInfo: installedPackage,
       ),
       searchWorker: searchWorker,
       localDiagnostics: localDiagnostics,

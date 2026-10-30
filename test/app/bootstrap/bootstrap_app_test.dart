@@ -59,6 +59,7 @@ void main() {
     final logged = await tester.runAsync(() async {
       await tester.pumpWidget(
         BootstrapApp(
+          packageInfo: installedPackage,
           processEnrichmentJobs: false,
           referenceDbDownloader: downloader,
         ),

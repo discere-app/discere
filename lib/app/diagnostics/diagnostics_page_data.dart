@@ -60,7 +60,8 @@ class DiagnosticsPageData {
 
   /// Gathers every source in parallel. Kept here rather than in the page
   /// because none of it touches a `BuildContext` — it is the data object
-  /// knowing where it comes from, not the widget doing IO.
+  /// knowing where it comes from, not the widget doing IO. [packageInfo] is
+  /// no source of its own: it is the one `main()` read for the whole app.
   static Future<DiagnosticsPageData> load({
     required LocalDiagnostics diagnostics,
     required EnrichmentHealthSnapshotService healthSnapshotService,
@@ -70,32 +71,32 @@ class DiagnosticsPageData {
     required DecksService decksService,
     required SourceService sourceService,
     required LogDiagnosticsPersistence logPersistence,
+    required PackageInfo packageInfo,
   }) async {
     final results = await Future.wait([
       diagnostics.loadReport(),
       healthSnapshotService.loadSnapshot(),
       referenceDbProvisioner.currentStatus(),
       queueService.isForegroundServiceRunning,
-      PackageInfo.fromPlatform(),
       decksService.getTotalDistinctSpeciesCount(),
       SharedPreferences.getInstance(),
       loadReferenceDbSources(sourceService, _log),
     ]);
-    final preferences = results[6] as SharedPreferences;
+    final preferences = results[5] as SharedPreferences;
     return DiagnosticsPageData(
       report: results[0] as LocalDiagnosticsReport,
       healthSnapshot: results[1] as EnrichmentHealthSnapshot,
       referenceDbStatus: results[2] as ReferenceDbStatus,
-      referenceDbSources: results[7] as List<Source>,
+      referenceDbSources: results[6] as List<Source>,
       referenceDbUpdateState: referenceDbUpdates.state,
       referenceIdsAppliedVersion: preferences.getInt(
         ReferenceIdMigration.prefKeyAppliedVersion,
       ),
       lastReferenceIdMigrationRun: ReferenceIdMigrationRun.read(preferences),
       foregroundServiceRunning: results[3] as bool,
-      packageInfo: results[4] as PackageInfo,
+      packageInfo: packageInfo,
       persistErrorLogs: logPersistence.isEnabled,
-      totalSpeciesCount: results[5] as int,
+      totalSpeciesCount: results[4] as int,
     );
   }
 }
