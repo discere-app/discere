@@ -46,7 +46,15 @@ class AppConstants {
       : _prodReferenceDbManifestUrl;
 
   static const String bundleId = 'ch.feberle.discere';
-  static const String userAgent = 'DiscereApp/1.1 ($bundleId; $repositoryUrl)';
+
+  /// The `User-Agent` of every request the app makes: its name and
+  /// [version] (`PackageInfo.version`, without the build number), with the
+  /// bundle ID and the repository as a contact for whoever runs the server.
+  /// `etl/core/check_image_hosts.sh` builds the same string from
+  /// `pubspec.yaml` to load images the way the app does — a change to the
+  /// format has to be made there too.
+  static String userAgentFor(String version) =>
+      'DiscereApp/$version ($bundleId; $repositoryUrl)';
 
   /// SharedPreferences key gating the Diagnostics settings tile. Set by
   /// repeatedly tapping the app version number on the About page, read by

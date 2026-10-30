@@ -4,7 +4,10 @@ import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
+import 'package:discere/shared/util/constants.dart';
+import 'package:discere/shared/util/user_agent_http_client.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// The reference-database objects, which the bootstrap holds across runs.
 typedef ReferenceDbServices = ({
@@ -17,18 +20,25 @@ typedef ReferenceDbServices = ({
 /// until the reference database is in place.
 ///
 /// [downloader] stands in for the real one; see
-/// `BootstrapApp.referenceDbDownloader`.
+/// `BootstrapApp.referenceDbDownloader`. [httpClient] instead replaces only
+/// the transport under the real downloader's client, the way
+/// `buildSharedServices` takes it.
 ReferenceDbServices buildReferenceDbServices({
+  required PackageInfo packageInfo,
   required ForegroundServiceKeeper foregroundServiceKeeper,
   ReferenceDbDownloader? downloader,
+  http.Client? httpClient,
 }) {
   final provisioner = ReferenceDatabaseProvisioner(
     downloader:
         downloader ??
         ReferenceDbDownloader(
-          // Plain client, not the LoggingHttpClient the shared wiring builds:
-          // this runs before diagnostics and the host cooldown exist.
-          client: http.Client(),
+          // Not the LoggingHttpClient the shared wiring builds: this runs
+          // before diagnostics and the host cooldown exist.
+          client: UserAgentHttpClient(
+            httpClient ?? http.Client(),
+            AppConstants.userAgentFor(packageInfo.version),
+          ),
           foregroundServiceKeeper: foregroundServiceKeeper,
         ),
     closeOpenDatabases: DatabaseHelper.close,

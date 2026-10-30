@@ -1,5 +1,10 @@
+import 'dart:io';
+
+import 'package:discere/app/wiring/external_wiring.dart';
 import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/shared/service/diagnostics_sink.dart';
+import 'package:discere/shared/util/constants.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -84,6 +89,75 @@ void main() {
       expect(response.statusCode, 503);
       expect(diagnostics.failedRequests, [url, url]);
       expect(shared.hostCooldownTracker.cooldownForHost(url.host), isNotNull);
+    });
+
+    group("sends the installed app's User-Agent", () {
+      final appUserAgent = AppConstants.userAgentFor(_installedPackage.version);
+      late List<http.BaseRequest> sent;
+      late SharedServices shared;
+
+      setUp(() async {
+        sent = [];
+        shared = buildSharedServices(
+          sharedPreferences: await preferences(),
+          diagnostics: _RecordingDiagnostics(),
+          packageInfo: _installedPackage,
+          httpClient: MockClient((request) async {
+            sent.add(request);
+            return http.Response('{}', 200);
+          }),
+        );
+      });
+
+      test('on a request of the shared client itself', () async {
+        await shared.sharedHttpClient.get(
+          Uri.https('raw.githubusercontent.com', '/decks/index.json'),
+        );
+
+        expect(sent.single.headers['User-Agent'], appUserAgent);
+      });
+
+      test('on an image download', () async {
+        final documents = await Directory.systemTemp.createTemp(
+          'shared_wiring_test',
+        );
+        addTearDown(() => documents.delete(recursive: true));
+        const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(
+          pathProvider,
+          (call) async => documents.path,
+        );
+        addTearDown(
+          () => messenger.setMockMethodCallHandler(pathProvider, null),
+        );
+
+        await shared.imageService.downloadAndSaveDeckCover(
+          'https://www.fishbase.se/images/species/Ptmil_u0.jpg',
+        );
+
+        expect(sent.single.headers['User-Agent'], appUserAgent);
+      });
+
+      test('on the iNaturalist and Wikipedia requests', () async {
+        final external = buildExternalClients(shared.sharedHttpClient);
+
+        await external.iNatSearch.searchTaxa('Pterois miles');
+        await external.wikipediaApi.getSummary(
+          wikipediaUrl: 'https://en.wikipedia.org/wiki/Pterois_miles',
+          localeCode: 'en',
+        );
+
+        expect(sent.map((request) => request.url.host), [
+          'api.inaturalist.org',
+          'en.wikipedia.org',
+        ]);
+        expect(
+          sent.map((request) => request.headers['User-Agent']),
+          everyElement(appUserAgent),
+        );
+      });
     });
   });
 }

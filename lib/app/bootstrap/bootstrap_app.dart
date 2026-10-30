@@ -38,7 +38,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class BootstrapApp extends StatefulWidget {
   /// The installed app's name, version and build, as `main()` read them.
   /// Provided to the app as is and kept across in-app restarts, so every
-  /// place that reports the version reports the same one.
+  /// place that reports the version — the About and diagnostics pages, the
+  /// User-Agent of every request — reports the same one.
   final PackageInfo packageInfo;
 
   /// Stands in for the notification service a run builds itself, in tests.
@@ -58,8 +59,9 @@ class BootstrapApp extends StatefulWidget {
 
   /// Transport for everything the shared wiring builds — iNaturalist,
   /// Wikipedia, deck sync, images. Injected *inside* the shared
-  /// `LoggingHttpClient` rather than in place of it, so a test still runs
-  /// through the real wrapper and only the network is stood in for.
+  /// `LoggingHttpClient` and the client that sets the User-Agent rather
+  /// than in place of them, so a test still runs through the real wrappers
+  /// and only the network is stood in for.
   ///
   /// That wrapper also feeds the `HostCooldownTracker`, which reacts to
   /// stubbed failures exactly as it does to real ones: a stub answering 503
@@ -93,6 +95,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
   final _foregroundServiceKeeper = FlutterForegroundTaskKeeper();
 
   late final _referenceDb = buildReferenceDbServices(
+    packageInfo: widget.packageInfo,
     foregroundServiceKeeper: _foregroundServiceKeeper,
     downloader: widget.referenceDbDownloader,
   );

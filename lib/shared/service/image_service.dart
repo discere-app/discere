@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
-import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -165,7 +164,6 @@ class ImageService {
     _log.debug('Downloading deck cover from $url');
     final responseBytes = await _downloadBytes(
       Uri.parse(url),
-      headers: {'User-Agent': AppConstants.userAgent},
       timeout: _deckCoverTimeout,
     );
 
@@ -256,7 +254,6 @@ class ImageService {
       );
       final responseBytes = await _downloadBytes(
         Uri.parse(url),
-        headers: {'User-Agent': AppConstants.userAgent},
         timeout: _referenceImageTimeout,
       );
       await tempFile.writeAsBytes(responseBytes);
@@ -271,13 +268,9 @@ class ImageService {
     return null;
   }
 
-  Future<List<int>> _downloadBytes(
-    Uri url, {
-    required Map<String, String> headers,
-    required Duration timeout,
-  }) async {
+  Future<List<int>> _downloadBytes(Uri url, {required Duration timeout}) async {
     final response = await _client
-        .get(url, headers: headers)
+        .get(url)
         .timeout(
           timeout,
           onTimeout: () => throw TimeoutException(
