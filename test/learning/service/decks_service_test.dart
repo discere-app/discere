@@ -172,6 +172,8 @@ void main() {
       final result = await service.getAllDecks();
 
       expect(result.single.learningMode, LearningMode.family);
+      expect(result.single.learnedCount, 5);
+      expect(result.single.totalCount, 10);
       expect(result.single.progress, 0.5);
     });
 

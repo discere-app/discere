@@ -192,7 +192,8 @@ void main() {
 DeckViewModel _buildDeck(String id, String name) {
   return DeckViewModel(
     stored: BaseDeck(id: id, name: name, description: 'Description'),
-    progress: 0.3,
+    learnedCount: 3,
+    totalCount: 10,
   );
 }
 

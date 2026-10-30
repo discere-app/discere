@@ -304,7 +304,8 @@ DeckViewModel _buildDeck() {
       name: 'Test Deck',
       description: 'Description',
     ),
-    progress: 0.3,
+    learnedCount: 3,
+    totalCount: 10,
   );
 }
 
