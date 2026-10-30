@@ -5,7 +5,7 @@ import 'package:discere/learning/decks/deck_replacement_hint.dart';
 import 'package:discere/learning/decks/deck_update_hint.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/widgets/action_button.dart';
-import 'package:discere/learning/decks/widgets/stat_subtitle.dart';
+import 'package:discere/learning/decks/widgets/deck_progress_row.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -13,7 +13,6 @@ import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -146,21 +145,13 @@ class _DeckCardState extends State<DeckCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stored.name,
-                                style: theme.textTheme.titleLarge,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              AppSpacing.heightS4,
-                              StatSubtitle(deckStatFuture: _deckStatFuture),
-                            ],
+                          child: Text(
+                            stored.name,
+                            style: theme.textTheme.titleLarge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Row(
@@ -205,22 +196,7 @@ class _DeckCardState extends State<DeckCard> {
                     DeckReplacementHint(deckId: stored.id!),
                     DeckEnrichmentHint(deckId: stored.id!),
                     AppSpacing.heightS16,
-                    // Progress bar
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: deck.progress,
-                        minHeight: 6,
-                        backgroundColor: colorScheme.onSurface.withValues(
-                          alpha: 0.1,
-                        ),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          deck.progress >= 1.0
-                              ? OceanColors.success
-                              : colorScheme.primary,
-                        ),
-                      ),
-                    ),
+                    DeckProgressRow(deck: deck),
                     AppSpacing.heightS16,
                     // Action button
                     ActionButton(
@@ -265,21 +241,3 @@ class _DeckCardState extends State<DeckCard> {
     );
   }
 }
-
-/// Icons for whichever of learning mode / name type / review mode deviate
-/// from the deck defaults (species / common name / flip), stacked vertically
-/// at the trailing edge of the deck's start/practice button content, using
-/// the button's own foreground color (dimmed) so they read as part of the
-/// button rather than a separate element next to it. Placed inside the
-/// button rather than on the cover image or next to the title because it's
-/// the one spot on the card that exists unconditionally, regardless of
-/// whether the deck has a cover image. Non-default settings are the
-/// exception, not the rule, so decks left on defaults show no icons at all.
-/// Subtitle showing how many cards have been learned, loaded asynchronously.
-/// Start-review button shown at the bottom of the card. Disabled when
-/// neither due reviews nor new cards are currently available — the deck's
-/// overall progress doesn't factor in here, only what the FSRS scheduler
-/// says is ready right now.
-/// Lays out an action button's icon + label + trailing mode-icon column in
-/// one row, so the mode icons render as part of the button's own content
-/// (inheriting its foreground color) instead of a separately styled sibling.

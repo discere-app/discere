@@ -6,6 +6,15 @@ import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
+/// Icons for whichever of learning mode / name type / review mode deviate
+/// from the deck defaults (species / common name / flip), stacked vertically
+/// at the trailing edge of the deck's start/practice button content, using
+/// the button's own foreground color (dimmed) so they read as part of the
+/// button rather than a separate element next to it. Placed inside the
+/// button rather than on the cover image or next to the title because it's
+/// the one spot on the card that exists unconditionally, regardless of
+/// whether the deck has a cover image. Non-default settings are the
+/// exception, not the rule, so decks left on defaults show no icons at all.
 class LearningModeIconColumn extends StatelessWidget {
   static const _style = LearningModeStyle();
   static const double _iconSize = 14;

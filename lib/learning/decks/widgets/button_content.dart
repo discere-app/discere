@@ -1,6 +1,9 @@
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
+/// Lays out an action button's icon + label + trailing mode-icon column in
+/// one row, so the mode icons render as part of the button's own content
+/// (inheriting its foreground color) instead of a separately styled sibling.
 class ButtonContent extends StatelessWidget {
   final IconData icon;
   final String label;

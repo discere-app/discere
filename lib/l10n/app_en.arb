@@ -304,8 +304,8 @@
   "flashcardButtonGood": "Good",
   "flashcardButtonEasy": "Easy",
   "error": "Error",
-  "deckProgressSubtitle": "{learned}/{total} learned",
-  "@deckProgressSubtitle": {
+  "deckProgressCount": "{learned}/{total}",
+  "@deckProgressCount": {
     "placeholders": {
       "learned": {
         "type": "int"
@@ -315,22 +315,27 @@
       }
     }
   },
-  "deckReviewButton": "{due} to review",
-  "@deckReviewButton": {
+  "deckProgressSemantics": "{learned} of {total} learned",
+  "@deckProgressSemantics": {
     "placeholders": {
-      "due": {
+      "learned": {
+        "type": "int"
+      },
+      "total": {
         "type": "int"
       }
     }
   },
-  "deckNewCardsButton": "{count} new",
-  "@deckNewCardsButton": {
+  "deckReviewCardsButton": "{count, plural, =1 {Review 1 card} other {Review {count} cards}}",
+  "@deckReviewCardsButton": {
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
+  "deckLearnNewCardsButton": "Learn new cards",
+  "deckNothingDueButton": "Nothing due right now",
   "deckLearningModeTooltip": "Learning mode: {mode}",
   "@deckLearningModeTooltip": {
     "placeholders": {

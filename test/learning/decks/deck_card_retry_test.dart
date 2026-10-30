@@ -6,6 +6,7 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_card.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
+import 'package:discere/learning/decks/widgets/button_content.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
@@ -205,7 +206,9 @@ void main() {
     );
 
     testWidgets('a failed deck stat load is logged once, however often the '
-        'card rebuilds, and the subtitle still shows nothing', (tester) async {
+        'card rebuilds, and the start button names no action', (
+      tester,
+    ) async {
       final warnings = recordPersistedWarnings();
       when(
         flashcardService.getDeckStat(any),
@@ -238,7 +241,14 @@ void main() {
       // The stack trace, as Logger indents it, down to where the card asked.
       expect(warnings.single, contains('\n    '));
       expect(warnings.single, contains('_DeckCardState._fetchDeckStat'));
-      expect(find.textContaining('learned'), findsNothing);
+      // The button's label is the one part of the card the failed stat
+      // feeds; the count beside the bar comes with the deck list instead.
+      final loc = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(loc.deckProgressCount(1, 2)), findsOneWidget);
+      expect(
+        tester.widget<ButtonContent>(find.byType(ButtonContent)).label,
+        isEmpty,
+      );
     });
 
     testWidgets('a failed retry shows its snack bar and is logged with its '

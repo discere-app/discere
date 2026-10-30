@@ -300,8 +300,8 @@
   "flashcardButtonGood": "Gut",
   "flashcardButtonEasy": "Leicht",
   "error": "Fehler",
-  "deckProgressSubtitle": "{learned}/{total} gelernt",
-  "@deckProgressSubtitle": {
+  "deckProgressCount": "{learned}/{total}",
+  "@deckProgressCount": {
     "placeholders": {
       "learned": {
         "type": "int"
@@ -311,22 +311,27 @@
       }
     }
   },
-  "deckReviewButton": "{due} wiederholen",
-  "@deckReviewButton": {
+  "deckProgressSemantics": "{learned} von {total} gelernt",
+  "@deckProgressSemantics": {
     "placeholders": {
-      "due": {
+      "learned": {
+        "type": "int"
+      },
+      "total": {
         "type": "int"
       }
     }
   },
-  "deckNewCardsButton": "{count} neu lernen",
-  "@deckNewCardsButton": {
+  "deckReviewCardsButton": "{count, plural, =1 {1 Karte wiederholen} other {{count} Karten wiederholen}}",
+  "@deckReviewCardsButton": {
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
+  "deckLearnNewCardsButton": "Neue Karten lernen",
+  "deckNothingDueButton": "Gerade nichts fällig",
   "deckLearningModeTooltip": "Lernmodus: {mode}",
   "@deckLearningModeTooltip": {
     "placeholders": {
