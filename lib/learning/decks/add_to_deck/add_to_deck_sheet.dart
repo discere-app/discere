@@ -5,6 +5,7 @@ import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/shared/util/failure_logging.dart';
@@ -212,19 +213,19 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snapshot.hasError) {
+          return _buildListMessage(
+            context.loc.errorWithDetail(
+              context.loc.describeError(snapshot.error),
+            ),
+            colorScheme,
+          );
+        }
         final decks = snapshot.data ?? const [];
         if (decks.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.s16),
-              child: Text(
-                context.loc.addToDeckSheetNoExistingDecks,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
+          return _buildListMessage(
+            context.loc.addToDeckSheetNoExistingDecks,
+            colorScheme,
           );
         }
 
@@ -249,6 +250,21 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildListMessage(String message, ColorScheme colorScheme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.s16),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }
