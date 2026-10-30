@@ -1,9 +1,10 @@
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 
-/// A deck as the deck list shows it: the stored deck plus the progress and
+/// A deck as the deck list shows it: the stored deck plus the card counts and
 /// learning settings the card displays.
 ///
 /// Holds the stored deck instead of extending it, so the compiler refuses a
@@ -20,16 +21,31 @@ import 'package:discere/learning/model/review_mode.dart';
 /// the difference matters on the way back to the database.
 class DeckViewModel {
   final BaseDeck stored;
-  final double progress;
+
+  /// The deck's card counts in its learning mode, loaded with the list.
+  final DeckStat stat;
+
   final LearningMode learningMode;
   final NameType nameType;
   final ReviewMode reviewMode;
 
   const DeckViewModel({
     required this.stored,
-    required this.progress,
+    required this.stat,
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
     this.reviewMode = ReviewMode.flip,
   });
+
+  /// Cards a session has already taken up — the ones the card counts as
+  /// learned.
+  int get learnedCount => stat.totalCount - stat.uninitializedCount;
+
+  /// Cards the deck holds in its learning mode.
+  int get totalCount => stat.totalCount;
+
+  /// Share of [totalCount] learned, from 0 to 1. A deck without a card in its
+  /// mode — empty, or none of its species has an answer there — has learned
+  /// nothing, not everything.
+  double get progress => totalCount == 0 ? 0 : learnedCount / totalCount;
 }

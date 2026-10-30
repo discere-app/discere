@@ -12,7 +12,6 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -22,11 +21,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../mocks.mocks.dart';
-
-class TestFlashcardService extends Fake implements FlashcardService {
-  @override
-  Future<DeckStat> getDeckStat(String deckId) async => DeckStat(10, 7, 0);
-}
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
@@ -96,12 +90,10 @@ void main() {
 
   group('Deck progress refresh', () {
     late MockDecksService mockDecksService;
-    late TestFlashcardService flashcardService;
     late TestINatEnrichmentQueueService enrichmentQueueService;
 
     setUp(() {
       mockDecksService = MockDecksService();
-      flashcardService = TestFlashcardService();
       enrichmentQueueService = TestINatEnrichmentQueueService();
     });
 
@@ -119,7 +111,6 @@ void main() {
             ChangeNotifierProvider<FavoriteService>.value(
               value: await _buildFavoriteService(),
             ),
-            Provider<FlashcardService>.value(value: flashcardService),
             ChangeNotifierProvider<INatEnrichmentQueueService>.value(
               value: enrichmentQueueService,
             ),
@@ -173,7 +164,6 @@ void main() {
               ChangeNotifierProvider<FavoriteService>.value(
                 value: favoriteService,
               ),
-              Provider<FlashcardService>.value(value: flashcardService),
               ChangeNotifierProvider<INatEnrichmentQueueService>.value(
                 value: enrichmentQueueService,
               ),
@@ -229,7 +219,6 @@ void main() {
             ChangeNotifierProvider<FavoriteService>.value(
               value: favoriteService,
             ),
-            Provider<FlashcardService>.value(value: TestFlashcardService()),
             ChangeNotifierProvider<INatEnrichmentQueueService>.value(
               value: TestINatEnrichmentQueueService(),
             ),
@@ -304,7 +293,7 @@ DeckViewModel _buildDeck() {
       name: 'Test Deck',
       description: 'Description',
     ),
-    progress: 0.3,
+    stat: DeckStat(10, 7, 0),
   );
 }
 

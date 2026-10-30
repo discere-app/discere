@@ -428,16 +428,10 @@ class DecksService extends ChangeNotifier {
         learningMode: learningMode,
         nameType: nameType,
       );
-
-      // A deck without a card in its mode — empty, or none of its species
-      // has an answer there — has learned nothing, not everything.
-      double progress = deckStat.totalCount == 0
-          ? 0
-          : 1 - (deckStat.uninitializedCount / deckStat.totalCount);
       viewModels.add(
         DeckViewModel(
           stored: deck,
-          progress: progress,
+          stat: deckStat,
           learningMode: learningMode,
           nameType: nameType,
           reviewMode: reviewMode,
