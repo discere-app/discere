@@ -43,11 +43,12 @@ class BootstrapApp extends StatefulWidget {
   final bool processEnrichmentJobs;
 
   /// Stands in for the real manifest fetch and download in integration
-  /// tests, where all HTTP is forced to fail fast (see
-  /// `integration_test/test_utils.dart`). Separate from [httpClient] because
-  /// the reference-DB check runs before the shared wiring exists and holds a
-  /// client of its own; between the two, every HTTP path the app takes can be
-  /// driven from a test without a test-only hook inside the production code.
+  /// tests, where every HTTP connection is refused (see
+  /// `integration_test/offline_http_overrides.dart`). Separate from
+  /// [httpClient] because the reference-DB check runs before the shared
+  /// wiring exists and holds a client of its own; between the two, every HTTP
+  /// path the app takes can be driven from a test without a test-only hook
+  /// inside the production code.
   final ReferenceDbDownloader? referenceDbDownloader;
 
   /// Transport for everything the shared wiring builds — iNaturalist,
