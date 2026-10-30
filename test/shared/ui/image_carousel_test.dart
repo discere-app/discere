@@ -2,10 +2,15 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
+
+import '../../support/installed_package.dart';
 
 void main() {
   Widget buildTestableWidget(
@@ -204,6 +209,73 @@ void main() {
 
       final image = tester.widget<Image>(find.byType(Image).first);
       expect(image.image, isA<FileImage>());
+    });
+  });
+
+  group('ImageCarousel remote images', () {
+    final appHeaders = {
+      'User-Agent': AppConstants.userAgentFor(installedPackage.version),
+    };
+
+    Future<void> pumpRemoteCarousel(WidgetTester tester) async {
+      await tester.pumpWidget(
+        Provider<PackageInfo>.value(
+          value: installedPackage,
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(
+              body: ImageCarousel(
+                pictures: [
+                  CarouselImage(
+                    remoteUrl: 'https://images.test/1.jpg',
+                    attributionText: '',
+                  ),
+                ],
+                constraints: BoxConstraints(maxWidth: 400, maxHeight: 300),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets("loads a remote image with the app's User-Agent", (
+      tester,
+    ) async {
+      await pumpRemoteCarousel(tester);
+
+      final image = tester.widget<Image>(find.byType(Image));
+      final provider =
+          (image.image as ResizeImage).imageProvider as NetworkImage;
+      expect(provider.headers, appHeaders);
+    });
+
+    testWidgets("opens a remote image fullscreen with the app's User-Agent", (
+      tester,
+    ) async {
+      await pumpRemoteCarousel(tester);
+
+      await tester.tap(find.byType(GestureDetector).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final fullscreen = tester.widget<Image>(
+        find.descendant(
+          of: find.byType(FullscreenImageViewer),
+          matching: find.byType(Image),
+        ),
+      );
+      expect((fullscreen.image as NetworkImage).headers, appHeaders);
+      // The host test answers every request with 400, and the fullscreen
+      // viewer, unlike the carousel, reports a failed load.
+      expect(tester.takeException(), isA<NetworkImageLoadException>());
     });
   });
 }

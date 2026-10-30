@@ -11,7 +11,7 @@ import 'package:mockito/mockito.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../mocks.mocks.dart';
-import 'bootstrap_harness.dart';
+import '../../support/installed_package.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

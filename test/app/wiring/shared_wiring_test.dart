@@ -8,8 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../support/installed_package.dart';
 
 /// Collects what the shared HTTP client reports instead of writing it to a
 /// database — the wiring needs a sink, and this test is about the transport
@@ -27,13 +28,6 @@ class _RecordingDiagnostics implements DiagnosticsSink {
     failedRequests.add(request.url);
   }
 }
-
-final _installedPackage = PackageInfo(
-  appName: 'Discere',
-  packageName: 'ch.feberle.discere',
-  version: '2.3.4',
-  buildNumber: '56',
-);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -54,7 +48,7 @@ void main() {
       final shared = buildSharedServices(
         sharedPreferences: await preferences(),
         diagnostics: _RecordingDiagnostics(),
-        packageInfo: _installedPackage,
+        packageInfo: installedPackage,
         httpClient: stub,
       );
       final response = await shared.sharedHttpClient.get(
@@ -73,7 +67,7 @@ void main() {
       final shared = buildSharedServices(
         sharedPreferences: await preferences(),
         diagnostics: diagnostics,
-        packageInfo: _installedPackage,
+        packageInfo: installedPackage,
         httpClient: stub,
       );
       final url = Uri.https('api.inaturalist.org', '/v2/taxa');
@@ -92,7 +86,7 @@ void main() {
     });
 
     group("sends the installed app's User-Agent", () {
-      final appUserAgent = AppConstants.userAgentFor(_installedPackage.version);
+      final appUserAgent = AppConstants.userAgentFor(installedPackage.version);
       late List<http.BaseRequest> sent;
       late SharedServices shared;
 
@@ -101,7 +95,7 @@ void main() {
         shared = buildSharedServices(
           sharedPreferences: await preferences(),
           diagnostics: _RecordingDiagnostics(),
-          packageInfo: _installedPackage,
+          packageInfo: installedPackage,
           httpClient: MockClient((request) async {
             sent.add(request);
             return http.Response('{}', 200);

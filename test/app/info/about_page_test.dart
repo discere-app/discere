@@ -8,6 +8,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../support/installed_package.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -20,7 +22,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_buildApp());
 
-    expect(find.text('Version 2.3.4'), findsOneWidget);
+    expect(find.text('Version ${installedPackage.version}'), findsOneWidget);
   });
 
   testWidgets('Tapping the version five times unlocks the developer '
@@ -28,7 +30,7 @@ void main() {
     await tester.pumpWidget(_buildApp());
 
     for (var tap = 0; tap < 5; tap++) {
-      await tester.tap(find.text('Version 2.3.4'));
+      await tester.tap(find.text('Version ${installedPackage.version}'));
     }
     await tester.pumpAndSettle();
 
@@ -82,12 +84,7 @@ Future<void> _scrollToLicensesButton(WidgetTester tester) async {
 
 Widget _buildApp() {
   return Provider<PackageInfo>.value(
-    value: PackageInfo(
-      appName: 'Discere',
-      packageName: 'ch.feberle.discere',
-      version: '2.3.4',
-      buildNumber: '56',
-    ),
+    value: installedPackage,
     child: MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: const [

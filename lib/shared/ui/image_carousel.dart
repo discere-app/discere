@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:discere/shared/extensions/image_request_headers_extension.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -66,7 +67,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
   ImageProvider _providerFor(CarouselImage pic) {
     return pic.localPath != null
         ? FileImage(File(pic.localPath!))
-        : NetworkImage(pic.remoteUrl!);
+        : NetworkImage(pic.remoteUrl!, headers: context.imageRequestHeaders);
   }
 
   @override
@@ -216,6 +217,7 @@ class _CarouselImage extends StatelessWidget {
 
     return Image.network(
       pic.remoteUrl!,
+      headers: context.imageRequestHeaders,
       fit: BoxFit.contain,
       width: constraints.maxWidth,
       height: constraints.maxHeight,

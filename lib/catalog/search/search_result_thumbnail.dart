@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:discere/shared/extensions/image_request_headers_extension.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 
@@ -102,6 +103,7 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
                 ColoredBox(color: widget.backgroundColor),
                 Image.network(
                   url,
+                  headers: context.imageRequestHeaders,
                   fit: BoxFit.cover,
                   cacheWidth: decodeSize,
                   cacheHeight: decodeSize,

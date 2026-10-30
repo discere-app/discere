@@ -5,20 +5,15 @@ import 'package:discere/shared/util/constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../support/installed_package.dart';
 
 void main() {
   group('buildReferenceDbServices', () {
     test("fetches the manifest with the installed app's User-Agent", () async {
-      final packageInfo = PackageInfo(
-        appName: 'Discere',
-        packageName: 'ch.feberle.discere',
-        version: '2.3.4',
-        buildNumber: '56',
-      );
       final sent = <http.BaseRequest>[];
       final referenceDb = buildReferenceDbServices(
-        packageInfo: packageInfo,
+        packageInfo: installedPackage,
         foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
         httpClient: MockClient((request) async {
           sent.add(request);
@@ -36,7 +31,7 @@ void main() {
       expect(sent.single.url.toString(), AppConstants.referenceDbManifestUrl);
       expect(
         sent.single.headers['User-Agent'],
-        AppConstants.userAgentFor(packageInfo.version),
+        AppConstants.userAgentFor(installedPackage.version),
       );
     });
   });

@@ -12,28 +12,19 @@ import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:mockito/mockito.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../mocks.mocks.dart';
 import '../../support/in_memory_user_database.dart';
+import '../../support/installed_package.dart';
 
 /// Old ID of Amphiprion ocellaris, which the fixture aliases to [newSpeciesId].
 const oldSpeciesId = 'discere:fishbase_species:6509';
 const newSpeciesId = 'discere:species:6002';
 
 const fixturePath = 'test/fixtures/discere_reference_test.db';
-
-/// What `main()` would have read from the platform, which a host test has
-/// not got.
-final installedPackage = PackageInfo(
-  appName: 'Discere',
-  packageName: 'ch.feberle.discere',
-  version: '1.0.0',
-  buildNumber: '1',
-);
 
 /// Puts the reference-DB fixture where the app looks for it and creates an
 /// empty user database next to it — created here rather than by
