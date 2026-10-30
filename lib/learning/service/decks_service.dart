@@ -431,8 +431,7 @@ class DecksService extends ChangeNotifier {
       viewModels.add(
         DeckViewModel(
           stored: deck,
-          learnedCount: deckStat.totalCount - deckStat.uninitializedCount,
-          totalCount: deckStat.totalCount,
+          stat: deckStat,
           learningMode: learningMode,
           nameType: nameType,
           reviewMode: reviewMode,

@@ -145,8 +145,8 @@ void main() {
       );
     });
 
-    test('computes progress and learningMode from the deck\'s configured mode, '
-        'not always species', () async {
+    test('carries the card counts, progress and learningMode of the deck\'s '
+        'configured mode, not always species', () async {
       when(
         mockDeckRepo.getAllDecks(),
       ).thenAnswer((_) async => [BaseDeck(id: 'd1', name: 'Deck 1', description: 'Description 1')]);
@@ -167,13 +167,17 @@ void main() {
           'd1',
           learningMode: LearningMode.family,
         ),
-      ).thenAnswer((_) async => DeckStat(10, 5, 0));
+      ).thenAnswer((_) async => DeckStat(10, 5, 2));
 
       final result = await service.getAllDecks();
 
       expect(result.single.learningMode, LearningMode.family);
+      final stat = result.single.stat;
+      expect(
+        (stat.totalCount, stat.uninitializedCount, stat.dueCount),
+        (10, 5, 2),
+      );
       expect(result.single.learnedCount, 5);
-      expect(result.single.totalCount, 10);
       expect(result.single.progress, 0.5);
     });
 

@@ -5,8 +5,9 @@ import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 
 /// The deck's learning progress as a bar with the learned/total count next to
-/// it — the one place the card states it. Both read from [deck], which the
-/// deck list loaded together, so the count never lags behind the bar.
+/// it — the one place the card states it. Both read the stat the deck list
+/// loaded with [deck], so the count never lags behind the bar and agrees with
+/// the start button below.
 ///
 /// Announced as one sentence ("30 of 150 learned"): the bar's own percentage
 /// and the bare "30/150" would only repeat it in a less readable form. A deck

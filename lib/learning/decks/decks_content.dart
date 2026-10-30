@@ -46,8 +46,7 @@ class DecksContentState extends State<DecksContent> {
   // (e.g. after a create/update/delete) is still resolving, instead of
   // dropping back to a spinner and tearing down the whole list — a plain
   // FutureBuilder resets to `waiting` on every new future identity, which
-  // otherwise flashes a spinner and re-fetches every DeckCard's stats on
-  // each unrelated deck mutation.
+  // otherwise flashes a spinner on each unrelated deck mutation.
   List<DeckViewModel>? _lastDecks;
 
   // Decks the user has swiped away whose database deletion hasn't been
@@ -132,8 +131,7 @@ class DecksContentState extends State<DecksContent> {
         final deck = decks[index];
         final deckId = deck.stored.id!;
         // Scoped to this deck's favorite flag only, so toggling one deck's
-        // favorite state doesn't rebuild every visible DeckCard (each of
-        // which independently re-queries its deck stats on rebuild).
+        // favorite state doesn't rebuild every visible DeckCard.
         return Selector<FavoriteService, bool>(
           key: ValueKey(deckId),
           selector: (_, service) => service.isFavoriteDeck(deckId),

@@ -6,13 +6,6 @@ void main() {
   const presenter = DeckActionPresenter();
 
   group('DeckActionPresenter.actionFor', () {
-    test('offers the session while the stat is still loading', () {
-      final action = presenter.actionFor(null);
-
-      expect(action, isA<DeckActionPending>());
-      expect(action.canStart, isTrue);
-    });
-
     test('reviews the due cards', () {
       final action = presenter.actionFor(DeckStat(150, 0, 12));
 

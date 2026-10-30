@@ -12,7 +12,6 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -22,11 +21,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../mocks.mocks.dart';
-
-class TestFlashcardService extends Fake implements FlashcardService {
-  @override
-  Future<DeckStat> getDeckStat(String deckId) async => DeckStat(1, 1, 0);
-}
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
@@ -99,12 +93,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late MockDecksService decksService;
-  late TestFlashcardService flashcardService;
   late TestINatEnrichmentQueueService enrichmentQueueService;
 
   setUp(() {
     decksService = MockDecksService();
-    flashcardService = TestFlashcardService();
     enrichmentQueueService = TestINatEnrichmentQueueService();
   });
 
@@ -128,7 +120,6 @@ void main() {
           ]),
           decksService: decksService,
           favoriteService: favoriteService,
-          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -158,7 +149,6 @@ void main() {
           futureDecks: refreshCompleter.future,
           decksService: decksService,
           favoriteService: favoriteService,
-          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -183,8 +173,7 @@ void main() {
 DeckViewModel _buildDeck(String id, String name) {
   return DeckViewModel(
     stored: BaseDeck(id: id, name: name, description: 'Description'),
-    learnedCount: 3,
-    totalCount: 10,
+    stat: DeckStat(10, 7, 0),
   );
 }
 
@@ -198,14 +187,12 @@ Widget _buildApp({
   required Future<List<DeckViewModel>> futureDecks,
   required DecksService decksService,
   required FavoriteService favoriteService,
-  required FlashcardService flashcardService,
   required INatEnrichmentQueueService enrichmentQueueService,
 }) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<DecksService>.value(value: decksService),
       ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
-      Provider<FlashcardService>.value(value: flashcardService),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
       ),

@@ -6,17 +6,12 @@ import 'package:discere/learning/decks/deck_update_hint.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/widgets/action_button.dart';
 import 'package:discere/learning/decks/widgets/deck_progress_row.dart';
-import 'package:discere/learning/model/deck_stat.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/image_placeholder.dart';
-import 'package:discere/shared/util/failure_logging.dart';
-import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-class DeckCard extends StatefulWidget {
+class DeckCard extends StatelessWidget {
   final DeckViewModel deck;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
@@ -43,53 +38,8 @@ class DeckCard extends StatefulWidget {
   });
 
   @override
-  State<DeckCard> createState() => _DeckCardState();
-}
-
-class _DeckCardState extends State<DeckCard> {
-  static final _log = Logger.forType(DeckCard);
-
-  late Future<DeckStat> _deckStatFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _deckStatFuture = _fetchDeckStat();
-  }
-
-  @override
-  void didUpdateWidget(covariant DeckCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Identity, not just id: DecksContent passes the exact same view model
-    // instance on incidental rebuilds (e.g. a different deck's favorite
-    // toggling), but a genuine reload — like returning from a review
-    // session — always supplies a freshly fetched view model, even for a
-    // deck whose id didn't change. Refetch precisely on the latter.
-    if (oldWidget.deck != widget.deck) {
-      _deckStatFuture = _fetchDeckStat();
-    }
-  }
-
-  Future<DeckStat> _fetchDeckStat() {
-    return Provider.of<FlashcardService>(
-      context,
-      listen: false,
-    ).getDeckStat(widget.deck.stored.id!).warnOnFailure(_log, 'Deck stat load');
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final deck = widget.deck;
     final stored = deck.stored;
-    final isFavorite = widget.isFavorite;
-    final onFavoriteToggle = widget.onFavoriteToggle;
-    final onTap = widget.onTap;
-    final onEdit = widget.onEdit;
-    final onShare = widget.onShare;
-    final onDismiss = widget.onDismiss;
-    final favoriteKey = widget.favoriteKey;
-    final editKey = widget.editKey;
-    final shareKey = widget.shareKey;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final hasCoverImage = stored.coverImagePath != null;
@@ -199,11 +149,7 @@ class _DeckCardState extends State<DeckCard> {
                     DeckProgressRow(deck: deck),
                     AppSpacing.heightS16,
                     // Action button
-                    ActionButton(
-                      deck: deck,
-                      onTap: onTap,
-                      deckStatFuture: _deckStatFuture,
-                    ),
+                    ActionButton(deck: deck, onTap: onTap),
                   ],
                 ),
               ),

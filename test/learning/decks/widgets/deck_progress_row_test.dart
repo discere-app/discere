@@ -2,6 +2,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/widgets/deck_progress_row.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_stat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,8 +22,7 @@ void main() {
           body: DeckProgressRow(
             deck: DeckViewModel(
               stored: BaseDeck(id: 'deck-1', name: 'Deck', description: ''),
-              learnedCount: learnedCount,
-              totalCount: totalCount,
+              stat: DeckStat(totalCount, totalCount - learnedCount, 0),
             ),
           ),
         ),

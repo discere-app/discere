@@ -6,11 +6,9 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_card.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
-import 'package:discere/learning/decks/widgets/button_content.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -25,18 +23,13 @@ import '../../support/persisted_warnings.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late MockFlashcardService flashcardService;
   late MockNotificationService notificationService;
   late TestINatEnrichmentQueueService enrichmentQueueService;
 
   setUp(() {
-    flashcardService = MockFlashcardService();
     notificationService = MockNotificationService();
     enrichmentQueueService = TestINatEnrichmentQueueService();
 
-    when(
-      flashcardService.getDeckStat(any),
-    ).thenAnswer((_) async => DeckStat(1, 1, 0));
     when(
       notificationService.shouldPromptForPermission(),
     ).thenAnswer((_) async => false);
@@ -60,7 +53,6 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          flashcardService: flashcardService,
           notificationService: notificationService,
           enrichmentQueueService: enrichmentQueueService,
         ),
@@ -90,7 +82,6 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          flashcardService: flashcardService,
           notificationService: notificationService,
           enrichmentQueueService: enrichmentQueueService,
         ),
@@ -120,7 +111,6 @@ void main() {
 
         await tester.pumpWidget(
           _buildApp(
-            flashcardService: flashcardService,
             notificationService: notificationService,
             enrichmentQueueService: enrichmentQueueService,
           ),
@@ -162,7 +152,6 @@ void main() {
 
         await tester.pumpWidget(
           _buildApp(
-            flashcardService: flashcardService,
             notificationService: notificationService,
             enrichmentQueueService: enrichmentQueueService,
           ),
@@ -205,52 +194,6 @@ void main() {
       includesCommonNames: true,
     );
 
-    testWidgets('a failed deck stat load is logged once, however often the '
-        'card rebuilds, and the start button names no action', (
-      tester,
-    ) async {
-      final warnings = recordPersistedWarnings();
-      when(
-        flashcardService.getDeckStat(any),
-      ).thenAnswer((_) => Future.error(StateError('stat broken')));
-
-      await tester.pumpWidget(
-        _buildApp(
-          flashcardService: flashcardService,
-          notificationService: notificationService,
-          enrichmentQueueService: enrichmentQueueService,
-        ),
-      );
-      await tester.pumpAndSettle();
-      // Rebuilds every widget with the same future in place: whatever shows
-      // the error builds again, nothing fetches again.
-      // The reassembly completes with the frame it schedules, so that frame
-      // is pumped before it is awaited.
-      final reassembled = tester.binding.reassembleApplication();
-      await tester.pumpAndSettle();
-      await reassembled;
-
-      expect(warnings, hasLength(1));
-      expect(
-        warnings.single,
-        startsWith(
-          '[DeckCard] Deck stat load failed — StateError: Bad state: stat '
-          'broken',
-        ),
-      );
-      // The stack trace, as Logger indents it, down to where the card asked.
-      expect(warnings.single, contains('\n    '));
-      expect(warnings.single, contains('_DeckCardState._fetchDeckStat'));
-      // The button's label is the one part of the card the failed stat
-      // feeds; the count beside the bar comes with the deck list instead.
-      final loc = lookupAppLocalizations(const Locale('en'));
-      expect(find.text(loc.deckProgressCount(1, 2)), findsOneWidget);
-      expect(
-        tester.widget<ButtonContent>(find.byType(ButtonContent)).label,
-        isEmpty,
-      );
-    });
-
     testWidgets('a failed retry shows its snack bar and is logged with its '
         'stack trace', (tester) async {
       final warnings = recordPersistedWarnings();
@@ -260,7 +203,6 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          flashcardService: flashcardService,
           notificationService: notificationService,
           enrichmentQueueService: enrichmentQueueService,
         ),
@@ -291,13 +233,11 @@ void main() {
 }
 
 Widget _buildApp({
-  required FlashcardService flashcardService,
   required NotificationService notificationService,
   required INatEnrichmentQueueService enrichmentQueueService,
 }) {
   return MultiProvider(
     providers: [
-      Provider<FlashcardService>.value(value: flashcardService),
       Provider<NotificationService>.value(value: notificationService),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
@@ -326,8 +266,7 @@ Widget _buildApp({
                   name: 'Test Deck',
                   description: 'Description',
                 ),
-                learnedCount: 1,
-                totalCount: 2,
+                stat: DeckStat(2, 1, 0),
               ),
               isFavorite: false,
               onFavoriteToggle: () {},
