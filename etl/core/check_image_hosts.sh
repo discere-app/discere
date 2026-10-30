@@ -41,11 +41,6 @@ CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CORE_DIR/plugin_api.sh"
 PLUGIN_SOURCE="check_image_hosts"
 
-# User-Agent der App beim Laden von Bildern (AppConstants.userAgent in
-# lib/shared/util/constants.dart). Ändert er sich dort, hier nachziehen:
-# Sperren hängen oft am User-Agent.
-APP_USER_AGENT="DiscereApp/1.1 (ch.feberle.discere; https://github.com/discere-app/discere)"
-
 # Fünf Bilder je Host: genug, dass zwei fehlende Bilder einen Host noch
 # nicht durchfallen lassen, und wenige Anfragen je Host.
 SAMPLE_SIZE=5
@@ -68,6 +63,15 @@ done
 
 plugin_require_command sqlite3 curl
 [[ -f "$DB_PATH" ]] || plugin_fail "Referenz-DB nicht gefunden: '$DB_PATH' (--db)."
+
+# User-Agent der App, gebaut wie AppConstants.userAgentFor in
+# lib/shared/util/constants.dart: mit der Version aus pubspec.yaml ohne
+# Build-Nummer, so wie die App sie sendet. Ändert sich das Format, beide
+# Seiten ändern: Sperren hängen oft am User-Agent.
+PUBSPEC="$CORE_DIR/../../pubspec.yaml"
+app_version="$(sed -n 's/^version:[[:space:]]*\([^+[:space:]]*\).*/\1/p' "$PUBSPEC" 2> /dev/null || true)"
+[[ -n "$app_version" ]] || plugin_fail "Keine App-Version in $PUBSPEC (Zeile 'version:')."
+APP_USER_AGENT="DiscereApp/$app_version (ch.feberle.discere; https://github.com/discere-app/discere)"
 
 # Host und URL der Stichprobe, eine Zeile je Bild, nach Host sortiert.
 sample="$(sqlite3 -separator $'\t' "file:$DB_PATH?mode=ro" "
