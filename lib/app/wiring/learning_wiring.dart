@@ -134,7 +134,6 @@ LearningDeckServices buildLearningDeckServices({
   final deckUpdateService = DeckUpdateService(
     deckRepository,
     remoteDeckService,
-    sharedPreferences,
   );
   final deckExportService = DeckExportService(
     deckService,

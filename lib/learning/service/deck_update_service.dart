@@ -6,7 +6,6 @@ import 'package:discere/learning/service/deck_supersession.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Tracks which locally-imported decks (those with a `sourceId`) have a newer
 /// version available in the online catalog, so the deck list can show an
@@ -14,29 +13,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ([DeckSupersession]), which the deck list offers to merge them into
 /// instead.
 ///
-/// [checkForUpdates] is meant to run once per app start (see
-/// `bootstrap_app.dart`'s `startDeferred`), but only actually hits the
-/// network at most once every [checkInterval] — the timestamp of the last
-/// successful check is persisted in [SharedPreferences] so it survives
-/// restarts.
+/// What it knows lives in memory only: [checkForUpdates] runs once per app
+/// session, from `AppSession`'s deferred setup, and fetches the catalog every
+/// time. The catalog index is small enough for that, and it keeps both hints
+/// current in every session without anything to persist between them.
 class DeckUpdateService extends ChangeNotifier {
   static final _log = Logger.forType(DeckUpdateService);
-  static const _prefKeyLastCheckedAt = 'deck_update_last_checked_at';
-  static const checkInterval = Duration(days: 7);
 
   final DeckRepository _deckRepository;
   final RemoteDeckService _remoteDeckService;
-  final SharedPreferences _preferences;
 
   Map<String, CreateDeck> _availableUpdates = {};
   Map<String, CreateDeck> _replacements = {};
   List<CreateDeck> _catalog = const [];
 
-  DeckUpdateService(
-    this._deckRepository,
-    this._remoteDeckService,
-    this._preferences,
-  );
+  DeckUpdateService(this._deckRepository, this._remoteDeckService);
 
   /// The catalog entry newer than what's stored locally for [deckId], or
   /// null if no update is known (either up to date, not catalog-sourced, or
@@ -53,7 +44,7 @@ class DeckUpdateService extends ChangeNotifier {
   List<CreateDeck> get catalog => _catalog;
 
   /// Number of decks currently known to have an available update — shown in
-  /// the developer Diagnostics page after a forced re-check.
+  /// the developer Diagnostics page after a manual re-check.
   int get availableUpdateCount => _availableUpdates.length;
 
   /// Whether [remoteUpdatedAt] represents newer catalog content than
@@ -80,15 +71,12 @@ class DeckUpdateService extends ChangeNotifier {
   }
 
   /// Fetches the online catalog and compares it against local decks that
-  /// carry a `sourceId` — but only if [checkInterval] has passed since the
-  /// last successful check, or [force] is set. A failed fetch (e.g. no
-  /// network) just leaves the previous state untouched and doesn't count
-  /// against the interval. So does a user database closed underneath the
-  /// check — it is fire-and-forget from the bootstrap — while any other
-  /// database error propagates.
-  Future<void> checkForUpdates({bool force = false}) async {
-    if (!force && !_isCheckDue()) return;
-
+  /// carry a `sourceId`; without such a deck there is nothing to compare,
+  /// and no request goes out. A failed fetch (e.g. no network) just leaves
+  /// the previous state untouched. So does a user database closed underneath
+  /// the check — it is fire-and-forget from the session setup — while any
+  /// other database error propagates.
+  Future<void> checkForUpdates() async {
     final localDecks = await toleratingClosedDatabase(
       _log,
       _deckRepository.getAllDecks,
@@ -111,10 +99,6 @@ class DeckUpdateService extends ChangeNotifier {
       'update, ${_replacements.length} are superseded',
     );
     notifyListeners();
-    await _preferences.setInt(
-      _prefKeyLastCheckedAt,
-      DateTime.now().millisecondsSinceEpoch,
-    );
   }
 
   /// Classifies the local decks again against the [catalog] already
@@ -149,12 +133,5 @@ class DeckUpdateService extends ChangeNotifier {
     }
     _replacements = replacements;
     _availableUpdates = updates;
-  }
-
-  bool _isCheckDue() {
-    final lastCheckedMillis = _preferences.getInt(_prefKeyLastCheckedAt);
-    if (lastCheckedMillis == null) return true;
-    final lastChecked = DateTime.fromMillisecondsSinceEpoch(lastCheckedMillis);
-    return DateTime.now().difference(lastChecked) >= checkInterval;
   }
 }

@@ -38,11 +38,7 @@ void main() {
       enrichmentQueue: enrichmentQueue,
       deckRepository: deckRepository,
       remoteDeckService: remoteDeckService,
-      deckUpdateService: DeckUpdateService(
-        deckRepository,
-        remoteDeckService,
-        await SharedPreferences.getInstance(),
-      ),
+      deckUpdateService: DeckUpdateService(deckRepository, remoteDeckService),
       shared: buildSharedServices(
         sharedPreferences: await SharedPreferences.getInstance(),
         diagnostics: localDiagnostics,

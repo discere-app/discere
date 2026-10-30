@@ -127,7 +127,6 @@ void main() {
               value: DeckUpdateService(
                 MockDeckRepository(),
                 MockRemoteDeckService(),
-                MockSharedPreferences(),
               ),
             ),
           ],
@@ -182,7 +181,6 @@ void main() {
                 value: DeckUpdateService(
                   MockDeckRepository(),
                   MockRemoteDeckService(),
-                  MockSharedPreferences(),
                 ),
               ),
             ],
@@ -239,7 +237,6 @@ void main() {
               value: DeckUpdateService(
                 MockDeckRepository(),
                 MockRemoteDeckService(),
-                MockSharedPreferences(),
               ),
             ),
           ],

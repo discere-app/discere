@@ -11,7 +11,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../mocks.mocks.dart';
 
@@ -22,15 +21,10 @@ void main() {
   late MockRemoteDeckService remoteDeckService;
   late DeckUpdateService updateService;
 
-  setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+  setUp(() {
     deckRepository = MockDeckRepository();
     remoteDeckService = MockRemoteDeckService();
-    updateService = DeckUpdateService(
-      deckRepository,
-      remoteDeckService,
-      await SharedPreferences.getInstance(),
-    );
+    updateService = DeckUpdateService(deckRepository, remoteDeckService);
     when(deckRepository.getAllDecks()).thenAnswer(
       (_) async => [
         BaseDeck(
@@ -99,7 +93,7 @@ void main() {
         ),
       ],
     );
-    await tester.runAsync(() => updateService.checkForUpdates(force: true));
+    await tester.runAsync(() => updateService.checkForUpdates());
 
     await pumpHints(tester);
 
@@ -124,7 +118,7 @@ void main() {
         ),
       ],
     );
-    await tester.runAsync(() => updateService.checkForUpdates(force: true));
+    await tester.runAsync(() => updateService.checkForUpdates());
 
     await pumpHints(tester);
 
