@@ -600,7 +600,7 @@ void main() {
         tester.widget<Text>(footer(speciesId)).data!;
 
     testWidgets('the button starts selecting with nothing selected, swaps the '
-        'header buttons for the bar with its actions off', (tester) async {
+        'header buttons for the app bar with its actions off', (tester) async {
       await pumpPage(
         tester,
         speciesIds: ['a', 'b'],
@@ -617,6 +617,38 @@ void main() {
       expect(isEnabled(tester, assignButton), isFalse);
       expect(checkbox(tester, 'a').value, isFalse);
       expect(find.byTooltip('Remove'), findsNothing);
+    });
+
+    testWidgets('the selection takes over the app bar, without moving the '
+        'page, and saving comes back with its end', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+      );
+      final saveButton = find.byKey(const Key('edit_deck_save_button'));
+      final nameField = find.byKey(const Key('edit_deck_name_field'));
+      final nameFieldTop = tester.getTopLeft(nameField).dy;
+      expect(saveButton, findsOneWidget);
+
+      await tapAndSettle(tester, selectButton);
+
+      expect(saveButton, findsNothing);
+      expect(find.byIcon(Icons.arrow_back), findsNothing);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: count),
+        findsOneWidget,
+      );
+      expect(tester.getTopLeft(nameField).dy, nameFieldTop);
+
+      await tapAndSettle(
+        tester,
+        find.byKey(const Key('edit_deck_selection_close_button')),
+      );
+
+      expect(saveButton, findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+      expect(tester.getTopLeft(nameField).dy, nameFieldTop);
     });
 
     testWidgets('a long press starts selecting with that species', (
@@ -846,14 +878,18 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
       expect(countText(tester), '1 selected');
-      expect(saveEnabled(tester), isFalse);
 
       await openTargets(tester);
       await chooseTarget(tester, 'new');
       await tapAndSettle(tester, find.text('Cancel'));
       expect(countText(tester), '1 selected');
-      expect(saveEnabled(tester), isFalse);
       expect(footerText(tester, 'a'), 'Level 1');
+
+      await tapAndSettle(
+        tester,
+        find.byKey(const Key('edit_deck_selection_close_button')),
+      );
+      expect(saveEnabled(tester), isFalse);
     });
 
     testWidgets('moving the last cards into a subdeck that is off switches '
@@ -900,13 +936,16 @@ void main() {
       expect(footer('a'), findsNothing);
     });
 
-    for (final (name, goBack) in <(String, Future<void> Function(WidgetTester))>[
-      (
-        'the app bar button',
-        (tester) => tester.tap(find.byIcon(Icons.arrow_back)),
-      ),
-      ('the system back', (tester) => tester.binding.handlePopRoute()),
-    ]) {
+    for (final (name, endSelection)
+        in <(String, Future<void> Function(WidgetTester))>[
+          (
+            'the close button',
+            (tester) => tester.tap(
+              find.byKey(const Key('edit_deck_selection_close_button')),
+            ),
+          ),
+          ('the system back', (tester) => tester.binding.handlePopRoute()),
+        ]) {
       testWidgets('$name ends the selection and stays, without asking', (
         tester,
       ) async {
@@ -917,7 +956,7 @@ void main() {
         );
         await startSelecting(tester, ['a']);
 
-        await goBack(tester);
+        await endSelection(tester);
         await tester.pumpAndSettle();
 
         expect(count, findsNothing);
@@ -926,7 +965,7 @@ void main() {
       });
 
       testWidgets('$name on a dirty draft ends the selection first, and only '
-          'then asks', (tester) async {
+          'the next back asks', (tester) async {
         await pumpPage(
           tester,
           speciesIds: ['a', 'b'],
@@ -936,12 +975,12 @@ void main() {
         await tester.pumpAndSettle();
         await startSelecting(tester, ['a']);
 
-        await goBack(tester);
+        await endSelection(tester);
         await tester.pumpAndSettle();
         expect(count, findsNothing);
         expect(find.byType(AlertDialog), findsNothing);
 
-        await goBack(tester);
+        await tester.tap(find.byIcon(Icons.arrow_back));
         await tester.pumpAndSettle();
         expect(find.byType(AlertDialog), findsOneWidget);
       });

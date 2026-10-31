@@ -18,7 +18,7 @@ import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
 import 'package:discere/learning/decks/edit/species_selection.dart';
-import 'package:discere/learning/decks/edit/species_selection_bar.dart';
+import 'package:discere/learning/decks/edit/species_selection_app_bar.dart';
 import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/decks/edit/subdeck_section.dart';
 import 'package:discere/learning/decks/edit/subdeck_target_sheet.dart';
@@ -499,20 +499,19 @@ class _EditDeckPageState extends State<EditDeckPage> {
       canPop: !_isDirty && !_selection.isActive,
       onPopInvokedWithResult: _handlePopInvoked,
       child: Scaffold(
-        appBar: EditDeckAppBar(
-          onBack: _confirmAndPopIfNeeded,
-          onSave: _canSave ? _save : null,
-          isSaving: _isSaving,
-        ),
-        bottomNavigationBar: _selection.isActive
-            ? SpeciesSelectionBar(
+        appBar: _selection.isActive
+            ? SpeciesSelectionAppBar(
                 selection: _selection,
                 speciesIds: _speciesIdsFor(_species),
                 onChanged: _setSelection,
                 onDelete: () => _removeSpecies(_selection.selectedIds),
                 onAssignSubdeck: _assignSelectionToSubdeck,
               )
-            : null,
+            : EditDeckAppBar(
+                onBack: _confirmAndPopIfNeeded,
+                onSave: _canSave ? _save : null,
+                isSaving: _isSaving,
+              ),
         body: SafeArea(
           child: switch (_loadState) {
             _DeckLoadState.loading => const Center(

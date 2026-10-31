@@ -204,7 +204,7 @@ void main() {
         await waitForFinder(
           tester,
           find.byKey(const Key('edit_deck_selection_assign_button')),
-          description: 'the selection bar',
+          description: 'the selection app bar',
         );
         await tester.tap(
           find.byKey(const Key('edit_deck_selection_assign_button')),
