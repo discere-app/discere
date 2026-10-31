@@ -70,30 +70,42 @@ void main() {
       expect(order(_saved.reorder(1, 1)), ['l1', 'l2', 'l3']);
     });
 
-    test('assign moves the selected ones here and the deselected ones out, '
-        'and leaves what was not on offer', () {
-      final draft = _saved.assign(
-        'l1',
-        selected: {'sp-b', 'sp-c'},
-        among: {'sp-a', 'sp-b', 'sp-c', 'sp-d'},
-      );
+    test('move takes species into a subdeck from wherever they are', () {
+      final draft = _saved.move({'sp-a', 'sp-b', 'sp-c'}, 'l3');
 
       expect(draft.subdeckIdBySpeciesId, {
-        'sp-b': 'l1',
-        'sp-c': 'l1',
+        'sp-a': 'l3',
+        'sp-b': 'l3',
+        'sp-c': 'l3',
         'unresolved': 'l1',
       });
     });
 
-    test('assign takes out of this subdeck only', () {
-      final draft = _saved.assign('l1', selected: const {}, among: {'sp-b'});
-
-      expect(draft.subdeckIdBySpeciesId['sp-b'], 'l2');
+    test('move to null takes species into no subdeck, the others stay', () {
+      expect(_saved.move({'sp-a', 'sp-c'}, null).subdeckIdBySpeciesId, {
+        'sp-b': 'l2',
+        'unresolved': 'l1',
+      });
     });
 
-    test('removeSpecies forgets the species\' subdeck', () {
+    test('removeSpecies forgets the subdecks of the species', () {
+      expect(_saved.removeSpecies({'sp-a', 'sp-b'}).subdeckIdBySpeciesId, {
+        'unresolved': 'l1',
+      });
+    });
+
+    test('subdeckNameBySpeciesId follows the draft', () {
+      expect(_saved.subdeckNameBySpeciesId(), {
+        'sp-a': 'One',
+        'sp-b': 'Two',
+        'unresolved': 'One',
+      });
       expect(
-        _saved.removeSpecies('sp-a').subdeckIdBySpeciesId.containsKey('sp-a'),
+        _saved.rename('l2', 'Second').subdeckNameBySpeciesId()['sp-b'],
+        'Second',
+      );
+      expect(
+        _saved.remove('l2').subdeckNameBySpeciesId().containsKey('sp-b'),
         isFalse,
       );
     });
@@ -132,7 +144,7 @@ void main() {
     test('a species leaving the deck is no edit', () {
       expect(
         _saved
-            .removeSpecies('sp-a')
+            .removeSpecies({'sp-a'})
             .editSince(_saved, removedSpeciesIds: {'sp-a'}),
         isNull,
       );
@@ -143,11 +155,7 @@ void main() {
         _edited((d) => d.reorder(0, 2).reorder(2, 0)),
         _edited((d) => d.rename('l1', 'Other').rename('l1', 'One')),
         _edited((d) => d.add(id: 'new', name: 'New').remove('new')),
-        _edited(
-          (d) => d
-              .assign('l2', selected: {'sp-a'}, among: {'sp-a'})
-              .assign('l1', selected: {'sp-a'}, among: {'sp-a'}),
-        ),
+        _edited((d) => d.move({'sp-a'}, 'l2').move({'sp-a'}, 'l1')),
       ]) {
         expect(
           turnedBack.editSince(_saved, removedSpeciesIds: const {}),
@@ -159,11 +167,7 @@ void main() {
 
     test('moves name the species that really change subdeck', () {
       final edit = _edited(
-        (d) => d.assign(
-          'l3',
-          selected: {'sp-a', 'sp-new'},
-          among: {'sp-a', 'sp-b', 'sp-new'},
-        ),
+        (d) => d.move({'sp-a', 'sp-new'}, 'l3'),
       ).editSince(_saved, removedSpeciesIds: const {});
 
       expect(edit!.moves, {'sp-a': 'l3', 'sp-new': 'l3'});
@@ -172,7 +176,7 @@ void main() {
 
     test('a species taken out of its subdeck moves to none', () {
       final edit = _edited(
-        (d) => d.assign('l2', selected: const {}, among: {'sp-b'}),
+        (d) => d.move({'sp-b'}, null),
       ).editSince(_saved, removedSpeciesIds: const {});
 
       expect(edit!.moves, {'sp-b': null});
@@ -180,7 +184,7 @@ void main() {
 
     test('a removed and added-again species really left its subdeck', () {
       final edit = _saved
-          .removeSpecies('sp-a')
+          .removeSpecies({'sp-a'})
           .editSince(_saved, removedSpeciesIds: const {});
 
       expect(edit!.moves, {'sp-a': null});
@@ -200,7 +204,7 @@ void main() {
     test('tells every part apart', () {
       expect(_saved.hasSameContentAs(_saved.reorder(0, 1)), isFalse);
       expect(_saved.hasSameContentAs(_saved.rename('l1', 'X')), isFalse);
-      expect(_saved.hasSameContentAs(_saved.removeSpecies('sp-a')), isFalse);
+      expect(_saved.hasSameContentAs(_saved.removeSpecies({'sp-a'})), isFalse);
       expect(_saved.hasSameContentAs(_saved.withActive({'l1'})), isFalse);
     });
 

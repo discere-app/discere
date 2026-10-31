@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
-import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/deck_mode_presenter.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/delete_deck_button.dart';
 import 'package:discere/learning/decks/edit/delete_deck_dialog.dart';
 import 'package:discere/learning/decks/edit/discard_changes_dialog.dart';
+import 'package:discere/learning/decks/edit/edit_deck_app_bar.dart';
+import 'package:discere/learning/decks/edit/edit_deck_basics_fields.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/decks/edit/edit_deck_species_header.dart';
 import 'package:discere/learning/decks/edit/edit_deck_species_list.dart';
@@ -16,8 +17,11 @@ import 'package:discere/learning/decks/edit/edit_deck_tutorial.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
+import 'package:discere/learning/decks/edit/species_selection.dart';
+import 'package:discere/learning/decks/edit/species_selection_bar.dart';
 import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/decks/edit/subdeck_section.dart';
+import 'package:discere/learning/decks/edit/subdeck_target_sheet.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
@@ -29,7 +33,6 @@ import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
-import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/retryable_error_state.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -63,7 +66,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   static const _modePresenter = DeckModePresenter();
   static final _log = Logger.forType(_EditDeckPageState);
   late final DecksService _decksService;
-  late final ImageService _imageService;
   late final FlashcardService _flashcardService;
 
   late final TextEditingController _nameController;
@@ -93,6 +95,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late ReviewMode _reviewMode;
 
   late SubdeckDraft _subdeckDraft;
+  SpeciesSelection _selection = SpeciesSelection.none;
 
   /// Snapshot of the last persisted state, compared against the live fields
   /// to drive the Save button. Taken once the deck has loaded, replaced
@@ -141,7 +144,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   void initState() {
     super.initState();
     _decksService = Provider.of<DecksService>(context, listen: false);
-    _imageService = Provider.of<ImageService>(context, listen: false);
     _flashcardService = Provider.of<FlashcardService>(context, listen: false);
     _nameController = TextEditingController(text: widget.deck.name);
     _descriptionController = TextEditingController(
@@ -372,13 +374,33 @@ class _EditDeckPageState extends State<EditDeckPage> {
     if (mounted) Navigator.of(context).pop(true);
   }
 
-  void _removeSpecies(Species s) {
+  /// Removes [speciesIds] from the draft and ends any selection they were
+  /// removed from, all in one change: the draft is validated once, against
+  /// what is left.
+  void _removeSpecies(Set<String> speciesIds) {
     _applyDraftChange(() {
-      _species.remove(s);
-      _subdeckDraft = _subdeckDraft.removeSpecies(s.id);
-      _newlyAddedSpeciesIds.remove(s.id);
+      _species.removeWhere((s) => speciesIds.contains(s.id));
+      _subdeckDraft = _subdeckDraft.removeSpecies(speciesIds);
+      _newlyAddedSpeciesIds.removeAll(speciesIds);
+      _selection = SpeciesSelection.none;
     });
   }
+
+  Future<void> _assignSelectionToSubdeck() async {
+    final draft = await chooseSubdeckFor(
+      context,
+      _subdeckDraft,
+      _selection.selectedIds,
+    );
+    if (draft == null || !mounted) return;
+    _applyDraftChange(() {
+      _subdeckDraft = draft;
+      _selection = SpeciesSelection.none;
+    });
+  }
+
+  void _setSelection(SpeciesSelection selection) =>
+      setState(() => _selection = selection);
 
   Future<void> _openAddSpeciesSheet() async {
     final Species? result = await showAddSpeciesSheet(
@@ -393,29 +415,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
     });
   }
 
-  Future<void> _handleImageSelected(String? path) async {
-    if (path == null) {
-      if (mounted) _applyDraftChange(() => _coverImagePath = null);
-      return;
-    }
-
-    try {
-      final savedPath = await _imageService.saveCoverImage(path);
-      if (mounted) _applyDraftChange(() => _coverImagePath = savedPath);
-    } catch (e, stackTrace) {
-      _log.warn('Cover image save failed', error: e, stackTrace: stackTrace);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              context.loc.errorSaveImage(context.loc.describeError(e)),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
   Future<void> _handlePopInvoked(bool didPop, bool? result) async {
     if (didPop) return;
     await _confirmAndPopIfNeeded();
@@ -424,8 +423,13 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// Shared by the AppBar back button and [_handlePopInvoked]: a plain
   /// `Navigator.pop()` isn't gated by [PopScope]'s `canPop` — only the
   /// system back gesture is — so the button has to run the same
-  /// discard-confirmation check explicitly.
+  /// discard-confirmation check explicitly. During a selection, going back
+  /// ends the selection and stays on the page.
   Future<void> _confirmAndPopIfNeeded() async {
+    if (_selection.isActive) {
+      _setSelection(SpeciesSelection.none);
+      return;
+    }
     if (_isDirty) {
       final shouldDiscard = await showDiscardChangesDialog(context);
       if (!mounted || !shouldDiscard) return;
@@ -492,33 +496,23 @@ class _EditDeckPageState extends State<EditDeckPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_isDirty,
+      canPop: !_isDirty && !_selection.isActive,
       onPopInvokedWithResult: _handlePopInvoked,
       child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _confirmAndPopIfNeeded,
-          ),
-          title: Text(context.loc.editDeckTitle),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
-              child: TextButton.icon(
-                key: const Key('edit_deck_save_button'),
-                onPressed: _canSave ? _save : null,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check, size: 18),
-                label: Text(context.loc.editSaveButton),
-              ),
-            ),
-          ],
+        appBar: EditDeckAppBar(
+          onBack: _confirmAndPopIfNeeded,
+          onSave: _canSave ? _save : null,
+          isSaving: _isSaving,
         ),
+        bottomNavigationBar: _selection.isActive
+            ? SpeciesSelectionBar(
+                selection: _selection,
+                speciesIds: _speciesIdsFor(_species),
+                onChanged: _setSelection,
+                onDelete: () => _removeSpecies(_selection.selectedIds),
+                onAssignSubdeck: _assignSelectionToSubdeck,
+              )
+            : null,
         body: SafeArea(
           child: switch (_loadState) {
             _DeckLoadState.loading => const Center(
@@ -557,19 +551,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              DeckNameField(
-                key: const Key('edit_deck_name_field'),
-                controller: _nameController,
-              ),
-              const SizedBox(height: AppSpacing.s20),
-              DeckDescriptionField(
-                key: const Key('edit_deck_description_field'),
-                controller: _descriptionController,
-              ),
-              AppSpacing.heightS24,
-              DeckCoverImageField(
-                currentImagePath: _coverImagePath,
-                onImageSelected: _handleImageSelected,
+              EditDeckBasicsFields(
+                nameController: _nameController,
+                descriptionController: _descriptionController,
+                coverImagePath: _coverImagePath,
+                onCoverImageChanged: (path) =>
+                    _applyDraftChange(() => _coverImagePath = path),
               ),
               AppSpacing.heightS24,
               LearningSettingsSection(
@@ -595,8 +582,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               SubdeckSection(
                 titleKey: _subdecksKey,
                 draft: _subdeckDraft,
-                species: _species,
-                language: _selectedLanguage,
+                speciesIds: _speciesIdsFor(_species),
                 onChanged: (draft) =>
                     _applyDraftChange(() => _subdeckDraft = draft),
               ),
@@ -616,6 +602,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
               EditDeckSpeciesHeader(
                 speciesCount: _species.length,
                 onAdd: _openAddSpeciesSheet,
+                onSelect: () => _setSelection(SpeciesSelection.empty),
+                showActions: !_selection.isActive,
               ),
               AppSpacing.heightS12,
             ]),
@@ -625,7 +613,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
           species: _species,
           language: _selectedLanguage,
           onOpen: _openSpeciesDetail,
-          onRemove: _removeSpecies,
+          onRemove: (s) => _removeSpecies({s.id}),
+          subdeckNameBySpeciesId: _subdeckDraft.subdeckNameBySpeciesId(),
+          selection: _selection,
+          onSelectionChanged: _setSelection,
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],

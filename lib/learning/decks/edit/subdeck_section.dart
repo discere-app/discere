@@ -1,29 +1,23 @@
-import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/decks/edit/subdeck_name_dialog.dart';
-import 'package:discere/learning/decks/edit/subdeck_species_page.dart';
 import 'package:discere/learning/model/subdeck_membership.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
-enum _SubdeckAction { rename, assignSpecies, delete }
+enum _SubdeckAction { rename, delete }
 
 /// Edit-deck section for the deck's subdecks: a switch per subdeck, since only
 /// species of the subdecks switched on are cards, plus what divides the deck
-/// up — adding, renaming, deleting and sorting subdecks and assigning species
-/// to them. Part of the draft like every other field: nothing takes effect
+/// up — adding, renaming, deleting and sorting subdecks. Part of the draft like every other field: nothing takes effect
 /// until the deck is saved, which is why deleting asks for no confirmation.
 class SubdeckSection extends StatelessWidget {
   final SubdeckDraft draft;
 
   /// The species of the draft.
-  final List<Species> species;
-  final Language language;
+  final Set<String> speciesIds;
   final ValueChanged<SubdeckDraft> onChanged;
 
   /// Coach-mark target for `EditDeckTutorial`, on the section title like
@@ -32,23 +26,16 @@ class SubdeckSection extends StatelessWidget {
 
   const SubdeckSection({
     required this.draft,
-    required this.species,
-    required this.language,
+    required this.speciesIds,
     required this.onChanged,
     this.titleKey,
     super.key,
   });
 
-  Set<String> get _speciesIds => {for (final s in species) s.id};
-
   Future<void> _add(BuildContext context) async {
-    final name = await showSubdeckNameDialog(
-      context,
-      title: context.loc.editDeckSubdeckAddTitle,
-      isTaken: draft.isNameTaken,
-    );
-    if (name == null) return;
-    onChanged(draft.add(id: const Uuid().v4(), name: name));
+    final subdeck = await askForNewSubdeck(context, draft);
+    if (subdeck == null) return;
+    onChanged(draft.add(id: subdeck.id, name: subdeck.name));
   }
 
   Future<void> _rename(BuildContext context, SubdeckHeading subdeck) async {
@@ -60,24 +47,6 @@ class SubdeckSection extends StatelessWidget {
     );
     if (name == null) return;
     onChanged(draft.rename(subdeck.id, name));
-  }
-
-  Future<void> _assignSpecies(
-    BuildContext context,
-    SubdeckHeading subdeck,
-  ) async {
-    final selected = await Navigator.of(context).push<Set<String>>(
-      MaterialPageRoute(
-        builder: (_) => SubdeckSpeciesPage(
-          subdeck: subdeck,
-          draft: draft,
-          species: species,
-          language: language,
-        ),
-      ),
-    );
-    if (selected == null) return;
-    onChanged(draft.assign(subdeck.id, selected: selected, among: _speciesIds));
   }
 
   void _setActive(String subdeckId, bool active) => onChanged(
@@ -140,7 +109,7 @@ class SubdeckSection extends StatelessWidget {
 
   Widget _buildRows(BuildContext context) {
     final membership = SubdeckMembership.of(
-      _speciesIds,
+      speciesIds,
       draft.subdeckIdBySpeciesId,
     );
     return ReorderableListView(
@@ -203,7 +172,6 @@ class SubdeckSection extends StatelessWidget {
       key: Key('edit_deck_subdeck_menu_${subdeck.id}'),
       onSelected: (action) => switch (action) {
         _SubdeckAction.rename => _rename(context, subdeck),
-        _SubdeckAction.assignSpecies => _assignSpecies(context, subdeck),
         _SubdeckAction.delete => onChanged(draft.remove(subdeck.id)),
       },
       itemBuilder: (_) => [
@@ -211,12 +179,6 @@ class SubdeckSection extends StatelessWidget {
           key: const Key('edit_deck_subdeck_menu_rename'),
           value: _SubdeckAction.rename,
           child: Text(loc.editDeckSubdeckRename),
-        ),
-        PopupMenuItem(
-          key: const Key('edit_deck_subdeck_menu_assign_species'),
-          value: _SubdeckAction.assignSpecies,
-          enabled: species.isNotEmpty,
-          child: Text(loc.editDeckSubdeckAssignSpecies),
         ),
         PopupMenuItem(
           key: const Key('edit_deck_subdeck_menu_delete'),

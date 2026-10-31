@@ -39,4 +39,53 @@ void main() {
       {'User-Agent': AppConstants.userAgentFor(installedPackage.version)},
     );
   });
+
+  group('generic slots', () {
+    const item = SpeciesListItemViewModel(
+      primaryName: 'Red lionfish',
+      scientificName: 'Pterois miles',
+      additionalNames: null,
+      localImagePath: null,
+      remoteImageUrl: null,
+    );
+
+    testWidgets('shows a footer under the names', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SpeciesListItem(item: item, footer: Text('Reef')),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getTopLeft(find.text('Reef')).dy,
+        greaterThan(tester.getBottomLeft(find.text('Pterois miles')).dy - 1),
+      );
+    });
+
+    testWidgets('a long press is not a tap', (tester) async {
+      var tapped = 0;
+      var longPressed = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SpeciesListItem(
+              item: item,
+              onTap: () => tapped++,
+              onLongPress: () => longPressed++,
+            ),
+          ),
+        ),
+      );
+
+      await tester.longPress(find.text('Red lionfish'));
+      await tester.pumpAndSettle();
+      expect((tapped, longPressed), (0, 1));
+
+      await tester.tap(find.text('Red lionfish'));
+      await tester.pumpAndSettle();
+      expect((tapped, longPressed), (1, 1));
+    });
+  });
 }

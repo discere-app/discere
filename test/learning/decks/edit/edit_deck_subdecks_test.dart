@@ -135,7 +135,7 @@ void main() {
               language: Language.en,
             ),
             buildSpeciesDetailPage: (speciesId, language) =>
-                const SizedBox.shrink(),
+                const SizedBox.shrink(key: Key('species_detail')),
           ),
         ),
       ),
@@ -170,7 +170,7 @@ void main() {
       subdeckBySpecies: {'a': '1', 'b': '2', 'c': '2'},
     );
 
-    expect(find.text('Level 1'), findsOneWidget);
+    expect(find.widgetWithText(SwitchListTile, 'Level 1'), findsOneWidget);
     expect(find.text('1 species'), findsOneWidget);
     expect(find.text('2 species'), findsOneWidget);
     expect(switchOf(tester, '1').value, isTrue);
@@ -389,7 +389,7 @@ void main() {
       await chooseFromMenu(tester, '1', 'rename');
       await enterName(tester, 'First');
       await confirmName(tester);
-      expect(find.text('First'), findsOneWidget);
+      expect(find.widgetWithText(SwitchListTile, 'First'), findsOneWidget);
       expect(saveEnabled(tester), isTrue);
 
       await chooseFromMenu(tester, '1', 'rename');
@@ -464,8 +464,10 @@ void main() {
 
       await dragHandle('1', rowHeight * 1.2);
       expect(
-        tester.getCenter(find.text('Level 2')).dy,
-        lessThan(tester.getCenter(find.text('Level 1')).dy),
+        tester.getCenter(find.widgetWithText(SwitchListTile, 'Level 2')).dy,
+        lessThan(
+          tester.getCenter(find.widgetWithText(SwitchListTile, 'Level 1')).dy,
+        ),
       );
       expect(saveEnabled(tester), isTrue);
 
@@ -475,41 +477,6 @@ void main() {
       await dragHandle('1', rowHeight * 1.2);
       await save(tester);
       expect(savedEdit().subdecks.map((s) => s.id), ['2', '1']);
-    });
-
-    testWidgets('assigning moves the checked species into the subdeck on '
-        'confirming, and back undoes nothing', (tester) async {
-      await pumpPage(
-        tester,
-        speciesIds: ['a', 'b', 'free'],
-        subdeckBySpecies: {'a': '1', 'b': '2'},
-      );
-
-      await chooseFromMenu(tester, '1', 'assign_species');
-      await tester.tap(
-        find.byKey(const Key('edit_deck_subdeck_species_tile_free')),
-      );
-      await tester.pumpAndSettle();
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(saveEnabled(tester), isFalse);
-
-      await chooseFromMenu(tester, '1', 'assign_species');
-      await tester.tap(
-        find.byKey(const Key('edit_deck_subdeck_species_tile_free')),
-      );
-      await tester.tap(
-        find.byKey(const Key('edit_deck_subdeck_species_tile_a')),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('edit_deck_subdeck_species_confirm_button')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(saveEnabled(tester), isTrue);
-      await save(tester);
-      expect(savedEdit().moves, {'free': '1', 'a': null});
     });
 
     testWidgets('a switch alone saves no edit', (tester) async {
@@ -539,29 +506,6 @@ void main() {
       await save(tester);
 
       verifyNever(decksService.editSubdecks(any, any));
-    });
-
-    testWidgets('moving the last cards into a subdeck that is off switches '
-        'all on', (tester) async {
-      await pumpPage(
-        tester,
-        speciesIds: ['a'],
-        subdeckBySpecies: {'a': '1'},
-      );
-      expect(switchOf(tester, '2').value, isFalse);
-
-      await chooseFromMenu(tester, '2', 'assign_species');
-      await tester.tap(
-        find.byKey(const Key('edit_deck_subdeck_species_tile_a')),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('edit_deck_subdeck_species_confirm_button')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(switchOf(tester, '1').value, isTrue);
-      expect(switchOf(tester, '2').value, isTrue);
     });
 
     testWidgets('the last filled subdeck stays on beside an empty one', (
@@ -600,6 +544,408 @@ void main() {
       expect(find.text('1 species'), findsOneWidget);
       expect(saveEnabled(tester), isTrue);
     });
+  });
+
+  group('selecting species', () {
+    final count = find.byKey(const Key('edit_deck_selection_count'));
+    final selectButton = find.byKey(
+      const Key('edit_deck_select_species_button'),
+    );
+    final addButton = find.byKey(const Key('edit_deck_add_species_button'));
+    final deleteButton = find.byKey(
+      const Key('edit_deck_selection_delete_button'),
+    );
+    final assignButton = find.byKey(
+      const Key('edit_deck_selection_assign_button'),
+    );
+
+    String countText(WidgetTester tester) => tester.widget<Text>(count).data!;
+
+    bool isEnabled(WidgetTester tester, Finder button) =>
+        tester.widget<IconButton>(button).onPressed != null;
+
+    Checkbox checkbox(WidgetTester tester, String speciesId) =>
+        tester.widget<Checkbox>(
+          find.byKey(Key('edit_deck_species_checkbox_$speciesId')),
+        );
+
+    Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tapRow(WidgetTester tester, String speciesId) =>
+        tapAndSettle(tester, find.byKey(ValueKey(speciesId)));
+
+    Future<void> startSelecting(WidgetTester tester, List<String> ids) async {
+      await tapAndSettle(tester, selectButton);
+      for (final id in ids) {
+        await tapRow(tester, id);
+      }
+    }
+
+    Future<void> openTargets(WidgetTester tester) =>
+        tapAndSettle(tester, assignButton);
+
+    Future<void> chooseTarget(WidgetTester tester, String target) =>
+        tapAndSettle(
+          tester,
+          find.byKey(Key('edit_deck_subdeck_target_$target')),
+        );
+
+    Finder footer(String speciesId) =>
+        find.byKey(Key('edit_deck_species_subdeck_$speciesId'));
+
+    String footerText(WidgetTester tester, String speciesId) =>
+        tester.widget<Text>(footer(speciesId)).data!;
+
+    testWidgets('the button starts selecting with nothing selected, swaps the '
+        'header buttons for the bar with its actions off', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+      );
+      expect(count, findsNothing);
+
+      await tapAndSettle(tester, selectButton);
+
+      expect(countText(tester), '0 selected');
+      expect(selectButton, findsNothing);
+      expect(addButton, findsNothing);
+      expect(isEnabled(tester, deleteButton), isFalse);
+      expect(isEnabled(tester, assignButton), isFalse);
+      expect(checkbox(tester, 'a').value, isFalse);
+      expect(find.byTooltip('Remove'), findsNothing);
+    });
+
+    testWidgets('a long press starts selecting with that species', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+      );
+
+      await tester.longPress(find.byKey(const ValueKey('b')));
+      await tester.pumpAndSettle();
+
+      expect(countText(tester), '1 selected');
+      expect(checkbox(tester, 'b').value, isTrue);
+      expect(checkbox(tester, 'a').value, isFalse);
+      expect(isEnabled(tester, deleteButton), isTrue);
+      expect(isEnabled(tester, assignButton), isTrue);
+    });
+
+    testWidgets('a tap opens the species only outside a selection', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+      );
+
+      await startSelecting(tester, ['a']);
+
+      expect(find.byKey(const Key('species_detail')), findsNothing);
+      expect(checkbox(tester, 'a').value, isTrue);
+
+      // Deselecting the last one keeps the selection going.
+      await tapRow(tester, 'a');
+      expect(countText(tester), '0 selected');
+
+      await tapAndSettle(
+        tester,
+        find.byKey(const Key('edit_deck_selection_close_button')),
+      );
+      expect(count, findsNothing);
+      await tapRow(tester, 'a');
+      expect(find.byKey(const Key('species_detail')), findsOneWidget);
+    });
+
+    testWidgets('select all takes every species, and again none', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b', 'c'],
+        subdeckBySpecies: {'a': '1'},
+      );
+      final all = find.byKey(const Key('edit_deck_selection_all_button'));
+
+      await startSelecting(tester, ['a']);
+      await tapAndSettle(tester, all);
+      expect(countText(tester), '3 selected');
+
+      await tapAndSettle(tester, all);
+      expect(countText(tester), '0 selected');
+      expect(count, findsOneWidget);
+    });
+
+    testWidgets('deleting removes exactly the selected, asks nothing, ends the '
+        'selection and saves as a removal, not an edit', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b', 'c'],
+        subdeckBySpecies: {'a': '1', 'c': '2'},
+      );
+
+      await startSelecting(tester, ['a', 'b']);
+      await tapAndSettle(tester, deleteButton);
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(count, findsNothing);
+      expect(find.byKey(const ValueKey('a')), findsNothing);
+      expect(find.byKey(const ValueKey('b')), findsNothing);
+      expect(find.byKey(const ValueKey('c')), findsOneWidget);
+
+      await save(tester);
+      expect(
+        verify(
+          decksService.updateDeck(
+            any,
+            addedSpeciesIds: anyNamed('addedSpeciesIds'),
+            removedSpeciesIds: captureAnyNamed('removedSpeciesIds'),
+          ),
+        ).captured.single,
+        {'a', 'b'},
+      );
+      verifyNever(decksService.editSubdecks(any, any));
+    });
+
+    testWidgets('a deleted species comes back in no subdeck', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1', 'b': '1'},
+      );
+
+      await startSelecting(tester, ['a']);
+      await tapAndSettle(tester, deleteButton);
+      await tapAndSettle(tester, addButton);
+      Navigator.of(
+        tester.element(find.byType(AddSpeciesSheet)),
+      ).pop(_species('a'));
+      await tester.pumpAndSettle();
+
+      expect(footer('a'), findsNothing);
+      expect(footer('b'), findsOneWidget);
+    });
+
+    testWidgets('deleting the last species outside the subdecks while all are '
+        'off switches them on', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'free'],
+        subdeckBySpecies: {'a': '2'},
+      );
+      await tester.tap(find.byKey(const Key('edit_deck_subdeck_switch_1')));
+      await tester.pumpAndSettle();
+      expect(switchOf(tester, '1').value, isFalse);
+      expect(switchOf(tester, '2').value, isFalse);
+
+      await startSelecting(tester, ['free']);
+      await tapAndSettle(tester, deleteButton);
+
+      expect(switchOf(tester, '1').value, isTrue);
+      expect(switchOf(tester, '2').value, isTrue);
+    });
+
+    testWidgets('assigning to an existing subdeck moves the selected and saves '
+        'them as moves', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b', 'free'],
+        subdeckBySpecies: {'a': '1', 'b': '2'},
+      );
+
+      await startSelecting(tester, ['a', 'free']);
+      await openTargets(tester);
+      await chooseTarget(tester, '2');
+
+      expect(count, findsNothing);
+      expect(footerText(tester, 'free'), 'Level 2');
+      await save(tester);
+      expect(savedEdit().moves, {'a': '2', 'free': '2'});
+    });
+
+    testWidgets('assigning to no subdeck takes them out', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1', 'b': '1'},
+      );
+
+      await startSelecting(tester, ['a']);
+      await openTargets(tester);
+      await chooseTarget(tester, 'none');
+
+      expect(footer('a'), findsNothing);
+      await save(tester);
+      expect(savedEdit().moves, {'a': null});
+    });
+
+    testWidgets('assigning to a new subdeck adds it, on, and moves them in one '
+        'step', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+      );
+
+      await startSelecting(tester, ['a', 'b']);
+      await openTargets(tester);
+      await chooseTarget(tester, 'new');
+      await enterName(tester, 'Mine');
+      await confirmName(tester);
+
+      expect(footerText(tester, 'b'), 'Mine');
+      await save(tester);
+      final edit = savedEdit();
+      final newId = edit.subdecks.last.id;
+      expect(edit.subdecks.last.name, 'Mine');
+      expect(edit.moves, {'a': newId, 'b': newId});
+      expect(
+        verify(
+          decksService.setActiveSubdecks('deck-1', captureAny),
+        ).captured.single,
+        contains(newId),
+      );
+    });
+
+    testWidgets('a deck without subdecks is offered a new one, and no "no '
+        'subdeck"', (tester) async {
+      when(decksService.getSubdecks('deck-1')).thenAnswer((_) async => []);
+      await pumpPage(tester, speciesIds: ['a'], subdeckBySpecies: {});
+
+      await startSelecting(tester, ['a']);
+      await openTargets(tester);
+
+      expect(
+        find.byKey(const Key('edit_deck_subdeck_target_none')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('edit_deck_subdeck_target_new')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('cancelling the sheet or the name dialog changes nothing and '
+        'keeps the selection', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1', 'b': '1'},
+      );
+      await startSelecting(tester, ['a']);
+
+      await openTargets(tester);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(countText(tester), '1 selected');
+      expect(saveEnabled(tester), isFalse);
+
+      await openTargets(tester);
+      await chooseTarget(tester, 'new');
+      await tapAndSettle(tester, find.text('Cancel'));
+      expect(countText(tester), '1 selected');
+      expect(saveEnabled(tester), isFalse);
+      expect(footerText(tester, 'a'), 'Level 1');
+    });
+
+    testWidgets('moving the last cards into a subdeck that is off switches '
+        'all on', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a'],
+        subdeckBySpecies: {'a': '1'},
+      );
+      expect(switchOf(tester, '2').value, isFalse);
+
+      await startSelecting(tester, ['a']);
+      await openTargets(tester);
+      await chooseTarget(tester, '2');
+
+      expect(switchOf(tester, '1').value, isTrue);
+      expect(switchOf(tester, '2').value, isTrue);
+    });
+
+    testWidgets('a row shows its subdeck, in and out of a selection, following '
+        'the draft', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'free'],
+        subdeckBySpecies: {'a': '1'},
+      );
+
+      expect(footerText(tester, 'a'), 'Level 1');
+      expect(footer('free'), findsNothing);
+
+      await tapAndSettle(tester, selectButton);
+      expect(footerText(tester, 'a'), 'Level 1');
+      await tapAndSettle(
+        tester,
+        find.byKey(const Key('edit_deck_selection_close_button')),
+      );
+
+      await chooseFromMenu(tester, '1', 'rename');
+      await enterName(tester, 'First');
+      await confirmName(tester);
+      expect(footerText(tester, 'a'), 'First');
+
+      await chooseFromMenu(tester, '1', 'delete');
+      expect(footer('a'), findsNothing);
+    });
+
+    for (final (name, goBack) in <(String, Future<void> Function(WidgetTester))>[
+      (
+        'the app bar button',
+        (tester) => tester.tap(find.byIcon(Icons.arrow_back)),
+      ),
+      ('the system back', (tester) => tester.binding.handlePopRoute()),
+    ]) {
+      testWidgets('$name ends the selection and stays, without asking', (
+        tester,
+      ) async {
+        await pumpPage(
+          tester,
+          speciesIds: ['a', 'b'],
+          subdeckBySpecies: {'a': '1'},
+        );
+        await startSelecting(tester, ['a']);
+
+        await goBack(tester);
+        await tester.pumpAndSettle();
+
+        expect(count, findsNothing);
+        expect(find.byType(EditDeckPage), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+      });
+
+      testWidgets('$name on a dirty draft ends the selection first, and only '
+          'then asks', (tester) async {
+        await pumpPage(
+          tester,
+          speciesIds: ['a', 'b'],
+          subdeckBySpecies: {'a': '1'},
+        );
+        await tester.tap(find.byKey(const Key('edit_deck_subdeck_switch_2')));
+        await tester.pumpAndSettle();
+        await startSelecting(tester, ['a']);
+
+        await goBack(tester);
+        await tester.pumpAndSettle();
+        expect(count, findsNothing);
+        expect(find.byType(AlertDialog), findsNothing);
+
+        await goBack(tester);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+      });
+    }
   });
 
   testWidgets('a user who saw the learning settings coach mark gets the '

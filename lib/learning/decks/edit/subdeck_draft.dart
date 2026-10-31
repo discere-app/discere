@@ -46,6 +46,17 @@ class SubdeckDraft {
     );
   }
 
+  /// The name of the subdeck of each species that is in one, for a list to look
+  /// up row by row.
+  Map<String, String> subdeckNameBySpeciesId() {
+    final nameById = {for (final s in subdecks) s.id: s.name};
+    return {
+      for (final MapEntry(key: speciesId, value: subdeckId)
+          in subdeckIdBySpeciesId.entries)
+        speciesId: nameById[subdeckId]!,
+    };
+  }
+
   /// A new subdeck at the end, switched on and without species.
   SubdeckDraft add({required String id, required String name}) => SubdeckDraft(
     subdecks: [...subdecks, (id: id, name: name)],
@@ -85,20 +96,15 @@ class SubdeckDraft {
     activeSubdeckIds: activeSubdeckIds,
   );
 
-  /// With the species of [among] divided by [selected]: a selected one moves
-  /// to [subdeckId] from wherever it is, one not selected leaves it for no
-  /// subdeck. Species outside [among] were not on offer and stay as they are.
-  SubdeckDraft assign(
-    String subdeckId, {
-    required Set<String> selected,
-    required Set<String> among,
-  }) {
+  /// With [speciesIds] in [subdeckId], from wherever they are, or in no subdeck
+  /// for null.
+  SubdeckDraft move(Set<String> speciesIds, String? subdeckId) {
     final assignment = Map.of(subdeckIdBySpeciesId);
-    for (final speciesId in among) {
-      if (selected.contains(speciesId)) {
-        assignment[speciesId] = subdeckId;
-      } else if (assignment[speciesId] == subdeckId) {
+    for (final speciesId in speciesIds) {
+      if (subdeckId == null) {
         assignment.remove(speciesId);
+      } else {
+        assignment[speciesId] = subdeckId;
       }
     }
     return SubdeckDraft(
@@ -108,13 +114,10 @@ class SubdeckDraft {
     );
   }
 
-  /// Without [speciesId]'s subdeck, for a species taken out of the deck: saved,
-  /// that removal also clears what is stored, and one added again is in none.
-  SubdeckDraft removeSpecies(String speciesId) => SubdeckDraft(
-    subdecks: subdecks,
-    subdeckIdBySpeciesId: Map.of(subdeckIdBySpeciesId)..remove(speciesId),
-    activeSubdeckIds: activeSubdeckIds,
-  );
+  /// Without the subdecks of [speciesIds], for species taken out of the deck:
+  /// saved, that removal also clears what is stored, and one added again is in
+  /// none.
+  SubdeckDraft removeSpecies(Set<String> speciesIds) => move(speciesIds, null);
 
   SubdeckDraft withActive(Set<String> activeSubdeckIds) => SubdeckDraft(
     subdecks: subdecks,

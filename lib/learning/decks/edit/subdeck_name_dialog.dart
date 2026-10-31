@@ -1,5 +1,22 @@
+import 'package:discere/learning/decks/edit/subdeck_draft.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
+
+/// Asks for the name of a subdeck to add to [draft] and resolves to it with a
+/// new id, or to null when cancelled.
+Future<SubdeckHeading?> askForNewSubdeck(
+  BuildContext context,
+  SubdeckDraft draft,
+) async {
+  final name = await showSubdeckNameDialog(
+    context,
+    title: context.loc.editDeckSubdeckAddTitle,
+    isTaken: draft.isNameTaken,
+  );
+  return name == null ? null : (id: const Uuid().v4(), name: name);
+}
 
 /// Asks for a subdeck's name, starting from [initialName]. Resolves to the
 /// trimmed name, or null when cancelled. An empty name or one [isTaken] says

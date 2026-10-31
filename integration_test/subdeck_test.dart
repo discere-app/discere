@@ -1,3 +1,4 @@
+import 'package:discere/learning/decks/edit/subdeck_target_sheet.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:flutter/material.dart';
@@ -191,39 +192,42 @@ void main() {
           description: 'the new subdeck',
         );
 
-        // Its row is the last one. Assign the whale shark to it.
-        final giantsMenu = find.byIcon(Icons.adaptive.more).last;
-        await tester.ensureVisible(giantsMenu);
+        // Assign the whale shark to it by selecting it in the species list.
+        const whaleShark = 'discere:species:1872';
+        final whaleSharkRow = find.byKey(
+          const ValueKey(whaleShark),
+          skipOffstage: false,
+        );
+        await tester.ensureVisible(whaleSharkRow);
         await safePumpAndSettle(tester);
-        await tester.tap(giantsMenu);
-        await safePumpAndSettle(tester);
+        await tester.longPress(whaleSharkRow);
+        await waitForFinder(
+          tester,
+          find.byKey(const Key('edit_deck_selection_assign_button')),
+          description: 'the selection bar',
+        );
         await tester.tap(
-          find.byKey(const Key('edit_deck_subdeck_menu_assign_species')),
+          find.byKey(const Key('edit_deck_selection_assign_button')),
         );
         await safePumpAndSettle(tester);
-        const whaleShark = 'discere:species:1872';
-        final whaleSharkTile = find.byKey(
-          const Key('edit_deck_subdeck_species_tile_$whaleShark'),
+        await tester.tap(
+          find.descendant(
+            of: find.byType(SubdeckTargetSheet),
+            matching: find.text('Giants'),
+          ),
         );
         await waitForFinder(
           tester,
-          whaleSharkTile,
-          description: 'the species checklist',
-        );
-        await tester.tap(whaleSharkTile);
-        await safePumpAndSettle(tester);
-        await tester.tap(
-          find.byKey(const Key('edit_deck_subdeck_species_confirm_button')),
+          find.byKey(const Key('edit_deck_species_subdeck_$whaleShark')),
+          description: 'the row showing its new subdeck',
         );
         await safePumpAndSettle(tester);
 
         // Switch it off and save.
-        final giantsSwitch = find
-            .ancestor(
-              of: find.text('Giants'),
-              matching: find.byType(SwitchListTile),
-            )
-            .first;
+        final giantsSwitch = find.ancestor(
+          of: find.text('Giants', skipOffstage: false).first,
+          matching: find.byType(SwitchListTile, skipOffstage: false),
+        );
         await tester.ensureVisible(giantsSwitch);
         await safePumpAndSettle(tester);
         await tester.tap(giantsSwitch);

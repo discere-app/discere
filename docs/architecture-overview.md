@@ -399,8 +399,9 @@ there (`DecksService.addResolvedSpeciesToDeck`). Both reference their subdeck
 with a composite foreign key that cascades: a subdeck that goes takes its rows
 with it, and its species stay in the deck without a subdeck.
 
-The user adds, renames, deletes and sorts subdecks and assigns species to them
-on the edit page. Saving applies a change, not a new division
+The user adds, renames, deletes and sorts subdecks on the edit page, and
+assigns species to them by selecting several in its species list, where each
+row shows its subdeck. Saving applies a change, not a new division
 (`SubdeckEdit`, `SubdeckRepository.applyEdit`), because the deck can hold what
 the page never sees: waiting names, and species the reference database does
 not resolve. A row in `deck_subdeck_customizations` marks a deck changed that

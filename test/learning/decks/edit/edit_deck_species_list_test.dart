@@ -10,6 +10,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit/edit_deck_species_list.dart';
+import 'package:discere/learning/decks/edit/species_selection.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -160,6 +161,9 @@ void main() {
                       language: Language.en,
                       onOpen: onOpen ?? (_) async {},
                       onRemove: onRemove ?? (_) {},
+                      subdeckNameBySpeciesId: const {},
+                      selection: SpeciesSelection.none,
+                      onSelectionChanged: (_) {},
                     ),
                   ],
                 );
