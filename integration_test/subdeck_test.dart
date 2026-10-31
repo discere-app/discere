@@ -191,8 +191,11 @@ void main() {
           description: 'the new subdeck',
         );
 
-        // Its row is the last one: the menu, its assign entry, the whale shark.
-        await tester.tap(find.byIcon(Icons.adaptive.more).last);
+        // Its row is the last one. Assign the whale shark to it.
+        final giantsMenu = find.byIcon(Icons.adaptive.more).last;
+        await tester.ensureVisible(giantsMenu);
+        await safePumpAndSettle(tester);
+        await tester.tap(giantsMenu);
         await safePumpAndSettle(tester);
         await tester.tap(
           find.byKey(const Key('edit_deck_subdeck_menu_assign_species')),
@@ -214,7 +217,7 @@ void main() {
         );
         await safePumpAndSettle(tester);
 
-        // Switch it off: its switch is the last one of the section.
+        // Switch it off and save.
         final giantsSwitch = find
             .ancestor(
               of: find.text('Giants'),

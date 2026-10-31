@@ -3,6 +3,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
@@ -26,8 +27,8 @@ import '../../../mocks.mocks.dart';
 import 'edit_deck_manual_enrichment_test.dart'
     show TestINatEnrichmentQueueService;
 
-/// Covers the subdeck switches on EditDeckPage: part of the draft, saved
-/// with the deck, and never leaving the deck without a card.
+/// Covers the subdeck section of EditDeckPage: part of the draft, saved with
+/// the deck, and never leaving the deck without a card.
 
 Species _species(String id) => Species(
   id,
@@ -577,7 +578,7 @@ void main() {
       expect(switchOf(tester, '1').onChanged, isNull);
     });
 
-    testWidgets('removing a species takes it out of its subdeck\'s count', (
+    testWidgets('a species removed and added again is in no subdeck', (
       tester,
     ) async {
       await pumpPage(
@@ -585,13 +586,20 @@ void main() {
         speciesIds: ['a', 'b'],
         subdeckBySpecies: {'a': '1', 'b': '1'},
       );
-      expect(find.text('2 species'), findsOneWidget);
 
+      // Sorted by name: 'Genus a' first.
       await tester.tap(find.byTooltip('Remove').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('edit_deck_add_species_button')));
+      await tester.pumpAndSettle();
+      Navigator.of(
+        tester.element(find.byType(AddSpeciesSheet)),
+      ).pop(_species('a'));
       await tester.pumpAndSettle();
 
       expect(find.text('1 species'), findsOneWidget);
-      });
+      expect(saveEnabled(tester), isTrue);
+    });
   });
 
   testWidgets('a user who saw the learning settings coach mark gets the '
