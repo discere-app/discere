@@ -1,3 +1,4 @@
+import 'package:discere/learning/model/subdeck_edit.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/repository/subdeck_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -123,6 +124,211 @@ void main() {
     await repository.removeSpecies(_deckId, {'sp-a'});
 
     expect(await repository.getSubdeckIdBySpeciesId(_deckId), {'sp-b': 'l2'});
+  });
+
+  group('applyEdit', () {
+    const levels = [
+      (id: 'l1', name: 'Level 1'),
+      (id: 'l2', name: 'Level 2'),
+    ];
+
+    Future<Map<String, String>> unresolvedNames() async => {
+      for (final row in await db.query('deck_subdeck_unresolved_names'))
+        row['name'] as String: row['subdeck_id'] as String,
+    };
+
+    test('leaves waiting names, unmoved species and switches alone', () async {
+      // sp-unresolved stands for a species the edit page cannot show.
+      await repository.writeStructure(
+        _deckId,
+        _levels(
+          bySpecies: const {
+            'sp-a': 'l1',
+            'sp-b': 'l2',
+            'sp-unresolved': 'l1',
+          },
+          byName: const {'Zz waiting': 'l1'},
+        ),
+      );
+      await repository.setActiveSubdecks(_deckId, {'l2'});
+
+      await repository.applyEdit(
+        _deckId,
+        const SubdeckEdit(subdecks: levels, moves: {'sp-a': 'l2'}),
+      );
+
+      expect(await repository.getSubdeckIdBySpeciesId(_deckId), {
+        'sp-a': 'l2',
+        'sp-b': 'l2',
+        'sp-unresolved': 'l1',
+      });
+      expect(await unresolvedNames(), {'Zz waiting': 'l1'});
+      expect((await repository.getSubdecks(_deckId)).map((s) => s.isActive), [
+        false,
+        true,
+      ]);
+    });
+
+    test('names, orders and adds subdecks, a new one on', () async {
+      await repository.writeStructure(_deckId, _levels());
+      await repository.setActiveSubdecks(_deckId, {'l1'});
+
+      await repository.applyEdit(
+        _deckId,
+        const SubdeckEdit(
+          subdecks: [
+            (id: 'new', name: 'New'),
+            (id: 'l2', name: 'Second'),
+            (id: 'l1', name: 'Level 1'),
+          ],
+          moves: {},
+        ),
+      );
+
+      expect(
+        (await repository.getSubdecks(
+          _deckId,
+        )).map((s) => (s.id, s.name, s.sortOrder, s.isActive)),
+        [
+          ('new', 'New', 0, true),
+          ('l2', 'Second', 1, false),
+          ('l1', 'Level 1', 2, true),
+        ],
+      );
+    });
+
+    test('moves into a subdeck the same edit adds, and into none', () async {
+      await repository.writeStructure(_deckId, _levels());
+
+      await repository.applyEdit(
+        _deckId,
+        const SubdeckEdit(
+          subdecks: [...levels, (id: 'new', name: 'New')],
+          moves: {'sp-a': 'new', 'sp-b': null, 'sp-c': 'new'},
+        ),
+      );
+
+      expect(await repository.getSubdeckIdBySpeciesId(_deckId), {
+        'sp-a': 'new',
+        'sp-c': 'new',
+      });
+    });
+
+    test('a deleted subdeck takes its assignments and waiting names', () async {
+      await repository.writeStructure(
+        _deckId,
+        _levels(byName: const {'Zz gone': 'l1', 'Zz kept': 'l2'}),
+      );
+
+      await repository.applyEdit(
+        _deckId,
+        const SubdeckEdit(subdecks: [(id: 'l2', name: 'Level 2')], moves: {}),
+      );
+
+      expect(await repository.getSubdeckIdBySpeciesId(_deckId), {'sp-b': 'l2'});
+      expect(await unresolvedNames(), {'Zz kept': 'l2'});
+    });
+
+    test('deleting the last subdeck works', () async {
+      await repository.writeStructure(_deckId, _levels());
+
+      await repository.applyEdit(
+        _deckId,
+        const SubdeckEdit(subdecks: [], moves: {}),
+      );
+
+      expect(await repository.getSubdecks(_deckId), isEmpty);
+    });
+  });
+
+  group('customization mark', () {
+    const edit = SubdeckEdit(subdecks: [(id: 'l1', name: 'L')], moves: {});
+
+    test('a deck starts without', () async {
+      await repository.writeStructure(_deckId, _levels());
+
+      expect(await repository.isCustomized(_deckId), isFalse);
+    });
+
+    test('an edit sets it, for that deck alone, and twice does no harm', () async {
+      await db.insert('decks', {'id': 'deck-2', 'name': 'Alps'});
+
+      await repository.applyEdit(_deckId, edit);
+      await repository.applyEdit(_deckId, edit);
+
+      expect(await repository.isCustomized(_deckId), isTrue);
+      expect(await repository.isCustomized('deck-2'), isFalse);
+    });
+
+    test('switching subdecks does not set it', () async {
+      await repository.writeStructure(_deckId, _levels());
+
+      await repository.setActiveSubdecks(_deckId, {'l1'});
+
+      expect(await repository.isCustomized(_deckId), isFalse);
+    });
+
+    test('taking on a whole structure clears it', () async {
+      await repository.applyEdit(_deckId, edit);
+
+      await repository.writeStructure(_deckId, _levels());
+
+      expect(await repository.isCustomized(_deckId), isFalse);
+    });
+
+    test('deleting the deck removes it', () async {
+      await repository.applyEdit(_deckId, edit);
+
+      await db.delete('decks', where: 'id = ?', whereArgs: [_deckId]);
+
+      expect(await db.query('deck_subdeck_customizations'), isEmpty);
+    });
+  });
+
+  group('addToExistingSubdecks', () {
+    test('places what is new, in existing subdecks only', () async {
+      await repository.writeStructure(_deckId, _levels());
+
+      await repository.addToExistingSubdecks(
+        _deckId,
+        _levels(
+          bySpecies: const {'sp-new': 'l2', 'sp-elsewhere': 'not-here'},
+          byName: const {'Zz new': 'l1', 'Zz elsewhere': 'not-here'},
+        ),
+      );
+
+      final assignment = await repository.getSubdeckIdBySpeciesId(_deckId);
+      expect(assignment['sp-new'], 'l2');
+      expect(assignment.containsKey('sp-elsewhere'), isFalse);
+      expect(await db.query('deck_subdeck_unresolved_names'), [
+        {'deck_id': _deckId, 'name': 'Zz new', 'subdeck_id': 'l1'},
+      ]);
+      expect((await repository.getSubdecks(_deckId)).map((s) => s.id), [
+        'l1',
+        'l2',
+      ]);
+    });
+
+    test('overwrites nothing', () async {
+      await repository.writeStructure(
+        _deckId,
+        _levels(byName: const {'Zz waiting': 'l1'}),
+      );
+
+      await repository.addToExistingSubdecks(
+        _deckId,
+        _levels(
+          bySpecies: const {'sp-a': 'l2'},
+          byName: const {'Zz waiting': 'l2'},
+        ),
+      );
+
+      expect((await repository.getSubdeckIdBySpeciesId(_deckId))['sp-a'], 'l1');
+      expect(
+        (await db.query('deck_subdeck_unresolved_names')).single['subdeck_id'],
+        'l1',
+      );
+    });
   });
 
   test('deleting the deck deletes its subdecks, species and names', () async {
