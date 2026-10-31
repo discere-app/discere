@@ -15,6 +15,7 @@ import 'package:discere/app/wiring/diagnostics_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
 import 'package:discere/app/wiring/external_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
+import 'package:discere/app/wiring/reference_db_wiring.dart';
 import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
@@ -22,20 +23,25 @@ import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
-import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
-import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BootstrapApp extends StatefulWidget {
+  /// The installed app's name, version and build, as `main()` read them.
+  /// Provided to the app as is and kept across in-app restarts, so every
+  /// place that reports the version — the About and diagnostics pages, the
+  /// User-Agent of every request — reports the same one.
+  final PackageInfo packageInfo;
+
   /// Stands in for the notification service a run builds itself, in tests.
   /// An in-app restart disposes it with the session it served (see
   /// `AppSession.stop`), so it suits a mock, not a real service.
@@ -53,8 +59,9 @@ class BootstrapApp extends StatefulWidget {
 
   /// Transport for everything the shared wiring builds — iNaturalist,
   /// Wikipedia, deck sync, images. Injected *inside* the shared
-  /// `LoggingHttpClient` rather than in place of it, so a test still runs
-  /// through the real wrapper and only the network is stood in for.
+  /// `LoggingHttpClient` and the client that sets the User-Agent rather
+  /// than in place of them, so a test still runs through the real wrappers
+  /// and only the network is stood in for.
   ///
   /// That wrapper also feeds the `HostCooldownTracker`, which reacts to
   /// stubbed failures exactly as it does to real ones: a stub answering 503
@@ -65,6 +72,7 @@ class BootstrapApp extends StatefulWidget {
 
   const BootstrapApp({
     super.key,
+    required this.packageInfo,
     this.notificationService,
     this.processEnrichmentJobs = true,
     this.referenceDbDownloader,
@@ -86,25 +94,10 @@ class _BootstrapAppState extends State<BootstrapApp> {
   // https://github.com/discere-app/discere/issues/101.
   final _foregroundServiceKeeper = FlutterForegroundTaskKeeper();
 
-  // Plain client, not the LoggingHttpClient the shared wiring builds — the
-  // reference-DB check/download runs before _setupCriticalServices() (and so
-  // before diagnostics/host-cooldown are wired up at all).
-  late final _referenceDbProvisioner = ReferenceDatabaseProvisioner(
-    downloader:
-        widget.referenceDbDownloader ??
-        ReferenceDbDownloader(
-          client: http.Client(),
-          foregroundServiceKeeper: _foregroundServiceKeeper,
-        ),
-    closeOpenDatabases: DatabaseHelper.close,
-  );
-
-  late final _referenceDbUpdates = ReferenceDbUpdateService(
-    provisioner: _referenceDbProvisioner,
-    // Own instance, separate from the one the shared wiring builds — this
-    // one only answers one-shot isOnWifi() checks, from before that wiring
-    // exists, and is never initialize()d (no stream consumer).
-    networkAvailability: ConnectivityNetworkAvailability(),
+  late final _referenceDb = buildReferenceDbServices(
+    packageInfo: widget.packageInfo,
+    foregroundServiceKeeper: _foregroundServiceKeeper,
+    downloader: widget.referenceDbDownloader,
   );
 
   late Future<_BootstrapResult> _bootstrapFuture;
@@ -134,7 +127,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     try {
       // Before anything opens the reference database: an update staged
       // during the last session replaces the file here.
-      await _referenceDbProvisioner.installStagedUpdate();
+      await _referenceDb.provisioner.installStagedUpdate();
       await _ensureReferenceDb();
     } on _ReferenceDbDownloadDeferred {
       rethrow;
@@ -148,6 +141,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     await alignUserDataWithReferenceDb();
     return _setupCriticalServices(
       diagnostics: diagnostics,
+      packageInfo: widget.packageInfo,
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
       httpClient: widget.httpClient,
@@ -176,13 +170,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
   /// also to consent to spending mobile data. Declining throws
   /// [_ReferenceDbDownloadDeferred] rather than proceeding.
   Future<void> _ensureReferenceDb() async {
-    if (await _referenceDbProvisioner.hasUsableLocalCopy()) {
-      unawaited(_referenceDbUpdates.checkAtStart());
+    if (await _referenceDb.provisioner.hasUsableLocalCopy()) {
+      unawaited(_referenceDb.updates.checkAtStart());
       return;
     }
 
-    final updateInfo = await _referenceDbProvisioner.checkForUpdate();
-    final onWifi = await _referenceDbUpdates.isOnWifi();
+    final updateInfo = await _referenceDb.provisioner.checkForUpdate();
+    final onWifi = await _referenceDb.updates.isOnWifi();
     setState(() {
       _pendingDownloadConfirmation = updateInfo;
       _pendingDownloadConfirmationOnWifi = onWifi;
@@ -196,7 +190,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
       _downloadProgress = 0;
       _downloadSizeBytes = updateInfo.compressedSizeBytes;
     });
-    await _referenceDbProvisioner.downloadAndInstall(
+    await _referenceDb.provisioner.downloadAndInstall(
       updateInfo,
       onProgress: (progress) {
         if (!mounted) return;
@@ -291,8 +285,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
           key: ObjectKey(result),
           providers: [
             ...result.providers,
-            Provider.value(value: _referenceDbProvisioner),
-            ChangeNotifierProvider.value(value: _referenceDbUpdates),
+            Provider.value(value: _referenceDb.provisioner),
+            ChangeNotifierProvider.value(value: _referenceDb.updates),
             Provider.value(value: result.session),
             Provider.value(value: AppRestart(() => _restart(result))),
           ],
@@ -320,6 +314,7 @@ class _ReferenceDbDownloadDeferred implements Exception {
 
 Future<_BootstrapResult> _setupCriticalServices({
   required DiagnosticsServices diagnostics,
+  required PackageInfo packageInfo,
   required ForegroundServiceKeeper foregroundServiceKeeper,
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
@@ -342,6 +337,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   final shared = buildSharedServices(
     sharedPreferences: sharedPreferences,
     diagnostics: diagnostics.localDiagnostics,
+    packageInfo: packageInfo,
     httpClient: httpClient,
   );
   final notifications =

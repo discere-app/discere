@@ -1,35 +1,45 @@
 import 'package:discere/app/info/about_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../support/installed_package.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const packageInfoChannel = MethodChannel(
-    'dev.fluttercommunity.plus/package_info',
-  );
-
   setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(packageInfoChannel, (call) async {
-          if (call.method == 'getAll') {
-            return {
-              'appName': 'Discere',
-              'packageName': 'com.example.discere',
-              'version': '1.0.0',
-              'buildNumber': '1',
-            };
-          }
-          return null;
-        });
+    SharedPreferences.setMockInitialValues({});
   });
 
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(packageInfoChannel, null);
+  testWidgets('About page shows the version of the installed app', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_buildApp());
+
+    expect(find.text('Version ${installedPackage.version}'), findsOneWidget);
+  });
+
+  testWidgets('Tapping the version five times unlocks the developer '
+      'diagnostics', (tester) async {
+    await tester.pumpWidget(_buildApp());
+
+    for (var tap = 0; tap < 5; tap++) {
+      await tester.tap(find.text('Version ${installedPackage.version}'));
+    }
+    await tester.pumpAndSettle();
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(
+      preferences.getBool(AppConstants.developerDiagnosticsUnlockedPrefKey),
+      isTrue,
+    );
+    expect(find.text('Developer tools unlocked.'), findsOneWidget);
   });
 
   testWidgets('About page shows a licenses section with a button', (
@@ -73,15 +83,18 @@ Future<void> _scrollToLicensesButton(WidgetTester tester) async {
 }
 
 Widget _buildApp() {
-  return MaterialApp(
-    locale: const Locale('en'),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: const AboutPage(),
+  return Provider<PackageInfo>.value(
+    value: installedPackage,
+    child: MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: const AboutPage(),
+    ),
   );
 }

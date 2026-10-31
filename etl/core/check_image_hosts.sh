@@ -41,10 +41,10 @@ CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CORE_DIR/plugin_api.sh"
 PLUGIN_SOURCE="check_image_hosts"
 
-# User-Agent der App beim Laden von Bildern (AppConstants.userAgent in
-# lib/shared/util/constants.dart). Ändert er sich dort, hier nachziehen:
-# Sperren hängen oft am User-Agent.
-APP_USER_AGENT="DiscereApp/1.1 (ch.feberle.discere; https://github.com/discere-app/discere)"
+# User-Agent der App beim Laden von Bildern (AppConstants.userAgentFor in
+# lib/shared/util/constants.dart). Ändert sich sein Format, hier nachziehen:
+# Sperren hängen oft am User-Agent. Die Versionsnummer ist dafür ohne Bedeutung.
+APP_USER_AGENT="DiscereApp/1.4.0 (ch.feberle.discere; https://github.com/discere-app/discere)"
 
 # Fünf Bilder je Host: genug, dass zwei fehlende Bilder einen Host noch
 # nicht durchfallen lassen, und wenige Anfragen je Host.

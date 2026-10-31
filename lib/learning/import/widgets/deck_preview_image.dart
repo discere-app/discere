@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:discere/shared/extensions/image_request_headers_extension.dart';
 import 'package:flutter/material.dart';
 
 class DeckPreviewImage extends StatelessWidget {
@@ -28,6 +29,7 @@ class DeckPreviewImage extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: CachedNetworkImage(
         imageUrl: imageUrl!,
+        httpHeaders: context.imageRequestHeaders,
         width: size,
         height: size,
         fit: BoxFit.cover,

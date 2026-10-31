@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -58,12 +57,11 @@ class INatApiClient {
   /// the escape hatch it documents for that.
   Future<http.Response> get(Uri uri, {Object? fields}) {
     if (fields == null) {
-      return _client.get(uri, headers: {'User-Agent': AppConstants.userAgent});
+      return _client.get(uri);
     }
     return _client.post(
       uri,
       headers: {
-        'User-Agent': AppConstants.userAgent,
         'X-HTTP-Method-Override': 'GET',
         'Content-Type': 'application/json',
       },

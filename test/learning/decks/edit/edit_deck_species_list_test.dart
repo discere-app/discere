@@ -15,9 +15,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../../mocks.mocks.dart';
+import '../../../support/installed_package.dart';
 
 /// Covers the image each row of the edit-deck species list shows.
 ///
@@ -133,8 +135,11 @@ void main() {
     ValueChanged<Species>? onRemove,
   }) async {
     await tester.pumpWidget(
-      Provider<SpeciesMediaService>.value(
-        value: speciesMediaService,
+      MultiProvider(
+        providers: [
+          Provider<SpeciesMediaService>.value(value: speciesMediaService),
+          Provider<PackageInfo>.value(value: installedPackage),
+        ],
         child: MaterialApp(
           locale: const Locale('en'),
           localizationsDelegates: const [

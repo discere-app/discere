@@ -74,7 +74,7 @@ test_image_hosts_pass_when_every_host_delivers_images() {
     assert_contains "$(cat "$TEST_TMP/curl.log")" "https://a.example/images/species/Abc_u0.jpg"
     assert_contains "$(cat "$TEST_TMP/curl.log")" "https://b.example/pics/Xyz_u1.jpg"
     assert_contains "$(cat "$TEST_TMP/curl.log")" \
-        "DiscereApp/1.1 (ch.feberle.discere; https://github.com/discere-app/discere)"
+        "DiscereApp/1.4.0 (ch.feberle.discere; https://github.com/discere-app/discere)"
 }
 
 test_image_hosts_fail_on_cloudflare_challenge() {

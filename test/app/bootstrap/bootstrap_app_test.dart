@@ -17,6 +17,7 @@ import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../support/installed_package.dart';
 import 'bootstrap_harness.dart';
 
 
@@ -59,6 +60,7 @@ void main() {
     final logged = await tester.runAsync(() async {
       await tester.pumpWidget(
         BootstrapApp(
+          packageInfo: installedPackage,
           processEnrichmentJobs: false,
           referenceDbDownloader: downloader,
         ),

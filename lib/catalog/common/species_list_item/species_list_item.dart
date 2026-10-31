@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_view_model.dart';
+import 'package:discere/shared/extensions/image_request_headers_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
@@ -48,7 +49,7 @@ class SpeciesListItem extends StatelessWidget {
               leading ??
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _buildLeadingImage(theme.colorScheme),
+                    child: _buildLeadingImage(context, theme.colorScheme),
                   ),
               AppSpacing.widthS16,
               Expanded(
@@ -104,7 +105,7 @@ class SpeciesListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildLeadingImage(ColorScheme colorScheme) {
+  Widget _buildLeadingImage(BuildContext context, ColorScheme colorScheme) {
     const width = 64.0;
     const height = 64.0;
 
@@ -122,6 +123,7 @@ class SpeciesListItem extends StatelessWidget {
     if (item.remoteImageUrl != null && item.remoteImageUrl!.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: item.remoteImageUrl!,
+        httpHeaders: context.imageRequestHeaders,
         width: width,
         height: height,
         fit: BoxFit.cover,

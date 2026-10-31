@@ -18,6 +18,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../mocks.mocks.dart';
 import '../../support/in_memory_user_database.dart';
+import '../../support/installed_package.dart';
 
 /// Old ID of Amphiprion ocellaris, which the fixture aliases to [newSpeciesId].
 const oldSpeciesId = 'discere:fishbase_species:6509';
@@ -70,6 +71,7 @@ Future<void> pumpBootstrapApp(
   final client = network ?? MockClientOffline();
   await tester.pumpWidget(
     BootstrapApp(
+      packageInfo: installedPackage,
       processEnrichmentJobs: false,
       notificationService: notifications,
       httpClient: client,

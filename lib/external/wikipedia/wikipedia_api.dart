@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -95,9 +94,7 @@ class WikipediaApi {
       'formatversion': '2',
     });
     try {
-      final response = await _client
-          .get(uri, headers: {'User-Agent': AppConstants.userAgent})
-          .timeout(_timeout);
+      final response = await _client.get(uri).timeout(_timeout);
       if (response.statusCode != 200) return null;
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -129,9 +126,7 @@ class WikipediaApi {
       pathSegments: ['api', 'rest_v1', 'page', 'summary', title],
     );
     try {
-      final response = await _client
-          .get(uri, headers: {'User-Agent': AppConstants.userAgent})
-          .timeout(_timeout);
+      final response = await _client.get(uri).timeout(_timeout);
       if (response.statusCode != 200) return null;
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;

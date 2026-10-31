@@ -6,6 +6,7 @@ import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,7 +20,6 @@ class AboutPage extends StatefulWidget {
 class _AboutPageState extends State<AboutPage> {
   static const _unlockTapThreshold = 5;
 
-  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
   int _versionTapCount = 0;
   bool _developerModeUnlocked = false;
 
@@ -94,19 +94,15 @@ class _AboutPageState extends State<AboutPage> {
                 children: [
                   Text(context.loc.aboutAppDescription),
                   AppSpacing.heightS8,
-                  FutureBuilder<PackageInfo>(
-                    future: _packageInfo,
-                    builder: (context, snapshot) {
-                      final version = snapshot.data?.version ?? '—';
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _handleVersionTap,
-                        child: Text(
-                          context.loc.aboutVersion(version),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      );
-                    },
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _handleVersionTap,
+                    child: Text(
+                      context.loc.aboutVersion(
+                        context.read<PackageInfo>().version,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ),
                 ],
               ),
