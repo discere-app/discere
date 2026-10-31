@@ -45,6 +45,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
   DeckUpdateDiff? _diff;
   bool _includeAdditions = true;
   bool _includeRemovals = true;
+  bool _adoptCatalogSubdecks = false;
   bool _isApplying = false;
   String? _applyError;
 
@@ -132,7 +133,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
     final theme = Theme.of(context);
     final errorColor = theme.colorScheme.error;
 
-    if (!diff.hasChanges) {
+    if (!diff.hasChanges && !diff.hasCustomizedSubdecks) {
       return Text(loc.deckUpdateNoChanges);
     }
 
@@ -140,6 +141,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (!diff.hasChanges) Text(loc.deckUpdateSpeciesUpToDate),
         if (diff.addedSpecies.isNotEmpty)
           _DiffOptionSection(
             key: const Key('deck_update_add_checkbox'),
@@ -160,6 +162,19 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
             label: loc.deckUpdateRemoveSpeciesLabel(diff.removedSpecies.length),
             species: diff.removedSpecies,
           ),
+        if (diff.hasCustomizedSubdecks) ...[
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            key: const Key('deck_update_adopt_subdecks_checkbox'),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: Text(loc.deckUpdateAdoptSubdecksLabel),
+            subtitle: Text(loc.deckUpdateAdoptSubdecksWarning),
+            value: _adoptCatalogSubdecks,
+            onChanged: (value) =>
+                setState(() => _adoptCatalogSubdecks = value ?? false),
+          ),
+        ],
         if (_applyError != null) ...[
           const SizedBox(height: 12),
           Text(
@@ -186,6 +201,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
         diff: diff,
         includeAdditions: _includeAdditions,
         includeRemovals: _includeRemovals,
+        adoptCatalogSubdecks: _adoptCatalogSubdecks,
       );
       if (!mounted) return;
       context.read<DeckUpdateService>().clearUpdate(widget.deckId);

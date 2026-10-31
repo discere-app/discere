@@ -129,6 +129,7 @@ void main() {
       diff: diff,
       includeAdditions: true,
       includeRemovals: true,
+      adoptCatalogSubdecks: false,
     );
 
     expect(await unresolvedStability(), 7.5);

@@ -7,6 +7,7 @@ import 'package:discere/learning/model/create_subdeck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/subdeck.dart';
+import 'package:discere/learning/model/subdeck_edit.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
@@ -193,10 +194,32 @@ class DecksService extends ChangeNotifier {
   }
 
   /// Makes [subdecks] the subdecks of [deckId] — what a deck update does to
-  /// them, whatever it does to the species (see
-  /// [SubdeckRepository.writeStructure]).
+  /// a deck that follows its catalog entry, whatever it does to the species
+  /// (see [SubdeckRepository.writeStructure]).
   Future<void> replaceSubdecks(String deckId, SubdeckStructure subdecks) async {
     await _subdeckRepository.writeStructure(deckId, subdecks);
+    _notifyListenersIfEnabled();
+  }
+
+  /// Applies the user's [edit] to the subdecks of [deckId], which from then on
+  /// counts as customized (see [SubdeckRepository.applyEdit]). What is a card
+  /// can change with it, so the deck list hears of it.
+  Future<void> editSubdecks(String deckId, SubdeckEdit edit) async {
+    await _subdeckRepository.applyEdit(deckId, edit);
+    _notifyListenersIfEnabled();
+  }
+
+  /// Whether the user changed how [deckId] is divided into subdecks.
+  Future<bool> hasCustomizedSubdecks(String deckId) =>
+      _subdeckRepository.isCustomized(deckId);
+
+  /// Places what a deck update added to a [deckId] that keeps its own
+  /// subdecks (see [SubdeckRepository.addToExistingSubdecks]).
+  Future<void> addToExistingSubdecks(
+    String deckId,
+    SubdeckStructure additions,
+  ) async {
+    await _subdeckRepository.addToExistingSubdecks(deckId, additions);
     _notifyListenersIfEnabled();
   }
 

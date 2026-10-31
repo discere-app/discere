@@ -37,10 +37,16 @@ class SubdeckMembership {
     );
   }
 
-  /// Whether [subdeckId] may be switched off while [activeSubdeckIds] are
-  /// on: not when it is the last one on and every species is in a subdeck —
-  /// the deck would have no card left.
-  bool canSwitchOff(String subdeckId, Set<String> activeSubdeckIds) =>
+  /// Whether a species is a card while [activeSubdeckIds] are on: one outside
+  /// the subdecks, or one in a subdeck that is on.
+  bool hasCardWith(Set<String> activeSubdeckIds) =>
       hasSpeciesOutsideSubdecks ||
-      activeSubdeckIds.any((id) => id != subdeckId);
+      activeSubdeckIds.any(speciesCounts.containsKey);
+
+  /// Whether [subdeckId] may be switched off while [activeSubdeckIds] are
+  /// on: not when the cards the deck has left are all in it. An empty subdeck
+  /// holds no card to lose.
+  bool canSwitchOff(String subdeckId, Set<String> activeSubdeckIds) =>
+      !speciesCounts.containsKey(subdeckId) ||
+      hasCardWith(activeSubdeckIds.difference({subdeckId}));
 }

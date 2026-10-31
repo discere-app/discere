@@ -1,6 +1,7 @@
 import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/subdeck_edit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/learning_test_stack.dart';
@@ -72,6 +73,7 @@ void main() {
     CreateDeck remote, {
     bool includeAdditions = true,
     bool includeRemovals = true,
+    bool adoptCatalogSubdecks = false,
   }) async {
     final diff = await applier.diff(deckId, remote);
     await applier.apply(
@@ -80,6 +82,7 @@ void main() {
       diff: diff,
       includeAdditions: includeAdditions,
       includeRemovals: includeRemovals,
+      adoptCatalogSubdecks: adoptCatalogSubdecks,
     );
   }
 
@@ -184,5 +187,146 @@ void main() {
     );
 
     expect(await stack.decksService.getSubdecks(deckId), isEmpty);
+  });
+
+  group('a deck the user divided up differently', () {
+    /// Level 2 renamed and first, a subdeck of the user's on its heels, Level
+    /// 1 switched off; the blue shark moved to the user's subdeck.
+    setUp(() async {
+      await stack.decksService.editSubdecks(
+        deckId,
+        const SubdeckEdit(
+          subdecks: [
+            (id: 'l2', name: 'Big ones'),
+            (id: 'mine', name: 'Mine'),
+            (id: 'l1', name: 'Level 1'),
+          ],
+          moves: {_blueShark: 'mine'},
+        ),
+      );
+      await stack.decksService.setActiveSubdecks(deckId, {'l2', 'mine'});
+    });
+
+    Future<List<(String, String, bool)>> headings() async => [
+      for (final s in await stack.decksService.getSubdecks(deckId))
+        (s.id, s.name, s.isActive),
+    ];
+
+    const ownHeadings = [
+      ('l2', 'Big ones', true),
+      ('mine', 'Mine', true),
+      ('l1', 'Level 1', false),
+    ];
+
+    test('the diff says so', () async {
+      final diff = await applier.diff(deckId, _entry(_restructured));
+
+      expect(diff.hasCustomizedSubdecks, isTrue);
+    });
+
+    test('keeps its division through an update', () async {
+      await update(_entry(_restructured));
+
+      expect(await headings(), ownHeadings);
+      expect(await stack.subdecks.getSubdeckIdBySpeciesId(deckId), {
+        _greatWhite: 'l1',
+        _blueShark: 'mine',
+        _whaleShark: 'l2',
+      });
+      expect(await stack.decksService.hasCustomizedSubdecks(deckId), isTrue);
+    });
+
+    /// Adds the tiger shark to Level 2 and the hammerhead to one this deck
+    /// lacks, and a name waiting in each; drops the great white.
+    final withAdditions = _entry('''
+    {
+      "name": "Sharks", "description": "", "sourceId": "sharks",
+      "updatedAt": "2026-02-01T00:00:00Z",
+      "speciesNames": ["Prionace glauca", "Rhincodon typus",
+                       "Galeocerdo cuvier", "Sphyrna lewini",
+                       "Zzz inlevel", "Zzz elsewhere"],
+      "subdecks": [
+        {"id": "l2", "name": "Level 2",
+         "speciesNames": ["Prionace glauca", "Galeocerdo cuvier",
+                          "Zzz inlevel"]},
+        {"id": "l9", "name": "Level 9",
+         "speciesNames": ["Sphyrna lewini", "Zzz elsewhere"]}
+      ]
+    }
+    ''');
+
+    const tigerShark = 'discere:species:822';
+    const hammerhead = 'discere:species:847';
+
+    test('what the update adds goes into the subdeck of the same id, else '
+        'into none; what it removes leaves', () async {
+      await update(withAdditions);
+
+      expect(await stack.subdecks.getSubdeckIdBySpeciesId(deckId), {
+        // The catalog has the blue shark in Level 2; the user's place stands.
+        _blueShark: 'mine',
+        _whaleShark: 'l2',
+        tigerShark: 'l2',
+      });
+      expect(
+        await stack.stats.getSpeciesIdsByDeckId(deckId),
+        containsAll([tigerShark, hammerhead]),
+      );
+      expect(await unresolvedNameRows(), {'Zzz inlevel': 'l2'});
+      expect(await headings(), ownHeadings);
+    });
+
+    test('declined additions get no place, and no waiting name', () async {
+      await update(withAdditions, includeAdditions: false);
+
+      expect(
+        (await stack.subdecks.getSubdeckIdBySpeciesId(
+          deckId,
+        )).containsKey(tigerShark),
+        isFalse,
+      );
+      expect(await unresolvedNameRows(), isEmpty);
+    });
+
+    test('a name already waiting stays where it waits', () async {
+      await stack.userDb.insert('deck_subdeck_unresolved_names', {
+        'deck_id': deckId,
+        'name': 'Zzz inlevel',
+        'subdeck_id': 'mine',
+      });
+
+      await update(withAdditions);
+
+      expect(await unresolvedNameRows(), {'Zzz inlevel': 'mine'});
+    });
+
+    test('adopting the catalog takes its division and clears the mark', () async {
+      await update(_entry(_restructured), adoptCatalogSubdecks: true);
+
+      expect(await headings(), [
+        // Switched off before, and kept so by its id.
+        ('l1', 'Beginner', false),
+        ('l3', 'Level 3', true),
+      ]);
+      expect(await stack.subdecks.getSubdeckIdBySpeciesId(deckId), {
+        _greatWhite: 'l1',
+        _blueShark: 'l3',
+      });
+      expect(await stack.decksService.hasCustomizedSubdecks(deckId), isFalse);
+    });
+  });
+
+  test('a deck that only had its switches changed follows the catalog, '
+      'with or without the option', () async {
+    await stack.decksService.setActiveSubdecks(deckId, {'l1'});
+    final remote = _entry(_restructured);
+    expect((await applier.diff(deckId, remote)).hasCustomizedSubdecks, isFalse);
+
+    await update(remote);
+
+    expect(
+      (await stack.decksService.getSubdecks(deckId)).map((s) => s.id),
+      ['l1', 'l3'],
+    );
   });
 }
