@@ -1,8 +1,9 @@
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
-import 'package:discere/learning/model/subdeck.dart';
+import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,6 +17,8 @@ EditDeckDraft _draft({
   NameType nameType = NameType.commonName,
   ReviewMode reviewMode = ReviewMode.flip,
   Set<String> speciesIds = const {},
+  List<SubdeckHeading> subdecks = const [],
+  Map<String, String> subdeckIdBySpeciesId = const {},
   Set<String> activeSubdeckIds = const {},
 }) {
   return EditDeckDraft(
@@ -28,7 +31,11 @@ EditDeckDraft _draft({
     nameType: nameType,
     reviewMode: reviewMode,
     speciesIds: speciesIds,
-    activeSubdeckIds: activeSubdeckIds,
+    subdecks: SubdeckDraft(
+      subdecks: subdecks,
+      subdeckIdBySpeciesId: subdeckIdBySpeciesId,
+      activeSubdeckIds: activeSubdeckIds,
+    ),
   );
 }
 
@@ -93,36 +100,42 @@ void main() {
     );
   });
 
-  group('EditDeckPresenter subdecks', () {
-    const subdecks = [
-      Subdeck(deckId: 'd', id: 'l1', name: 'One', sortOrder: 0, isActive: true),
-      Subdeck(deckId: 'd', id: 'l2', name: 'Two', sortOrder: 1, isActive: true),
-    ];
+  group('EditDeckPresenter.effectiveActiveSubdecks', () {
+    SubdeckDraft draft(
+      Set<String> active, {
+      Map<String, String> bySpecies = const {'a': 'l1'},
+    }) => SubdeckDraft(
+      subdecks: const [(id: 'l1', name: 'One'), (id: 'l2', name: 'Two')],
+      subdeckIdBySpeciesId: bySpecies,
+      activeSubdeckIds: active,
+    );
 
     test('with none on and no species outside, every subdeck is on again', () {
+      expect(presenter.effectiveActiveSubdecks(draft({}), {'a'}), {'l1', 'l2'});
+    });
+
+    test('a species outside is a card, so nothing changes', () {
+      expect(presenter.effectiveActiveSubdecks(draft({}), {'a', 'x'}), isEmpty);
+    });
+
+    test('a subdeck on that holds a species is a card', () {
+      expect(presenter.effectiveActiveSubdecks(draft({'l1'}), {'a'}), {'l1'});
+    });
+
+    test('only an empty subdeck on leaves no card, so every one is on', () {
+      expect(presenter.effectiveActiveSubdecks(draft({'l2'}), {'a'}), {
+        'l1',
+        'l2',
+      });
+    });
+
+    test('a deck without species keeps its switches', () {
       expect(
         presenter.effectiveActiveSubdecks(
-          activeSubdeckIds: const {},
-          subdecks: subdecks,
-          hasSpeciesOutsideSubdecks: false,
-        ),
-        {'l1', 'l2'},
-      );
-      expect(
-        presenter.effectiveActiveSubdecks(
-          activeSubdeckIds: const {},
-          subdecks: subdecks,
-          hasSpeciesOutsideSubdecks: true,
+          draft({}, bySpecies: const {}),
+          const {},
         ),
         isEmpty,
-      );
-      expect(
-        presenter.effectiveActiveSubdecks(
-          activeSubdeckIds: const {'l2'},
-          subdecks: subdecks,
-          hasSpeciesOutsideSubdecks: false,
-        ),
-        {'l2'},
       );
     });
   });

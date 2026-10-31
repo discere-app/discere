@@ -16,14 +16,13 @@ import 'package:discere/learning/decks/edit/edit_deck_tutorial.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
+import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/decks/edit/subdeck_section.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
-import 'package:discere/learning/model/subdeck.dart';
-import 'package:discere/learning/model/subdeck_membership.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
@@ -93,9 +92,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late NameType _nameType;
   late ReviewMode _reviewMode;
 
-  List<Subdeck> _subdecks = const [];
-  Map<String, String> _subdeckIdBySpeciesId = const {};
-  Set<String> _activeSubdeckIds = const {};
+  late SubdeckDraft _subdeckDraft;
 
   /// Snapshot of the last persisted state, compared against the live fields
   /// to drive the Save button. Taken once the deck has loaded, replaced
@@ -114,18 +111,15 @@ class _EditDeckPageState extends State<EditDeckPage> {
     setState(() {
       mutate();
       _enforceReviewModeValidity();
-      _activeSubdeckIds = _presenter.effectiveActiveSubdecks(
-        activeSubdeckIds: _activeSubdeckIds,
-        subdecks: _subdecks,
-        hasSpeciesOutsideSubdecks:
-            _subdeckMembership.hasSpeciesOutsideSubdecks,
+      _subdeckDraft = _subdeckDraft.withActive(
+        _presenter.effectiveActiveSubdecks(
+          _subdeckDraft,
+          _speciesIdsFor(_species),
+        ),
       );
       _updateDirtyState(setStateIfChanged: false);
     });
   }
-
-  SubdeckMembership get _subdeckMembership =>
-      SubdeckMembership.of(_speciesIdsFor(_species), _subdeckIdBySpeciesId);
 
   /// Reverts to flip mode if multiple choice is selected but the deck no
   /// longer has enough distinct names — after a draft change, or right after
@@ -176,12 +170,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       if (!mounted) return;
       setState(() {
         _species = species;
-        _subdecks = subdecks;
-        _subdeckIdBySpeciesId = subdeckIdBySpeciesId;
-        _activeSubdeckIds = {
-          for (final subdeck in subdecks)
-            if (subdeck.isActive) subdeck.id,
-        };
+        _subdeckDraft = SubdeckDraft.ofStored(subdecks, subdeckIdBySpeciesId);
         _deckConfig = config;
         _desiredRetention = config.desiredRetention;
         _learningMode = config.learningMode;
@@ -269,12 +258,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
     // not read as removed (see DecksService.updateDeck).
     final speciesIds = _speciesIdsFor(_species);
     final savedIds = _saved.speciesIds;
+    final removedIds = savedIds.difference(speciesIds);
+    final subdeckEdit = _subdeckDraft.editSince(
+      _saved.subdecks,
+      removedSpeciesIds: removedIds,
+    );
     // Deck and configuration are one save; a restart waits for both.
     await context.read<UserDataWrites>().run(() async {
       await _decksService.updateDeck(
         updated,
         addedSpeciesIds: speciesIds.difference(savedIds),
-        removedSpeciesIds: savedIds.difference(speciesIds),
+        removedSpeciesIds: removedIds,
       );
       await _flashcardService.saveDeckConfig(
         _deckConfig.copyWith(
@@ -284,10 +278,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
           reviewMode: _reviewMode,
         ),
       );
-      if (_subdecks.isNotEmpty) {
+      if (subdeckEdit != null) {
+        await _decksService.editSubdecks(widget.deck.id!, subdeckEdit);
+      }
+      // Last: a subdeck added with this save has to exist to be switched.
+      if (_subdeckDraft.subdecks.isNotEmpty) {
         await _decksService.setActiveSubdecks(
           widget.deck.id!,
-          _activeSubdeckIds,
+          _subdeckDraft.activeSubdeckIds,
         );
       }
     });
@@ -377,6 +375,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   void _removeSpecies(Species s) {
     _applyDraftChange(() {
       _species.remove(s);
+      _subdeckDraft = _subdeckDraft.removeSpecies(s.id);
       _newlyAddedSpeciesIds.remove(s.id);
     });
   }
@@ -456,7 +455,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     nameType: _nameType,
     reviewMode: _reviewMode,
     speciesIds: _speciesIdsFor(_species),
-    activeSubdeckIds: _activeSubdeckIds,
+    subdecks: _subdeckDraft,
   );
 
   void _updateDirtyState({bool setStateIfChanged = true}) {
@@ -475,7 +474,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
     final learningSettings = !prefs.hasSeenEditDeckTutorial;
     final subdecks =
-        _subdecks.isNotEmpty && !prefs.hasSeenEditDeckSubdecksTutorial;
+        _subdeckDraft.subdecks.isNotEmpty &&
+        !prefs.hasSeenEditDeckSubdecksTutorial;
     if (!learningSettings && !subdecks) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));
@@ -539,23 +539,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
     );
   }
 
-  Widget _buildSubdeckSection() {
-    final membership = _subdeckMembership;
-    return SubdeckSection(
-      titleKey: _subdecksKey,
-      subdecks: _subdecks,
-      activeSubdeckIds: _activeSubdeckIds,
-      speciesCounts: membership.speciesCounts,
-      canSwitchOff: (subdeckId) =>
-          membership.canSwitchOff(subdeckId, _activeSubdeckIds),
-      onChanged: (subdeckId, active) => _applyDraftChange(
-        () => _activeSubdeckIds = active
-            ? {..._activeSubdeckIds, subdeckId}
-            : _activeSubdeckIds.difference({subdeckId}),
-      ),
-    );
-  }
-
   Widget _buildContent() {
     return CustomScrollView(
       // The default cache extent (250px) is too small to lay out the
@@ -608,10 +591,15 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onReviewModeChanged: (mode) =>
                     _applyDraftChange(() => _reviewMode = mode),
               ),
-              if (_subdecks.isNotEmpty) ...[
-                AppSpacing.heightS24,
-                _buildSubdeckSection(),
-              ],
+              AppSpacing.heightS24,
+              SubdeckSection(
+                titleKey: _subdecksKey,
+                draft: _subdeckDraft,
+                species: _species,
+                language: _selectedLanguage,
+                onChanged: (draft) =>
+                    _applyDraftChange(() => _subdeckDraft = draft),
+              ),
               AppSpacing.heightS24,
               ManualINatEnrichmentSection(
                 deckId: widget.deck.id!,

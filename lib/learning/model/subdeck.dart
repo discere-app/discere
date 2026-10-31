@@ -2,7 +2,8 @@
 class Subdeck {
   final String deckId;
 
-  /// The id the deck's JSON gave it (`CreateSubdeck.id`).
+  /// The id the deck's JSON gave it (`CreateSubdeck.id`), or a generated one
+  /// for a subdeck the user added.
   final String id;
   final String name;
   final int sortOrder;
