@@ -87,8 +87,9 @@ void main() {
     required List<String> speciesIds,
     required Map<String, String> subdeckBySpecies,
     bool hasSeenSubdeckTutorial = true,
+    double width = 1200,
   }) async {
-    tester.view.physicalSize = const Size(1200, 4000);
+    tester.view.physicalSize = Size(width, 4000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     when(
@@ -599,8 +600,8 @@ void main() {
     String footerText(WidgetTester tester, String speciesId) =>
         tester.widget<Text>(footer(speciesId)).data!;
 
-    testWidgets('the button starts selecting with nothing selected, swaps the '
-        'header buttons for the app bar with its actions off', (tester) async {
+    testWidgets('the button starts selecting with nothing selected, hides the '
+        'header buttons and shows the app bar with its actions off', (tester) async {
       await pumpPage(
         tester,
         speciesIds: ['a', 'b'],
@@ -611,8 +612,8 @@ void main() {
       await tapAndSettle(tester, selectButton);
 
       expect(countText(tester), '0 selected');
-      expect(selectButton, findsNothing);
-      expect(addButton, findsNothing);
+      expect(selectButton.hitTestable(), findsNothing);
+      expect(addButton.hitTestable(), findsNothing);
       expect(isEnabled(tester, deleteButton), isFalse);
       expect(isEnabled(tester, assignButton), isFalse);
       expect(checkbox(tester, 'a').value, isFalse);
@@ -668,6 +669,67 @@ void main() {
       expect(checkbox(tester, 'a').value, isFalse);
       expect(isEnabled(tester, deleteButton), isTrue);
       expect(isEnabled(tester, assignButton), isTrue);
+    });
+
+    testWidgets('the rows stay put when a long press starts a selection and '
+        'when it ends, also where the header buttons wrap', (tester) async {
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+        width: 420,
+      );
+      final row = find.byKey(const ValueKey('b'));
+      final rowTop = tester.getTopLeft(row).dy;
+      expect(
+        tester.getTopLeft(selectButton).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(find.text('Species in Deck (2)')).dy),
+        reason: 'the buttons have to wrap for the jump to be possible',
+      );
+
+      await tester.longPress(row);
+      await tester.pumpAndSettle();
+
+      expect(countText(tester), '1 selected');
+      expect(tester.getTopLeft(row).dy, rowTop);
+
+      await tapAndSettle(
+        tester,
+        find.byKey(const Key('edit_deck_selection_close_button')),
+      );
+
+      expect(count, findsNothing);
+      expect(tester.getTopLeft(row).dy, rowTop);
+    });
+
+    testWidgets('during a selection the hidden header buttons can be neither '
+        'tapped nor reached by a screen reader', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpPage(
+        tester,
+        speciesIds: ['a', 'b'],
+        subdeckBySpecies: {'a': '1'},
+      );
+      final selectLabel = find.semantics.byLabel('Select');
+      final addLabel = find.semantics.byLabel('Add Species');
+      expect(selectLabel, findsOneWidget);
+      expect(addLabel, findsOneWidget);
+
+      await tester.longPress(find.byKey(const ValueKey('b')));
+      await tester.pumpAndSettle();
+
+      expect(selectLabel, findsNothing);
+      expect(addLabel, findsNothing);
+
+      await tester.tap(addButton, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.byType(AddSpeciesSheet), findsNothing);
+
+      await tester.tap(selectButton, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(countText(tester), '1 selected');
+      expect(checkbox(tester, 'b').value, isTrue);
+      semantics.dispose();
     });
 
     testWidgets('a tap opens the species only outside a selection', (
