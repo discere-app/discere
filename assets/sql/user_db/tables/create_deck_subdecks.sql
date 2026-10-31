@@ -1,6 +1,7 @@
--- The subdecks of a deck, as its catalog entry or shared JSON names them.
--- subdeck_id is the id from that JSON, so an update finds a subdeck again
--- and keeps whether the user switched it off.
+-- The subdecks of a deck. subdeck_id is the id from the catalog entry or
+-- shared JSON the subdeck came from, so an update finds it again and keeps
+-- whether the user switched it off, or a generated one for a subdeck the user
+-- added in Edit Deck.
 CREATE TABLE IF NOT EXISTS deck_subdecks (
   deck_id    TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
   subdeck_id TEXT NOT NULL,

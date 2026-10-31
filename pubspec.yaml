@@ -155,6 +155,7 @@ flutter:
     - assets/sql/user_db/tables/create_deck_subdecks.sql
     - assets/sql/user_db/tables/create_deck_subdeck_species.sql
     - assets/sql/user_db/tables/create_deck_subdeck_unresolved_names.sql
+    - assets/sql/user_db/tables/create_deck_subdeck_customizations.sql
     - assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql
 
   # An image asset can refer to one or more resolution-specific "variants", see
