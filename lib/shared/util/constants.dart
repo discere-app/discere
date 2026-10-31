@@ -50,9 +50,9 @@ class AppConstants {
   /// The `User-Agent` of every request the app makes: its name and
   /// [version] (`PackageInfo.version`, without the build number), with the
   /// bundle ID and the repository as a contact for whoever runs the server.
-  /// `etl/core/check_image_hosts.sh` builds the same string from
-  /// `pubspec.yaml` to load images the way the app does — a change to the
-  /// format has to be made there too.
+  /// `etl/core/check_image_hosts.sh` keeps a copy of it, with a fixed
+  /// version, to load images the way the app does — a change to the format
+  /// has to be made there too.
   static String userAgentFor(String version) =>
       'DiscereApp/$version ($bundleId; $repositoryUrl)';
 

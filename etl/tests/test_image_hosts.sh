@@ -32,16 +32,6 @@ exit 6
 EOF
     printf '#!/usr/bin/env bash\n' > "$TEST_TMP/bin/sleep"
     chmod +x "$TEST_TMP/bin/curl" "$TEST_TMP/bin/sleep"
-    CHECK_SCRIPT="$ETL_DIR/core/check_image_hosts.sh"
-}
-
-# use_pubspec <inhalt> — prüft mit einer Kopie von core/, neben der eine
-# pubspec.yaml mit <inhalt> so liegt wie die der App neben etl/.
-use_pubspec() {
-    mkdir -p "$TEST_TMP/repo/etl"
-    cp -R "$ETL_DIR/core" "$TEST_TMP/repo/etl/core"
-    printf '%s\n' "$1" > "$TEST_TMP/repo/pubspec.yaml"
-    CHECK_SCRIPT="$TEST_TMP/repo/etl/core/check_image_hosts.sh"
 }
 
 # add_picture <url> [is_usable] — is_usable ist 1, wenn nicht angegeben.
@@ -62,7 +52,7 @@ respond_image() {
 }
 
 check_image_hosts() {
-    run_capture env PATH="$TEST_TMP/bin:$PATH" "$CHECK_SCRIPT" --db "$DB"
+    run_capture env PATH="$TEST_TMP/bin:$PATH" "$ETL_DIR/core/check_image_hosts.sh" --db "$DB"
 }
 
 # Der Teil von stderr ab der Fehlermeldung, ohne die Protokollzeilen davor.
@@ -80,33 +70,11 @@ test_image_hosts_pass_when_every_host_delivers_images() {
     assert_status 0
     assert_contains "$ERR" "a.example: 1 von 1 Bildern geladen."
     assert_contains "$ERR" "b.example: 1 von 1 Bildern geladen."
-    # Die URLs unverändert aus der DB.
+    # Die URLs unverändert aus der DB, mit dem User-Agent der App.
     assert_contains "$(cat "$TEST_TMP/curl.log")" "https://a.example/images/species/Abc_u0.jpg"
     assert_contains "$(cat "$TEST_TMP/curl.log")" "https://b.example/pics/Xyz_u1.jpg"
-}
-
-# Der User-Agent der App trägt die Version aus pubspec.yaml ohne
-# Build-Nummer, wie PackageInfo.version sie liefert.
-test_image_hosts_load_with_the_user_agent_of_the_app_version() {
-    create_image_host_env
-    use_pubspec $'name: discere\nversion: 2.3.4+56'
-    add_picture 'https://a.example/images/species/Abc_u0.jpg'
-    respond_image 'https://a.example/*'
-    check_image_hosts
-    assert_status 0
     assert_contains "$(cat "$TEST_TMP/curl.log")" \
-        "-A DiscereApp/2.3.4 (ch.feberle.discere; https://github.com/discere-app/discere) "
-}
-
-test_image_hosts_fail_without_app_version() {
-    create_image_host_env
-    use_pubspec 'name: discere'
-    add_picture 'https://a.example/images/species/Abc_u0.jpg'
-    respond_image 'https://a.example/*'
-    check_image_hosts
-    assert_status 1
-    assert_contains "$(failure_message)" "Keine App-Version in"
-    assert_eq "" "$(cat "$TEST_TMP/curl.log")" "curl-Aufrufe"
+        "DiscereApp/1.4.0 (ch.feberle.discere; https://github.com/discere-app/discere)"
 }
 
 test_image_hosts_fail_on_cloudflare_challenge() {
