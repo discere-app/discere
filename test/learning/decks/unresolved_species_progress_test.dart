@@ -129,6 +129,7 @@ void main() {
       diff: diff,
       includeAdditions: true,
       includeRemovals: true,
+      adoptCatalogSubdecks: false,
     );
 
     expect(await unresolvedStability(), 7.5);
@@ -147,6 +148,7 @@ void main() {
     final stability = await tester.runAsync(() async {
       SharedPreferences.setMockInitialValues({
         'has_seen_edit_deck_tutorial': true,
+        'has_seen_edit_deck_subdecks_tutorial': true,
       });
       final preferences = UserPreferencesService(
         await SharedPreferences.getInstance(),

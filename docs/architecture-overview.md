@@ -357,6 +357,10 @@ erDiagram
         TEXT subdeck_id
     }
 
+    deck_subdeck_customizations {
+        TEXT deck_id PK
+    }
+
     deck_config {
         TEXT deck_id PK
         REAL desired_retention
@@ -383,16 +387,27 @@ erDiagram
     decks ||--o{ deck_subdecks : "divided into"
     deck_subdecks ||--o{ deck_subdeck_species : "holds"
     deck_subdecks ||--o{ deck_subdeck_unresolved_names : "waits for"
+    decks ||--o| deck_subdeck_customizations : "divided by the user"
     decks ||--o| deck_config : "configured by"
     decks ||--o| enrichment_jobs : "enriched by (cover job only)"
 ```
 
 A species is in at most one subdeck of a deck, and in none when it was added
-by hand. `deck_subdeck_unresolved_names` keeps the subdeck of a name not
-resolved yet, so the species it resolves to later lands there
-(`DecksService.addResolvedSpeciesToDeck`). Both reference their subdeck with
-a composite foreign key that cascades: a subdeck a deck update drops takes
-its rows with it, and its species stay in the deck without a subdeck.
+by hand and not assigned to one. `deck_subdeck_unresolved_names` keeps the
+subdeck of a name not resolved yet, so the species it resolves to later lands
+there (`DecksService.addResolvedSpeciesToDeck`). Both reference their subdeck
+with a composite foreign key that cascades: a subdeck that goes takes its rows
+with it, and its species stay in the deck without a subdeck.
+
+The user adds, renames, deletes and sorts subdecks on the edit page, and
+assigns species to them by selecting several in its species list, where each
+row shows its subdeck. Saving applies a change, not a new division
+(`SubdeckEdit`, `SubdeckRepository.applyEdit`), because the deck can hold what
+the page never sees: waiting names, and species the reference database does
+not resolve. A row in `deck_subdeck_customizations` marks a deck changed that
+way; switching a subdeck on or off is a setting and sets no mark. The mark
+decides what a deck update does to the subdecks (§7.5) and goes when the deck
+takes on a whole structure again (`SubdeckRepository.writeStructure`).
 
 `enrichment_jobs` tracks only the one remaining sequential job (the deck's
 cover-image download), whose progress is the `cover_state` column;
@@ -617,8 +632,11 @@ sourcing, `AnswerableCardsService.deckStat` and the reminders
 (`reviewDatesOfCards`, one more user-DB query across all decks) skip them;
 photo-gap tracking looks at the active species only. Multiple-choice
 distractors still come from the whole deck — a switched-off species is a
-fine wrong answer. Edit Deck keeps the last subdeck on while every species
-of the deck is in one, so a deck never loses all its cards that way.
+fine wrong answer. Edit Deck never leaves a deck with species without a card:
+a subdeck holding the last cards cannot be switched off, and a change that
+leaves none — such as moving them into a subdeck that is off — switches all
+subdecks on (`SubdeckMembership`, `EditDeckPresenter`). A deck without species
+has nothing to lose, so its empty subdecks switch freely.
 
 ### Key Parameters (per deck, configurable)
 
@@ -776,8 +794,13 @@ deck as text, file or QR code (`CreateDeck`):
   two subdecks belongs to the first (logged as a warning).
 - `subdecks` is optional. Every subdeck is switched on after an import; a
   deck update rewrites the structure to the catalog's (`DeckUpdateApplier`)
-  and keeps a subdeck's switch, a new subdeck comes switched on. A shared
-  deck carries its subdecks, not their switches.
+  and keeps a subdeck's switch, a new subdeck comes switched on. A deck the
+  user divided up differently keeps its subdecks, their switches and the
+  place of its species instead, unless the user adopts the catalog's division
+  in the update dialog: what the update adds goes into the subdeck with the
+  catalog's id if the deck has one, otherwise into none. A shared deck carries
+  its subdecks, including the user's, with their ids, but not their switches
+  or that they were changed.
 - `supersedes` lists the `sourceId`s of catalog entries this entry
   replaces — a changed id, levels joined into one deck, a deck split in
   two. Like `sourceId` and `updatedAt`, it is read from the catalog only,
@@ -808,9 +831,8 @@ decks, what happens to them and the species whose progress is lost. For a
 target with subdecks the dialog also asks which of them to have on. It
 suggests those holding a species whose progress moves into the target, plus
 — for a target already imported — the ones it has on; for a fresh import
-with no such species in any subdeck, all of them. The last one chosen cannot
-be unchecked while every species is in a subdeck, the edit page's rule
-(`SubdeckMembership`):
+with no such species in any subdeck, all of them. A subdeck holding the last
+cards cannot be unchecked, the edit page's rule (`SubdeckMembership`):
 
 1. The entry becomes a local deck — the one already imported from it, or a
    fresh import.
@@ -825,6 +847,9 @@ be unchecked while every species is in a subdeck, the edit page's rule
    deck and the place and favorite mark of the deleted ones.
 4. A superseded deck is deleted once every entry superseding it is a local
    deck; until then it keeps the species the others still take.
+
+A superseded deck's own division into subdecks goes with it: the merged deck
+has the target's subdecks, and a customized target stays customized.
 
 A merge that stops half way is finished by merging again: the target is
 found by its `sourceId`, and what has moved is not there to move twice.

@@ -124,6 +124,7 @@ void main() {
           diff: diff,
           includeAdditions: true,
           includeRemovals: false,
+          adoptCatalogSubdecks: false,
         );
 
         expect(unresolved, ['Genus x']);
@@ -180,6 +181,7 @@ void main() {
           diff: diff,
           includeAdditions: false,
           includeRemovals: true,
+          adoptCatalogSubdecks: false,
         );
 
         expect(unresolved, isEmpty);

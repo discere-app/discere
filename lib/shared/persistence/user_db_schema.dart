@@ -68,6 +68,8 @@ const _createDeckSubdeckSpeciesSqlAsset =
     'assets/sql/user_db/tables/create_deck_subdeck_species.sql';
 const _createDeckSubdeckUnresolvedNamesSqlAsset =
     'assets/sql/user_db/tables/create_deck_subdeck_unresolved_names.sql';
+const _createDeckSubdeckCustomizationsSqlAsset =
+    'assets/sql/user_db/tables/create_deck_subdeck_customizations.sql';
 
 Future<void> _ensureColumnExists(
   Database db,
@@ -117,7 +119,7 @@ class UserDbSchema {
   /// Current user DB schema version — bump whenever a migration is added, and
   /// whenever an asset gains a column: reconciliation only runs on create and
   /// upgrade, so an existing database gets the column through a bump alone.
-  static const int version = 22;
+  static const int version = 23;
 
   /// Every table of the current schema, in creation order — `decks` first,
   /// because the tables after it declare a foreign key to it, and
@@ -141,6 +143,7 @@ class UserDbSchema {
     _createDeckSubdecksSqlAsset,
     _createDeckSubdeckSpeciesSqlAsset,
     _createDeckSubdeckUnresolvedNamesSqlAsset,
+    _createDeckSubdeckCustomizationsSqlAsset,
     _createINatPhotoCacheSqlAsset,
     _createRuntimeCommonNamesSqlAsset,
     _createRuntimeCommonNameSearchDocumentsSqlAsset,
@@ -195,6 +198,8 @@ class UserDbSchema {
     if (oldVersion < 20) await migrateUserDbToV20(db);
     // v21 only adds columns (inat_taxon_id), which reconciliation brings.
     // v22 only adds tables (the deck_subdeck* tables), which reconciliation
+    // brings.
+    // v23 only adds a table (deck_subdeck_customizations), which reconciliation
     // brings.
 
     // Bring whatever the ladder produced to the current shape: missing

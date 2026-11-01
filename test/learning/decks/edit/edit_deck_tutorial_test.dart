@@ -24,9 +24,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../mocks.mocks.dart';
 
-/// Covers EditDeckPage's first-run coach mark over the learning settings
-/// section (lib/learning/decks/edit/edit_deck_tutorial.dart), scheduled by
-/// EditDeckPageState._maybeScheduleTutorial.
+/// Covers EditDeckPage's first-run coach marks over the learning settings and
+/// the subdeck section (lib/learning/decks/edit/edit_deck_tutorial.dart),
+/// scheduled by EditDeckPageState._maybeScheduleTutorial. The deck here has no
+/// subdecks: the mocked service answers none.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -53,9 +54,13 @@ void main() {
     );
   });
 
-  Future<UserPreferencesService> userPreferencesService(bool hasSeen) async {
+  Future<UserPreferencesService> userPreferencesService(
+    bool hasSeen, {
+    bool hasSeenSubdecks = true,
+  }) async {
     SharedPreferences.setMockInitialValues({
       'has_seen_edit_deck_tutorial': hasSeen,
+      'has_seen_edit_deck_subdecks_tutorial': hasSeenSubdecks,
     });
     return UserPreferencesService(await SharedPreferences.getInstance());
   }
@@ -105,6 +110,48 @@ void main() {
     }
 
     expect(find.text('Learning settings'), findsNothing);
+  });
+
+  group('the subdeck coach mark on a deck without subdecks', () {
+    final description = find.textContaining(
+      'Here you divide a deck into subdecks',
+    );
+
+    Future<void> openPage(
+      WidgetTester tester,
+      UserPreferencesService prefs,
+    ) async {
+      await tester.pumpWidget(
+        _buildApp(
+          decksService: decksService,
+          imageService: imageService,
+          notificationService: notificationService,
+          flashcardService: flashcardService,
+          userPreferencesService: prefs,
+        ),
+      );
+      // The coach mark never stops animating, so no pumpAndSettle.
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    }
+
+    testWidgets('shows until it has been seen', (tester) async {
+      final prefs = await userPreferencesService(true, hasSeenSubdecks: false);
+
+      await openPage(tester, prefs);
+
+      expect(description, findsOneWidget);
+      expect(prefs.hasSeenEditDeckSubdecksTutorial, isTrue);
+    });
+
+    testWidgets('does not show once seen', (tester) async {
+      final prefs = await userPreferencesService(true);
+
+      await openPage(tester, prefs);
+
+      expect(description, findsNothing);
+    });
   });
 }
 

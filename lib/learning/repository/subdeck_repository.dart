@@ -1,4 +1,5 @@
 import 'package:discere/learning/model/subdeck.dart';
+import 'package:discere/learning/model/subdeck_edit.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
@@ -6,11 +7,14 @@ import 'package:sqflite/sqflite.dart';
 /// The subdecks of the user's decks: `deck_subdecks`, which species of a
 /// deck belong to which (`deck_subdeck_species`), and the subdeck of each
 /// imported name still waiting to be resolved
-/// (`deck_subdeck_unresolved_names`).
+/// (`deck_subdeck_unresolved_names`), and whether the user changed that
+/// division (`deck_subdeck_customizations`).
 ///
 /// Membership of the deck itself stays where it is, in `flashcard_stats`;
 /// these tables only say how a deck's species are divided up.
 class SubdeckRepository {
+  static const _customizationsTable = 'deck_subdeck_customizations';
+
   final Database? _injectedDb;
 
   SubdeckRepository({Database? database}) : _injectedDb = database;
@@ -23,18 +27,17 @@ class SubdeckRepository {
   /// A subdeck already there keeps whether it is active and takes the new
   /// name and position; a new one starts active. A subdeck the structure no
   /// longer has goes, and its species with it into no subdeck at all. Which
-  /// species and names belong where is replaced as a whole.
+  /// species and names belong where is replaced as a whole, and with it any
+  /// division of the user's: the deck has this one now and is no longer
+  /// customized.
   Future<void> writeStructure(String deckId, SubdeckStructure structure) async {
     final db = await _database;
     await db.transaction((txn) async {
-      final kept = [for (final subdeck in structure.subdecks) subdeck.id];
-      // Their species and names follow through ON DELETE CASCADE.
+      await _deleteSubdecksOtherThan(txn, deckId, structure.subdecks);
       await txn.delete(
-        'deck_subdecks',
-        where:
-            'deck_id = ? AND subdeck_id NOT IN '
-            '(${List.filled(kept.length, '?').join(',')})',
-        whereArgs: [deckId, ...kept],
+        _customizationsTable,
+        where: 'deck_id = ?',
+        whereArgs: [deckId],
       );
       await txn.delete(
         'deck_subdeck_species',
@@ -48,20 +51,7 @@ class SubdeckRepository {
       );
 
       final batch = txn.batch();
-      for (final (index, subdeck) in structure.subdecks.indexed) {
-        batch.insert('deck_subdecks', {
-          'deck_id': deckId,
-          'subdeck_id': subdeck.id,
-          'name': subdeck.name,
-          'sort_order': index,
-        }, conflictAlgorithm: ConflictAlgorithm.ignore);
-        batch.update(
-          'deck_subdecks',
-          {'name': subdeck.name, 'sort_order': index},
-          where: 'deck_id = ? AND subdeck_id = ?',
-          whereArgs: [deckId, subdeck.id],
-        );
-      }
+      _writeHeadings(batch, deckId, structure.subdecks);
       for (final MapEntry(key: speciesId, value: subdeckId)
           in structure.subdeckIdBySpeciesId.entries) {
         batch.insert('deck_subdeck_species', {
@@ -80,6 +70,121 @@ class SubdeckRepository {
       }
       await batch.commit(noResult: true);
     });
+  }
+
+  /// Their species and names follow through ON DELETE CASCADE.
+  Future<void> _deleteSubdecksOtherThan(
+    Transaction txn,
+    String deckId,
+    List<SubdeckHeading> kept,
+  ) => txn.delete(
+    'deck_subdecks',
+    where:
+        'deck_id = ? AND subdeck_id NOT IN '
+        '(${List.filled(kept.length, '?').join(',')})',
+    whereArgs: [deckId, for (final subdeck in kept) subdeck.id],
+  );
+
+  /// A subdeck already there keeps whether it is active; a new one starts
+  /// active.
+  void _writeHeadings(
+    Batch batch,
+    String deckId,
+    List<SubdeckHeading> subdecks,
+  ) {
+    for (final (index, subdeck) in subdecks.indexed) {
+      batch.insert('deck_subdecks', {
+        'deck_id': deckId,
+        'subdeck_id': subdeck.id,
+        'name': subdeck.name,
+        'sort_order': index,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      batch.update(
+        'deck_subdecks',
+        {'name': subdeck.name, 'sort_order': index},
+        where: 'deck_id = ? AND subdeck_id = ?',
+        whereArgs: [deckId, subdeck.id],
+      );
+    }
+  }
+
+  /// Applies the user's [edit] to [deckId] and marks it customized, in one
+  /// transaction.
+  ///
+  /// Only what [edit] names changes: a species it does not move stays in its
+  /// subdeck and a waiting name keeps its own, unless that subdeck goes.
+  Future<void> applyEdit(String deckId, SubdeckEdit edit) async {
+    final db = await _database;
+    await db.transaction((txn) async {
+      await _deleteSubdecksOtherThan(txn, deckId, edit.subdecks);
+      final batch = txn.batch();
+      _writeHeadings(batch, deckId, edit.subdecks);
+      for (final MapEntry(key: speciesId, value: subdeckId)
+          in edit.moves.entries) {
+        if (subdeckId == null) {
+          batch.delete(
+            'deck_subdeck_species',
+            where: 'deck_id = ? AND species_id = ?',
+            whereArgs: [deckId, speciesId],
+          );
+        } else {
+          batch.insert('deck_subdeck_species', {
+            'deck_id': deckId,
+            'species_id': speciesId,
+            'subdeck_id': subdeckId,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      batch.insert(_customizationsTable, {
+        'deck_id': deckId,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await batch.commit(noResult: true);
+    });
+  }
+
+  /// Whether the user changed the division of [deckId] since it last took
+  /// one from a deck's JSON.
+  Future<bool> isCustomized(String deckId) async {
+    final db = await _database;
+    final rows = await db.query(
+      _customizationsTable,
+      where: 'deck_id = ?',
+      whereArgs: [deckId],
+    );
+    return rows.isNotEmpty;
+  }
+
+  /// Puts the species and waiting names of [additions] into those subdecks of
+  /// [deckId] that exist, for a deck keeping its own division through an
+  /// update. [SubdeckStructure.subdecks] is not read: a subdeck this deck does
+  /// not have is not created, and what it would hold is in none. A species
+  /// or name that already has a subdeck stays there.
+  Future<void> addToExistingSubdecks(
+    String deckId,
+    SubdeckStructure additions,
+  ) async {
+    final db = await _database;
+    final batch = db.batch();
+    void place(String table, String column, String key, String subdeckId) {
+      batch.rawInsert(
+        '''
+        INSERT OR IGNORE INTO $table (deck_id, $column, subdeck_id)
+        SELECT deck_id, ?, subdeck_id FROM deck_subdecks
+        WHERE deck_id = ? AND subdeck_id = ?
+      ''',
+        [key, deckId, subdeckId],
+      );
+    }
+
+    additions.subdeckIdBySpeciesId.forEach(
+      (id, subdeckId) =>
+          place('deck_subdeck_species', 'species_id', id, subdeckId),
+    );
+    additions.subdeckIdByUnresolvedName.forEach(
+      (name, subdeckId) =>
+          place('deck_subdeck_unresolved_names', 'name', name, subdeckId),
+    );
+    await batch.commit(noResult: true);
   }
 
   /// The subdecks of [deckId] in their order.

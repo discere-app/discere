@@ -47,12 +47,14 @@ class SectionCard extends StatelessWidget {
 class TappableSectionCard extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final BorderRadius borderRadius;
   final Color? tint;
 
   const TappableSectionCard({
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.borderRadius = const BorderRadius.all(Radius.circular(14)),
     this.tint,
     super.key,
@@ -69,6 +71,7 @@ class TappableSectionCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: borderRadius,

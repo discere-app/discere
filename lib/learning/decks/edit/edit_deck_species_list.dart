@@ -6,6 +6,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item_view_
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/learning/decks/edit/species_selection.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -33,12 +34,20 @@ class EditDeckSpeciesList extends StatefulWidget {
   final Future<void> Function(Species species) onOpen;
   final ValueChanged<Species> onRemove;
 
+  /// The subdeck name each row shows; a species missing here is in none.
+  final Map<String, String> subdeckNameBySpeciesId;
+  final SpeciesSelection selection;
+  final ValueChanged<SpeciesSelection> onSelectionChanged;
+
   const EditDeckSpeciesList({
     super.key,
     required this.species,
     required this.language,
     required this.onOpen,
     required this.onRemove,
+    required this.subdeckNameBySpeciesId,
+    required this.selection,
+    required this.onSelectionChanged,
   });
 
   @override
@@ -141,8 +150,27 @@ class _EditDeckSpeciesListState extends State<EditDeckSpeciesList> {
         : _presenter.presentSpeciesWithLocalImages(resolved, widget.language);
   }
 
+  void _toggle(Species species) =>
+      widget.onSelectionChanged(widget.selection.toggled(species.id));
+
+  Widget? _subdeckFooter(BuildContext context, Species species) {
+    final name = widget.subdeckNameBySpeciesId[species.id];
+    if (name == null) return null;
+    final theme = Theme.of(context);
+    return Text(
+      name,
+      key: Key('edit_deck_species_subdeck_${species.id}'),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.primary,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selection = widget.selection;
     return SliverPadding(
       padding: EdgeInsets.zero,
       sliver: SliverList.builder(
@@ -152,7 +180,20 @@ class _EditDeckSpeciesListState extends State<EditDeckSpeciesList> {
           return SpeciesListItem(
             key: ValueKey(s.id),
             item: _present(s),
-            onTap: () => _open(s),
+            footer: _subdeckFooter(context, s),
+            onTap: selection.isActive ? () => _toggle(s) : () => _open(s),
+            onLongPress: selection.isActive
+                ? null
+                : () => widget.onSelectionChanged(
+                    SpeciesSelection.startingWith(s.id),
+                  ),
+            trailing: selection.isActive
+                ? Checkbox(
+                    key: Key('edit_deck_species_checkbox_${s.id}'),
+                    value: selection.isSelected(s.id),
+                    onChanged: (_) => _toggle(s),
+                  )
+                : null,
             onDelete: () => widget.onRemove(s),
             deleteTooltip: context.loc.editRemoveTooltip,
           );

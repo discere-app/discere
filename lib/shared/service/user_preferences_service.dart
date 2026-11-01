@@ -94,9 +94,8 @@ class UserPreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Separate from [hasSeenEditDeckTutorial]: the subdeck step is shown the
-  /// first time a deck with subdecks is edited, which may be long after the
-  /// learning settings step.
+  /// Separate from [hasSeenEditDeckTutorial]: a user who has already seen the
+  /// learning settings step still gets the subdeck step on their next edit.
   bool get hasSeenEditDeckSubdecksTutorial {
     return _prefs.getBool(_hasSeenEditDeckSubdecksTutorialKey) ?? false;
   }

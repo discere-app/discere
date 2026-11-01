@@ -314,6 +314,148 @@ void main() {
       expect(secondCall.deckIds, ['deck-1']);
     },
   );
+
+  group('adopting the catalog\'s subdecks', () {
+    Future<MockDecksService> pumpDialog(
+      WidgetTester tester, {
+      required bool customized,
+      required Set<String> remoteNames,
+    }) async {
+      final decksService = MockDecksService();
+      final speciesRepo = MockSpeciesRepository();
+      final remote = CreateDeck(
+        name: 'Remote Deck',
+        description: 'desc',
+        speciesNames: remoteNames,
+        sourceId: 'src-1',
+        updatedAt: DateTime.utc(2026, 2, 1),
+      );
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => [_species('id-kept', 'Genus', 'kept')]);
+      when(
+        decksService.hasCustomizedSubdecks('deck-1'),
+      ).thenAnswer((_) async => customized);
+      when(speciesRepo.resolveFullNames(any)).thenAnswer(
+        (_) async => {
+          'Kept': 'id-kept',
+          if (remoteNames.contains('New')) 'New': 'id-new',
+        },
+      );
+      when(
+        decksService.getSpeciesByIds({'id-new'}),
+      ).thenAnswer((_) async => [_species('id-new', 'Genus', 'new')]);
+      when(decksService.getCreateDeck('deck-1')).thenAnswer(
+        (_) async => CreateDeck(name: 'Deck', description: ''),
+      );
+      when(
+        decksService.getSpeciesIdsGroupedByDeckId(any),
+      ).thenAnswer((_) async => const {});
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<DeckUpdateApplier>.value(
+              value: DeckUpdateApplier(
+                decksService,
+                speciesRepo,
+                deprecatedNames: MockDeprecatedSpeciesNameRepository(),
+                userDataWrites: UserDataWrites(),
+              ),
+            ),
+            ChangeNotifierProvider<DeckUpdateService>.value(
+              value: DeckUpdateService(
+                MockDeckRepository(),
+                MockRemoteDeckService(),
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: ElevatedButton(
+                  onPressed: () =>
+                      showDeckUpdateDialog(context, 'deck-1', remote),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      return decksService;
+    }
+
+    final option = find.byKey(const Key('deck_update_adopt_subdecks_checkbox'));
+
+    testWidgets('a deck that follows the catalog is not asked', (tester) async {
+      await pumpDialog(tester, customized: false, remoteNames: {'Kept'});
+
+      expect(find.text('This deck is already up to date.'), findsOneWidget);
+      expect(option, findsNothing);
+    });
+
+    testWidgets('a customized deck is asked, off by default, with a warning, '
+        'even when no species change', (tester) async {
+      await pumpDialog(tester, customized: true, remoteNames: {'Kept'});
+
+      expect(
+        find.text("This deck's species are already up to date."),
+        findsOneWidget,
+      );
+      expect(find.text('This deck is already up to date.'), findsNothing);
+      expect(option, findsOneWidget);
+      expect(tester.widget<CheckboxListTile>(option).value, isFalse);
+      expect(
+        find.text('Your own division into subdecks will be lost.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a customized deck is asked alongside species changes', (
+      tester,
+    ) async {
+      await pumpDialog(tester, customized: true, remoteNames: {'Kept', 'New'});
+
+      expect(find.byKey(const Key('deck_update_add_checkbox')), findsOneWidget);
+      expect(option, findsOneWidget);
+    });
+
+    testWidgets('left off, the update keeps the division', (tester) async {
+      final decksService = await pumpDialog(
+        tester,
+        customized: true,
+        remoteNames: {'Kept'},
+      );
+
+      await tester.tap(find.byKey(const Key('deck_update_apply_button')));
+      await tester.pumpAndSettle();
+
+      verify(decksService.addToExistingSubdecks('deck-1', any)).called(1);
+      verifyNever(decksService.replaceSubdecks(any, any));
+    });
+
+    testWidgets('checked, the update takes the catalog\'s', (tester) async {
+      final decksService = await pumpDialog(
+        tester,
+        customized: true,
+        remoteNames: {'Kept'},
+      );
+
+      await tester.tap(option);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('deck_update_apply_button')));
+      await tester.pumpAndSettle();
+
+      verify(decksService.replaceSubdecks('deck-1', any)).called(1);
+      verifyNever(decksService.addToExistingSubdecks(any, any));
+    });
+  });
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier

@@ -1,7 +1,8 @@
+import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
-import 'package:discere/learning/model/subdeck.dart';
+import 'package:discere/learning/model/subdeck_membership.dart';
 import 'package:discere/shared/model/language.dart';
 
 /// A snapshot of every field EditDeckPage lets the user edit, used to detect
@@ -19,8 +20,7 @@ class EditDeckDraft {
   final ReviewMode reviewMode;
   final Set<String> speciesIds;
 
-  /// The subdecks switched on; empty for a deck without subdecks.
-  final Set<String> activeSubdeckIds;
+  final SubdeckDraft subdecks;
 
   const EditDeckDraft({
     required this.name,
@@ -32,7 +32,7 @@ class EditDeckDraft {
     required this.nameType,
     required this.reviewMode,
     required this.speciesIds,
-    required this.activeSubdeckIds,
+    required this.subdecks,
   });
 
   /// Partial update for the fields the async loaders deliver piecemeal
@@ -56,7 +56,7 @@ class EditDeckDraft {
       nameType: nameType ?? this.nameType,
       reviewMode: reviewMode ?? this.reviewMode,
       speciesIds: speciesIds ?? this.speciesIds,
-      activeSubdeckIds: activeSubdeckIds,
+      subdecks: subdecks,
     );
   }
 }
@@ -83,22 +83,28 @@ class EditDeckPresenter {
         current.nameType != saved.nameType ||
         current.reviewMode != saved.reviewMode ||
         !_setEquals(current.speciesIds, saved.speciesIds) ||
-        !_setEquals(current.activeSubdeckIds, saved.activeSubdeckIds);
+        !current.subdecks.hasSameContentAs(saved.subdecks);
   }
 
-  /// [activeSubdeckIds], or every one of [subdecks] when none is on and no
-  /// species stands outside them any more — a draft that removes the last
-  /// such species must not leave the deck without a card. Called after any
-  /// mutation to species or subdecks, like the review-mode check.
-  Set<String> effectiveActiveSubdecks({
-    required Set<String> activeSubdeckIds,
-    required List<Subdeck> subdecks,
-    required bool hasSpeciesOutsideSubdecks,
-  }) {
-    if (activeSubdeckIds.isNotEmpty || hasSpeciesOutsideSubdecks) {
-      return activeSubdeckIds;
+  /// The subdecks of [subdecks] to have on for a deck of [speciesIds]: the
+  /// ones on, or all of them when that leaves a deck with species without a
+  /// card — as a draft does that removes the last species outside the subdecks
+  /// or moves the last card into a subdeck that is off. A deck without species
+  /// has no card to lose. Called after any mutation to species or subdecks,
+  /// like the review-mode check.
+  Set<String> effectiveActiveSubdecks(
+    SubdeckDraft subdecks,
+    Set<String> speciesIds,
+  ) {
+    final membership = SubdeckMembership.of(
+      speciesIds,
+      subdecks.subdeckIdBySpeciesId,
+    );
+    if (speciesIds.isEmpty ||
+        membership.hasCardWith(subdecks.activeSubdeckIds)) {
+      return subdecks.activeSubdeckIds;
     }
-    return {for (final subdeck in subdecks) subdeck.id};
+    return {for (final subdeck in subdecks.subdecks) subdeck.id};
   }
 
   bool _setEquals(Set<String> a, Set<String> b) {

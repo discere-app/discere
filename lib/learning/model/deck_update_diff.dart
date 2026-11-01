@@ -12,16 +12,21 @@ class DeckUpdateDiff {
   /// (same best-effort handling as a fresh import).
   final List<String> unresolvedAddedNames;
 
-  /// The catalog entry's subdecks, its names resolved the same way. Not a
-  /// change the user picks: an update applies them whatever it does to the
-  /// species, so the deck is divided up the way its catalog entry is.
+  /// The catalog entry's subdecks, its names resolved the same way. A deck
+  /// that follows its catalog entry takes them whatever the update does to
+  /// the species, so it is divided up the way the entry is; for one with
+  /// [hasCustomizedSubdecks] that is the user's choice.
   final SubdeckStructure subdecks;
+
+  /// Whether the user changed how the deck is divided into subdecks.
+  final bool hasCustomizedSubdecks;
 
   const DeckUpdateDiff({
     required this.addedSpecies,
     required this.removedSpecies,
     required this.unresolvedAddedNames,
     this.subdecks = SubdeckStructure.none,
+    this.hasCustomizedSubdecks = false,
   });
 
   bool get hasChanges => addedSpecies.isNotEmpty || removedSpecies.isNotEmpty;

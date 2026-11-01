@@ -1958,6 +1958,19 @@ CREATE TABLE flashcard_stats (
       expect(await _tableExistsInTest(db, table), isTrue, reason: table);
     }
   });
+
+  test('v22 -> v23 adds the subdeck customizations table', () async {
+    final db = await openInMemoryUserDatabase();
+    addTearDown(db.close);
+    await db.execute('DROP TABLE deck_subdeck_customizations');
+
+    await UserDbSchema.upgrade(db, 22, UserDbSchema.version);
+
+    expect(
+      await _tableExistsInTest(db, 'deck_subdeck_customizations'),
+      isTrue,
+    );
+  });
 }
 
 Future<bool> _tableExistsInTest(Database db, String table) async {

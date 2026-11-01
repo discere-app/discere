@@ -84,6 +84,7 @@ class DeckUpdateApplier {
       removedSpecies: removedSpecies,
       unresolvedAddedNames: unresolvedAddedNames,
       subdecks: SubdeckStructure.resolve(remote.subdecks, resolved),
+      hasCustomizedSubdecks: await _decksService.hasCustomizedSubdecks(deckId),
     );
   }
 
@@ -92,10 +93,14 @@ class DeckUpdateApplier {
   /// species membership and subdecks), while `sourceId`/`updatedAt` are
   /// always bumped to [remote]'s values so the deck stops showing as
   /// outdated even if the user declines both the additions and the
-  /// removals. The subdecks always follow [remote] too — even when the
-  /// update changes nothing else, as when a species only moves from one
-  /// level to the next ([DeckUpdateDiff.subdecks]). Returns the names
-  /// from [diff.unresolvedAddedNames] that still need background iNaturalist
+  /// removals. The subdecks follow [remote] too — even when the update
+  /// changes nothing else, as when a species only moves from one level to
+  /// the next ([DeckUpdateDiff.subdecks]) — unless the user divided the deck
+  /// up differently ([DeckUpdateDiff.hasCustomizedSubdecks]) and does not
+  /// [adoptCatalogSubdecks]. Such a deck keeps its subdecks; only what this
+  /// update adds goes into the one with the id [remote] lists it under, if
+  /// the deck has that one. Returns the names from
+  /// [diff.unresolvedAddedNames] that still need background iNaturalist
   /// resolution — empty unless [includeAdditions] is true.
   Future<List<String>> apply({
     required String deckId,
@@ -103,6 +108,7 @@ class DeckUpdateApplier {
     required DeckUpdateDiff diff,
     required bool includeAdditions,
     required bool includeRemovals,
+    required bool adoptCatalogSubdecks,
   }) => _writes.run(() async {
     final current = await _decksService.getCreateDeck(deckId);
 
@@ -117,24 +123,36 @@ class DeckUpdateApplier {
     );
     // Only what the diff names: a species of the deck that the reference
     // database does not resolve is in neither list and keeps its progress.
+    final addedSpeciesIds = {
+      if (includeAdditions) ...diff.addedSpecies.map((s) => s.id),
+    };
     await _decksService.updateDeck(
       updatedDeck,
-      addedSpeciesIds: {
-        if (includeAdditions) ...diff.addedSpecies.map((s) => s.id),
-      },
+      addedSpeciesIds: addedSpeciesIds,
       removedSpeciesIds: {
         if (includeRemovals) ...diff.removedSpecies.map((s) => s.id),
       },
     );
-    // Restricted to what the deck holds now: a declined addition has no
-    // subdeck to be in — a resolved one is not in the deck, and an
-    // unresolved one never goes to the queue that would resolve it.
-    final species = await _decksService.getSpeciesIdsGroupedByDeckId([deckId]);
-    final subdecks = diff.subdecks.restrictedTo(species[deckId] ?? const {});
-    await _decksService.replaceSubdecks(
-      deckId,
-      includeAdditions ? subdecks : subdecks.withoutUnresolvedNames(),
-    );
+    // A declined unresolved addition never goes to the queue that would
+    // resolve it, so it keeps no place in a subdeck.
+    SubdeckStructure placed(SubdeckStructure subdecks) =>
+        includeAdditions ? subdecks : subdecks.withoutUnresolvedNames();
+    if (diff.hasCustomizedSubdecks && !adoptCatalogSubdecks) {
+      await _decksService.addToExistingSubdecks(
+        deckId,
+        placed(diff.subdecks.restrictedTo(addedSpeciesIds)),
+      );
+    } else {
+      // Restricted to what the deck holds now: a declined resolved addition
+      // has no subdeck to be in either.
+      final species = await _decksService.getSpeciesIdsGroupedByDeckId([
+        deckId,
+      ]);
+      await _decksService.replaceSubdecks(
+        deckId,
+        placed(diff.subdecks.restrictedTo(species[deckId] ?? const {})),
+      );
+    }
 
     return includeAdditions ? diff.unresolvedAddedNames : const <String>[];
   });

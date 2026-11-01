@@ -56,6 +56,7 @@ Map<String, Object> installedPreferences({int version = 1}) => {
   'has_seen_flashcard_tutorial': true,
   'has_seen_species_detail_tutorial': true,
   'has_seen_edit_deck_tutorial': true,
+  'has_seen_edit_deck_subdecks_tutorial': true,
 };
 
 /// Pumps [BootstrapApp] with every HTTP request answered by [network] —

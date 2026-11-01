@@ -11,20 +11,26 @@ import 'package:flutter/material.dart';
 class SpeciesListItem extends StatelessWidget {
   final SpeciesListItemViewModel item;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final VoidCallback? onDelete;
   final String? deleteTooltip;
   final Widget? leading;
   final Widget? trailing;
+
+  /// Shown under the names.
+  final Widget? footer;
   final EdgeInsetsGeometry? margin;
 
   const SpeciesListItem({
     super.key,
     required this.item,
     this.onTap,
+    this.onLongPress,
     this.onDelete,
     this.deleteTooltip,
     this.leading,
     this.trailing,
+    this.footer,
     this.margin,
   });
 
@@ -42,6 +48,7 @@ class SpeciesListItem extends StatelessWidget {
       child: TappableSectionCard(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: AppSpacing.cardPaddingAll,
           child: Row(
@@ -86,6 +93,7 @@ class SpeciesListItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
+                    if (footer != null) ...[AppSpacing.heightS4, footer!],
                   ],
                 ),
               ),
