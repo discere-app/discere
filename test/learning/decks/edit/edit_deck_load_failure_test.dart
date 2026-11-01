@@ -71,6 +71,7 @@ void main() {
       // pumpAndSettle here.
       SharedPreferences.setMockInitialValues({
         'has_seen_edit_deck_tutorial': true,
+        'has_seen_edit_deck_subdecks_tutorial': true,
       });
       userPreferencesService = UserPreferencesService(
         await SharedPreferences.getInstance(),
@@ -235,6 +236,7 @@ void main() {
     testWidgets('the tutorial waits for the deck to load', (tester) async {
       SharedPreferences.setMockInitialValues({
         'has_seen_edit_deck_tutorial': false,
+        'has_seen_edit_deck_subdecks_tutorial': true,
       });
       userPreferencesService = UserPreferencesService(
         await SharedPreferences.getInstance(),

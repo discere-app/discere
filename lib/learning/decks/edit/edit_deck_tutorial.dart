@@ -7,14 +7,14 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 /// learning settings section — the only place a deck's learning mode
 /// (species/genus/family), name type, and review mode (flip/multiple
 /// choice) can be changed, which isn't obvious from the edit screen alone —
-/// and, for a deck that has them, the subdeck switches. Pulled out of
-/// EditDeckPage because the target list is a self-contained template —
+/// and the subdeck section, where a deck is divided and parts of it switched
+/// off. Pulled out of EditDeckPage because the target list is a self-contained template —
 /// the page's state only needs to decide *when* to show it, and which
 /// steps.
 ///
 /// A step whose key is null is left out: each has its own "seen" flag, so a
-/// user who saw the learning settings before opening a deck with subdecks
-/// gets only the subdeck step.
+/// user who has already seen the learning settings step gets only the subdeck
+/// step.
 class EditDeckTutorial {
   final GlobalKey? learningSettingsKey;
   final GlobalKey? subdecksKey;

@@ -472,14 +472,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
-  /// Shows the coach marks not seen yet: the learning settings one, and
-  /// the subdeck one for a deck that has subdecks.
+  /// Shows the coach marks not seen yet: the learning settings one and the
+  /// subdeck one. The subdeck section is there for every deck, divided or not.
   void _maybeScheduleTutorial() {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
     final learningSettings = !prefs.hasSeenEditDeckTutorial;
-    final subdecks =
-        _subdeckDraft.subdecks.isNotEmpty &&
-        !prefs.hasSeenEditDeckSubdecksTutorial;
+    final subdecks = !prefs.hasSeenEditDeckSubdecksTutorial;
     if (!learningSettings && !subdecks) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));

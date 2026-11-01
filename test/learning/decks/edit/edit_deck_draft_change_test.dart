@@ -73,6 +73,7 @@ void main() {
     // pumpAndSettle here — same reason as the enrichment tests next door.
     SharedPreferences.setMockInitialValues({
       'has_seen_edit_deck_tutorial': true,
+      'has_seen_edit_deck_subdecks_tutorial': true,
     });
     userPreferencesService = UserPreferencesService(
       await SharedPreferences.getInstance(),

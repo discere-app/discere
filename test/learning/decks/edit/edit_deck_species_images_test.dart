@@ -81,6 +81,7 @@ void main() {
     // The coach mark never settles once shown, which would hang pumpAndSettle.
     SharedPreferences.setMockInitialValues({
       'has_seen_edit_deck_tutorial': true,
+      'has_seen_edit_deck_subdecks_tutorial': true,
     });
     final userPreferencesService = UserPreferencesService(
       await SharedPreferences.getInstance(),

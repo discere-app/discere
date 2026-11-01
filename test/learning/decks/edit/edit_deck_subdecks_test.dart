@@ -1063,7 +1063,7 @@ void main() {
     }
 
     expect(
-      find.textContaining('This deck is divided into subdecks'),
+      find.textContaining('Here you divide a deck into subdecks'),
       findsOneWidget,
     );
     expect(find.textContaining('Here you choose whether'), findsNothing);

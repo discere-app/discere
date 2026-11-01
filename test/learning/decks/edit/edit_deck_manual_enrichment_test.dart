@@ -50,6 +50,7 @@ void main() {
       // out of the way of these enrichment-focused tests.
       SharedPreferences.setMockInitialValues({
         'has_seen_edit_deck_tutorial': true,
+        'has_seen_edit_deck_subdecks_tutorial': true,
       });
       userPreferencesService = UserPreferencesService(
         await SharedPreferences.getInstance(),
