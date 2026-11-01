@@ -62,7 +62,7 @@ class SpeciesSelectionAppBar extends StatelessWidget
         IconButton(
           key: const Key('edit_deck_selection_assign_button'),
           tooltip: loc.editDeckSelectionAssign,
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.drag_handle),
           onPressed: selection.hasSelection ? onAssignSubdeck : null,
         ),
       ],
