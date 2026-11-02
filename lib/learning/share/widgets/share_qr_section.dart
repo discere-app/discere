@@ -1,9 +1,10 @@
 import 'package:discere/learning/share/share_qr_capacity.dart';
+import 'package:discere/learning/share/widgets/qr_code_view.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:qr/qr.dart';
 
 /// The scannable form of the deck. Three outcomes, in order of how much the
 /// user can do about them: a normal code, a code that renders but is too
@@ -17,7 +18,7 @@ class ShareQrSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final moduleCount = qrModuleCount(qrData);
+    final qrCode = encodeShareQr(qrData);
 
     return SectionCard(
       color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
@@ -35,12 +36,12 @@ class ShareQrSection extends StatelessWidget {
               ),
             ),
             AppSpacing.heightS16,
-            if (moduleCount == null)
+            if (qrCode == null)
               _TooLargeNotice(colorScheme: colorScheme, theme: theme)
             else ...[
-              _QrCanvas(qrData: qrData),
+              _QrCanvas(qrCode: qrCode),
               AppSpacing.heightS16,
-              if (isDenseQr(moduleCount))
+              if (isDenseQr(qrCode.moduleCount))
                 _DenseWarning(colorScheme: colorScheme, theme: theme)
               else
                 Text(
@@ -57,9 +58,9 @@ class ShareQrSection extends StatelessWidget {
 }
 
 class _QrCanvas extends StatelessWidget {
-  final String qrData;
+  final QrCode qrCode;
 
-  const _QrCanvas({required this.qrData});
+  const _QrCanvas({required this.qrCode});
 
   @override
   Widget build(BuildContext context) {
@@ -85,16 +86,10 @@ class _QrCanvas extends StatelessWidget {
               ),
             ],
           ),
-          child: Center(
-            child: QrImageView(
-              data: qrData,
-              version: QrVersions.auto,
-              dataModuleStyle: const QrDataModuleStyle(
-                dataModuleShape: QrDataModuleShape.square,
-                color: Colors.black,
-              ),
-            ),
-          ),
+          // The white margin around the code is its quiet zone, which
+          // scanners need to find its edges.
+          padding: const EdgeInsets.all(10),
+          child: QrCodeView(qrCode: qrCode),
         );
       },
     );

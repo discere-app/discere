@@ -6,10 +6,10 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
+import 'package:discere/learning/share/widgets/qr_code_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 
 import 'test_utils.dart';
@@ -233,8 +233,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 2. Produce the exact gzip+base64 payload the QR code on this page
-        // encodes (QrImageView's own `data` is private, so we regenerate it
-        // via the same service the share page itself calls).
+        // encodes, via the same service the share page itself calls.
         final BuildContext context = tester.element(find.byType(MaterialApp));
         if (!context.mounted) return;
         final decksService = Provider.of<DecksService>(context, listen: false);
@@ -329,7 +328,7 @@ void main() {
         await tester.tap(shareButtonFinder.first);
         await safePumpAndSettle(tester);
 
-        final qrFinder = find.byType(QrImageView);
+        final qrFinder = find.byType(QrCodeView);
         await waitForFinder(tester, qrFinder);
         expect(qrFinder, findsOneWidget);
       }, timeout: integrationTestTimeout);

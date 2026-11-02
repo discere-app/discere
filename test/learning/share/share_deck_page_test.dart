@@ -5,13 +5,13 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/learning/share/share_deck_page.dart';
+import 'package:discere/learning/share/widgets/qr_code_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../mocks.mocks.dart';
 
@@ -82,7 +82,7 @@ void main() {
     await tester.pumpWidget(buildApp('deck-small'));
     await _waitForLoad(tester);
 
-    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.byType(QrCodeView), findsOneWidget);
     expect(find.byKey(const Key('share_qr_too_large_warning')), findsNothing);
     expect(find.byKey(const Key('share_qr_dense_warning')), findsNothing);
     expect(tester.takeException(), isNull);
@@ -107,7 +107,7 @@ void main() {
       await tester.pumpWidget(buildApp('deck-dense'));
       await _waitForLoad(tester);
 
-      expect(find.byType(QrImageView), findsOneWidget);
+      expect(find.byType(QrCodeView), findsOneWidget);
       expect(
         find.byKey(const Key('share_qr_dense_warning')),
         findsOneWidget,
@@ -144,7 +144,7 @@ void main() {
         find.byKey(const Key('share_qr_too_large_warning')),
         findsOneWidget,
       );
-      expect(find.byType(QrImageView), findsNothing);
+      expect(find.byType(QrCodeView), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

@@ -5,7 +5,7 @@
 /// without rendering anything.
 library;
 
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:qr/qr.dart';
 
 /// Above this module count (~QR version 25), reliable scanning by a typical
 /// phone camera at a normal viewing distance gets increasingly unlikely — on
@@ -16,29 +16,19 @@ const int denseQrModuleCountThreshold = 117;
 
 bool isDenseQr(int moduleCount) => moduleCount > denseQrModuleCountThreshold;
 
-/// The module count (grid width) of the QR code that would render [data], or
-/// null if it does not actually fit any QR version at all.
+/// The QR code that renders [data] at the smallest version that holds it, or
+/// null if it does not fit any QR version at all (version 40 is the largest,
+/// ~2.9KB at error-correction level low).
 ///
-/// `QrValidator.validate` picks a candidate version but never forces the
-/// underlying bit buffer to be built, so it reports `valid` even for
-/// payloads that do not fit any QR version (version 40 is the largest,
-/// ~2.9KB at error-correction level L) — the real capacity check only runs
-/// lazily, when QrPainter builds a QrImage from the QrCode, which is too
-/// late to avoid throwing mid-build. Building that same QrImage here
-/// reproduces the check ahead of time, so an oversized deck gets a warning
-/// instead of an uncaught exception when its share page is opened.
-int? qrModuleCount(String data) {
-  final validation = QrValidator.validate(
-    data: data,
-    version: QrVersions.auto,
-    errorCorrectionLevel: QrErrorCorrectLevel.L,
-  );
-  final qrCode = validation.qrCode;
-  if (!validation.isValid || qrCode == null) return null;
+/// Error correction stays at its lowest level, which leaves the most capacity
+/// for a large deck.
+QrCode? encodeShareQr(String data) {
   try {
-    QrImage(qrCode);
-    return qrCode.moduleCount;
-  } on Exception {
+    return QrCode(
+      payload: QrPayload.fromString(data),
+      errorCorrectLevel: QrErrorCorrectLevel.low,
+    );
+  } on InputTooLongException {
     return null;
   }
 }

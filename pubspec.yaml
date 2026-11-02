@@ -45,13 +45,12 @@ dependencies:
   image_picker: ^1.2.3 # Selecting images from gallery or camera
   gal: ^2.3.2 # Saving images directly to the user's gallery
   share_plus: ^13.2.0 # Sharing text, links, and content to other apps
-  file_picker: ^12.0.0-beta.7 # File selection for JSON import, save dialog for JSON export
+  file_picker: ^13.3.2 # File selection for JSON import, save dialog for JSON export
 
   # --- User Interface & Visuals ---
-  cupertino_icons: ^1.0.6 # iOS style icons
+  cupertino_icons: ^2.0.0 # iOS style icons
   carousel_slider: ^5.0.0 # Image carousel for walkthoughs/overviews
-  swipe_to: ^1.0.6 # Swipeable elements (e.g. for flashcards/lists)
-  cached_network_image: ^3.4.1 # Loading and locally caching internet images
+  cached_network_image: ^4.0.6 # Loading and locally caching internet images
   flutter_native_splash: ^2.4.7 # Custom splash screens during app boot
 
   # --- background & System Services ---
@@ -60,7 +59,7 @@ dependencies:
 
   # --- QR Code Integrations ---
   mobile_scanner: ^7.2.0 # Scanning QR codes via camera
-  qr_flutter: ^4.1.0 # Rendering generated QR codes on screen
+  qr: ^4.0.1 # Encoding QR codes; drawn by our own painter
 
   # --- Networking & External APIs ---
   http: ^1.2.1 # Making HTTP requests (e.g. searching images online)
@@ -69,7 +68,6 @@ dependencies:
   # --- Core Utilities ---
   uuid: ^4.4.2 # Generating unique identifiers for DB records
   intl: any # Date formatting and internationalization
-  rxdart: ^0.28.0 # Reactive programming streams and subjects
   json_annotation: ^4.9.0 # Annotations for JSON serialization
 
   # --- Localization ---
@@ -104,7 +102,7 @@ dev_dependencies:
 
   # --- Build / Deployment Tooling ---
   flutter_launcher_icons: ^0.14.3 # Generates Android/iOS app icons
-  share_plus_platform_interface: ^7.1.0 # SharePlus transitive interface requirement
+  share_plus_platform_interface: ^7.1.0 # Imported directly by tests that fake SharePlus
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
