@@ -1,3 +1,4 @@
+import 'package:discere/catalog/common/species_facts/species_fact_view_model.dart';
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/continent.dart';
@@ -7,7 +8,6 @@ import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/species_detail/species_detail_presenter.dart';
-import 'package:discere/catalog/species_detail/species_fact_view_model.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/widgets.dart';

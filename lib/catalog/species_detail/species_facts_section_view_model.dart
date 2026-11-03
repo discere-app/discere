@@ -1,4 +1,4 @@
-import 'package:discere/catalog/species_detail/species_fact_view_model.dart';
+import 'package:discere/catalog/common/species_facts/species_fact_view_model.dart';
 
 class SpeciesFactsSectionViewModel {
   final String title;
