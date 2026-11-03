@@ -70,6 +70,10 @@ const _createDeckSubdeckUnresolvedNamesSqlAsset =
     'assets/sql/user_db/tables/create_deck_subdeck_unresolved_names.sql';
 const _createDeckSubdeckCustomizationsSqlAsset =
     'assets/sql/user_db/tables/create_deck_subdeck_customizations.sql';
+const _createComparisonListsSqlAsset =
+    'assets/sql/user_db/tables/create_comparison_lists.sql';
+const _createComparisonListSpeciesSqlAsset =
+    'assets/sql/user_db/tables/create_comparison_list_species.sql';
 
 Future<void> _ensureColumnExists(
   Database db,
@@ -119,11 +123,12 @@ class UserDbSchema {
   /// Current user DB schema version — bump whenever a migration is added, and
   /// whenever an asset gains a column: reconciliation only runs on create and
   /// upgrade, so an existing database gets the column through a bump alone.
-  static const int version = 23;
+  static const int version = 24;
 
   /// Every table of the current schema, in creation order — `decks` first,
-  /// because the tables after it declare a foreign key to it, and
-  /// `deck_subdecks` before the two tables that refer to a subdeck.
+  /// because the tables after it declare a foreign key to it,
+  /// `deck_subdecks` before the two tables that refer to a subdeck, and
+  /// `comparison_lists` before its species.
   ///
   /// This is both the create path and [SchemaReconciler]'s input, so a table
   /// absent from this list is a table nothing repairs. Adding a
@@ -144,6 +149,8 @@ class UserDbSchema {
     _createDeckSubdeckSpeciesSqlAsset,
     _createDeckSubdeckUnresolvedNamesSqlAsset,
     _createDeckSubdeckCustomizationsSqlAsset,
+    _createComparisonListsSqlAsset,
+    _createComparisonListSpeciesSqlAsset,
     _createINatPhotoCacheSqlAsset,
     _createRuntimeCommonNamesSqlAsset,
     _createRuntimeCommonNameSearchDocumentsSqlAsset,
@@ -201,6 +208,8 @@ class UserDbSchema {
     // brings.
     // v23 only adds a table (deck_subdeck_customizations), which reconciliation
     // brings.
+    // v24 only adds tables (comparison_lists, comparison_list_species), which
+    // reconciliation brings.
 
     // Bring whatever the ladder produced to the current shape: missing
     // tables, missing columns, missing indexes. A migration describes the

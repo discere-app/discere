@@ -25,6 +25,7 @@ final referenceIdTables = <KeyedIdTable>[
   ),
   _speciesIdTable('species_photo_gap_ack', keyColumns: const ['deck_id']),
   _speciesIdTable('deck_subdeck_species', keyColumns: const ['deck_id']),
+  _speciesIdTable('comparison_list_species', keyColumns: const ['list_id']),
   _speciesIdTable(
     'enrichment_species_deck_membership',
     keyColumns: const ['deck_id'],

@@ -442,6 +442,41 @@ void main() {
     expect(indexed.single['common_name_en'], document['common_name_en']);
   });
 
+  test('a comparison list keeps a merged species once, in the place of the '
+      'row already under the valid ID, and other lists are rewritten on '
+      'their own', () async {
+    for (final listId in const ['l1', 'l2']) {
+      await userDb.insert('comparison_lists', {
+        'id': listId,
+        'name': listId,
+        'created_at': 1,
+      });
+    }
+    for (final (listId, species, addedAt) in const [
+      ('l1', _merged, 1),
+      ('l1', _unaliased, 2),
+      ('l1', _aliasA, 3),
+      ('l1', _aliasB, 4),
+      ('l2', _aliasB, 1),
+    ]) {
+      await userDb.insert('comparison_list_species', {
+        'list_id': listId,
+        'species_id': species,
+        'added_at': addedAt,
+      });
+    }
+
+    await run();
+
+    expect(
+      (await rows(
+        'comparison_list_species',
+        orderBy: 'list_id, added_at',
+      )).map((r) => (r['list_id'], r['species_id'], r['added_at'])),
+      [('l1', _merged, 1), ('l1', _unaliased, 2), ('l2', _merged, 1)],
+    );
+  });
+
   test('the watchlist in preferences is rewritten without duplicates',
       () async {
     await preferences.setStringList(_watchlistKey, [
