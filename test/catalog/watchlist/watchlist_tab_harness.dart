@@ -1,3 +1,4 @@
+import 'package:discere/catalog/common/resolve_species_with_images.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -57,8 +58,8 @@ SpeciesWithLocalImages watchlistItem(
 Future<WatchlistService> pumpWatchlistTab(
   WidgetTester tester, {
   required List<String> watchlist,
-  required ResolveWatchlistSpecies resolveFromCache,
-  required ResolveWatchlistSpecies resolveWithDownload,
+  required ResolveSpeciesWithImages resolveFromCache,
+  required ResolveSpeciesWithImages resolveWithDownload,
 }) async {
   SharedPreferences.setMockInitialValues({'watchlist': watchlist});
   final prefs = await SharedPreferences.getInstance();

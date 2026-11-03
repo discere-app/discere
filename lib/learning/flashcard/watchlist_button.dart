@@ -1,4 +1,5 @@
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/learning/flashcard/glass_button_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -45,26 +46,8 @@ class WatchlistButton extends StatelessWidget {
             }
           },
         );
-        return glass ? _GlassButton(child: icon) : icon;
+        return glass ? GlassButtonFrame(child: icon) : icon;
       },
-    );
-  }
-}
-
-class _GlassButton extends StatelessWidget {
-  final Widget child;
-
-  const _GlassButton({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: child,
     );
   }
 }

@@ -17,6 +17,7 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -127,7 +128,9 @@ void main() {
   testWidgets(
     'SpeciesDetailLoaderPage reloads cached species after queue completion',
     (tester) async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({
+        'has_seen_species_detail_compare_tutorial': true,
+      });
       final prefs = await SharedPreferences.getInstance();
       final languageService = LanguageService(prefs);
       final watchlistService = WatchlistService(prefs);
@@ -163,6 +166,9 @@ void main() {
               value: watchlistService,
             ),
             Provider<SourceService>.value(value: FakeSourceService()),
+            ChangeNotifierProvider<UserPreferencesService>.value(
+              value: UserPreferencesService(prefs),
+            ),
             ChangeNotifierProvider<NavigationTabService>(
               create: (_) => NavigationTabService(),
             ),
@@ -223,6 +229,7 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({
         LanguageService.sharedPreferencesLanguageKey: Language.en.value,
+        'has_seen_species_detail_compare_tutorial': true,
       });
       final prefs = await SharedPreferences.getInstance();
       final speciesMediaService = MockSpeciesMediaService();
@@ -263,6 +270,9 @@ void main() {
               value: WatchlistService(prefs),
             ),
             Provider<SourceService>.value(value: FakeSourceService()),
+            ChangeNotifierProvider<UserPreferencesService>.value(
+              value: UserPreferencesService(prefs),
+            ),
             ChangeNotifierProvider<NavigationTabService>(
               create: (_) => NavigationTabService(),
             ),

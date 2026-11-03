@@ -726,6 +726,16 @@
   "watchlistEmpty": "Keine Arten in der Merkliste vorhanden",
   "watchlistCategoryEmpty": "Keine Arten in dieser Kategorie",
   "watchlistAllSpecies": "Alle Arten",
+  "watchlistViewSpecies": "Arten",
+  "watchlistViewComparisons": "Vergleiche",
+  "watchlistSelectionCount": "{count} ausgewählt",
+  "@watchlistSelectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shareDownloadExportJson": "JSON-Datei exportieren",
   "shareDownloadSubtitle": "Deck als Backup oder für Import speichern",
   "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert",
@@ -873,7 +883,7 @@
   "tutorialDeckEditTitle": "Deck bearbeiten",
   "tutorialDeckEditDescription": "Hier kannst du Name, Bild und Arten des Decks ändern – und auch den Lernmodus, z. B. auf Gattung, Familie oder Multiple-Choice umstellen.",
   "tutorialWatchlistTitle": "Merkliste",
-  "tutorialWatchlistDescription": "Einzelne Arten, die du dir merken möchtest – z. B. beim Tauchen gesichtete Tiere – kannst du hier speichern. Tippe eine Art an, um weitere Infos dazu zu sehen.",
+  "tutorialWatchlistDescription": "Einzelne Arten, die du dir merken möchtest – z. B. beim Tauchen gesichtete Tiere – kannst du hier speichern. Tippe eine Art an, um weitere Infos dazu zu sehen. Unter „Vergleiche“ findest du deine Vergleichslisten, in denen du ähnliche Arten untereinander ansiehst.",
   "tutorialFlashcardIntroDescription": "Bevor es losgeht: ein kurzer Überblick über die Bewertungs-Buttons und ein paar nützliche Funktionen.",
   "tutorialFlashcardIntroDescriptionMultipleChoice": "Bevor es losgeht: ein kurzer Überblick, wie das Beantworten funktioniert, und ein paar nützliche Funktionen.",
   "tutorialFlashcardRankNoteGenus": "Hinweis: Gefragt ist die Gattung, nicht die Art.",
@@ -884,13 +894,15 @@
   "tutorialFlashcardOptionsTitle": "Antwort auswählen",
   "tutorialFlashcardOptionsDescription": "Tippe den Namen an, den du für richtig hältst. Die Karte wird automatisch anhand deiner Antwort bewertet.",
   "tutorialFlashcardWatchlistTitle": "Zur Merkliste hinzufügen",
-  "tutorialFlashcardWatchlistDescription": "Tippe das Lesezeichen-Icon oben rechts an, um diese Art zur Merkliste hinzuzufügen – nützlich für Arten, die du beim Tauchen beobachten möchtest.",
+  "tutorialFlashcardWatchlistDescription": "Tippe das Lesezeichen-Icon oben rechts an, um diese Art zur Merkliste hinzuzufügen – nützlich für Arten, die du beim Tauchen beobachten möchtest. Auf der Rückseite fügt der Button daneben sie einem Vergleich hinzu, um sie neben ähnlichen Arten anzusehen.",
   "tutorialFlashcardAgainDescription": "Du hast die Art nicht erkannt oder falsch geraten. Wähle dies immer, wenn du die Antwort nicht wusstest – die Karte kommt sofort wieder.",
   "tutorialFlashcardHardDescription": "Du hast die Art erkannt, aber es war schwierig oder hat lange gedauert. Die nächste Wiederholung kommt etwas früher als gewöhnlich.",
   "tutorialFlashcardGoodDescription": "Du hast die Art sicher erkannt. Der empfohlene Standard – der Algorithmus berechnet eine optimale Pause für dein Gedächtnis.",
   "tutorialFlashcardEasyDescription": "Die Art war sofort klar, kein Zögern. Nutze dies nur, wenn du absolut sicher bist – die Karte kommt erst nach sehr langer Pause wieder.",
   "tutorialSpeciesDetailAddToDeckTitle": "Deck erstellen",
   "tutorialSpeciesDetailAddToDeckDescription": "Tippe hier, um diese Art zu einem neuen oder bestehenden Deck hinzuzufügen – so beginnst du, sie zu lernen.",
+  "tutorialSpeciesDetailCompareTitle": "Arten vergleichen",
+  "tutorialSpeciesDetailCompareDescription": "Tippe hier, um diese Art zu einem Vergleich hinzuzufügen. Deine Vergleiche findest du in der Merkliste – dort siehst du ähnliche Arten mit ihren Bildern untereinander.",
   "tutorialEditDeckLearningSettingsTitle": "Lerneinstellungen",
   "tutorialEditDeckLearningSettingsDescription": "Hier stellst du ein, ob nach Art, Gattung oder Familie gefragt wird, mit welchem Namen (Trivial- oder wissenschaftlicher Name) und ob du per Bewertungs-Buttons oder Multiple-Choice antwortest.",
   "tutorialEditDeckSubdecksTitle": "Subdecks",
@@ -1268,6 +1280,61 @@
         "type": "int"
       },
       "deckName": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonAdd": "Zum Vergleich hinzufügen",
+  "comparisonCreateNew": "Neuer Vergleich",
+  "comparisonNoLists": "Noch keine Vergleiche. Lege einen neuen an.",
+  "comparisonSpeciesCount": "{count, plural, =1 {1 Art} other {{count} Arten}}",
+  "@comparisonSpeciesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "comparisonAddSuccess": "{count, plural, =1 {1 Art} other {{count} Arten}} zu \"{name}\" hinzugefügt",
+  "@comparisonAddSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonNameSuggestionMore": "{names} und {count} weitere",
+  "@comparisonNameSuggestionMore": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "comparisonRename": "Umbenennen",
+  "comparisonRenameTitle": "Vergleich umbenennen",
+  "comparisonDelete": "Löschen",
+  "comparisonDeleteTitle": "Vergleich löschen?",
+  "comparisonDeleteMessage": "\"{name}\" wird gelöscht. Die Arten bleiben in deinen Decks und in der Merkliste.",
+  "@comparisonDeleteMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonEmpty": "Dieser Vergleich enthält keine Arten. Füge Arten über „Zum Vergleich hinzufügen“ hinzu – auf der Artdetailseite, auf der Rückseite einer Lernkarte oder in der Merkliste.",
+  "comparisonListsEmpty": "Noch keine Vergleiche. Um ähnliche Arten untereinander anzusehen, tippe auf der Artdetailseite oder auf der Rückseite einer Lernkarte auf „Zum Vergleich hinzufügen“ – oder halte in der Merkliste eine Art gedrückt, um mehrere auszuwählen.",
+  "comparisonSaveFailed": "Vergleich konnte nicht gespeichert werden: {error}",
+  "@comparisonSaveFailed": {
+    "placeholders": {
+      "error": {
         "type": "String"
       }
     }

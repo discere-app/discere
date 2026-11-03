@@ -730,6 +730,16 @@
   "watchlistEmpty": "No species in the watchlist",
   "watchlistCategoryEmpty": "No species in this category",
   "watchlistAllSpecies": "All Species",
+  "watchlistViewSpecies": "Species",
+  "watchlistViewComparisons": "Comparisons",
+  "watchlistSelectionCount": "{count} selected",
+  "@watchlistSelectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shareDownloadExportJson": "Export JSON file",
   "shareDownloadSubtitle": "Save deck as backup or for import",
   "shareDownloadSuccessSubtitle": "Successfully saved",
@@ -877,7 +887,7 @@
   "tutorialDeckEditTitle": "Edit deck",
   "tutorialDeckEditDescription": "Change the deck's name, cover image and species here – and also its learning mode, e.g. switching to genus, family, or multiple choice.",
   "tutorialWatchlistTitle": "Watchlist",
-  "tutorialWatchlistDescription": "Save individual species you want to remember – for example, ones you've spotted while diving. Tap a species to see more details about it.",
+  "tutorialWatchlistDescription": "Save individual species you want to remember – for example, ones you've spotted while diving. Tap a species to see more details about it. Under “Comparisons” you'll find your comparison lists, where you see similar species one below the other.",
   "tutorialFlashcardIntroDescription": "Before you start: a quick look at the rating buttons and a couple of useful features.",
   "tutorialFlashcardIntroDescriptionMultipleChoice": "Before you start: a quick look at how answering works and a couple of useful features.",
   "tutorialFlashcardRankNoteGenus": "Note: you'll be asked to identify the genus, not the species.",
@@ -888,13 +898,15 @@
   "tutorialFlashcardOptionsTitle": "Pick the answer",
   "tutorialFlashcardOptionsDescription": "Tap the name you think is correct. The card is graded automatically based on your answer.",
   "tutorialFlashcardWatchlistTitle": "Add to Watchlist",
-  "tutorialFlashcardWatchlistDescription": "Tap the bookmark icon in the top right to add this species to your watchlist – useful for species you want to spot while diving.",
+  "tutorialFlashcardWatchlistDescription": "Tap the bookmark icon in the top right to add this species to your watchlist – useful for species you want to spot while diving. On the back of the card, the button next to it adds the species to a comparison, to see it alongside similar species.",
   "tutorialFlashcardAgainDescription": "You didn't recognise the species or guessed wrong. Always choose this if you didn't know the answer – the card comes back immediately.",
   "tutorialFlashcardHardDescription": "You recognised the species but it was difficult or took a while. The next review comes a bit sooner than usual.",
   "tutorialFlashcardGoodDescription": "You recognised the species confidently. The recommended default – the algorithm calculates an optimal interval for your memory.",
   "tutorialFlashcardEasyDescription": "The species was immediately obvious, no hesitation. Only use this if you're absolutely certain – the card won't return for a very long time.",
   "tutorialSpeciesDetailAddToDeckTitle": "Create a deck",
   "tutorialSpeciesDetailAddToDeckDescription": "Tap here to add this species to a new or existing deck – that's how you start learning it.",
+  "tutorialSpeciesDetailCompareTitle": "Compare species",
+  "tutorialSpeciesDetailCompareDescription": "Tap here to add this species to a comparison. You'll find your comparisons in the watchlist – there you see similar species with their pictures one below the other.",
   "tutorialEditDeckLearningSettingsTitle": "Learning settings",
   "tutorialEditDeckLearningSettingsDescription": "Here you choose whether you're asked for the species, genus or family, which name to answer with (common or scientific), and whether you answer via rating buttons or multiple choice.",
   "tutorialEditDeckSubdecksTitle": "Subdecks",
@@ -1304,6 +1316,61 @@
         "type": "int"
       },
       "deckName": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonAdd": "Add to comparison",
+  "comparisonCreateNew": "New comparison",
+  "comparisonNoLists": "No comparisons yet. Create a new one.",
+  "comparisonSpeciesCount": "{count, plural, =1 {1 species} other {{count} species}}",
+  "@comparisonSpeciesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "comparisonAddSuccess": "Added {count} species to \"{name}\"",
+  "@comparisonAddSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonNameSuggestionMore": "{names} and {count} more",
+  "@comparisonNameSuggestionMore": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "comparisonRename": "Rename",
+  "comparisonRenameTitle": "Rename comparison",
+  "comparisonDelete": "Delete",
+  "comparisonDeleteTitle": "Delete comparison?",
+  "comparisonDeleteMessage": "\"{name}\" will be deleted. The species stay in your decks and in the watchlist.",
+  "@comparisonDeleteMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonEmpty": "This comparison has no species. Add species with “Add to comparison” – on a species' detail page, on the back of a flashcard or in the watchlist.",
+  "comparisonListsEmpty": "No comparisons yet. To see similar species one below the other, tap “Add to comparison” on a species' detail page or on the back of a flashcard – or long-press a species in the watchlist to select several.",
+  "comparisonSaveFailed": "Could not save the comparison: {error}",
+  "@comparisonSaveFailed": {
+    "placeholders": {
+      "error": {
         "type": "String"
       }
     }
