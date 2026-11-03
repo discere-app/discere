@@ -256,6 +256,7 @@ Future<void> startApp(
     'has_seen_flashcard_tutorial': true,
     'has_seen_flashcard_tutorial_multiple_choice': true,
     'has_seen_species_detail_tutorial': true,
+    'has_seen_species_detail_compare_tutorial': true,
     'has_seen_edit_deck_tutorial': true,
     'has_seen_edit_deck_subdecks_tutorial': true,
     'language': 1,

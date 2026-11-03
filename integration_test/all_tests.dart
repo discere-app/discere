@@ -6,6 +6,7 @@
 
 import 'about_page_test.dart' as about_page;
 import 'chunking_limit_test.dart' as chunking_limit;
+import 'comparison_test.dart' as comparison;
 import 'create_deck_test.dart' as create_deck;
 import 'deck_lifecycle_test.dart' as deck_lifecycle;
 import 'deck_merge_test.dart' as deck_merge;
@@ -53,6 +54,7 @@ void main() {
   enrichment_shutdown.main();
   favorites.main();
   watchlist.main();
+  comparison.main();
   review_flow.main();
   review_load_budget.main();
   manual_card_activation.main();
