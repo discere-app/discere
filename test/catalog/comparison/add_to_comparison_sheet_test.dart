@@ -1,8 +1,12 @@
 import 'package:discere/catalog/comparison/add_to_comparison_sheet.dart';
+import 'package:discere/catalog/comparison/comparison_page.dart';
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
 import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
+import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'comparison_test_app.dart';
 import 'fake_comparison_list_repository.dart';
@@ -33,9 +37,17 @@ void main() {
     required Set<String> speciesNames,
   }) async {
     bool? result;
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       comparisonTestApp(
         service: service,
+        // For the comparison the confirmation opens.
+        providers: [
+          ChangeNotifierProvider<LanguageService>.value(
+            value: LanguageService(prefs),
+          ),
+        ],
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -180,4 +192,51 @@ void main() {
     expect(result(), isTrue);
     expect(service.listById('l1')!.speciesIds, ['sp1']);
   });
+
+  for (final (description, pick) in [
+    ('an existing list', (WidgetTester tester) => tester.tap(listTile('l1'))),
+    (
+      'a new list',
+      (WidgetTester tester) async {
+        await tester.tap(find.byKey(const Key('comparison_sheet_create_new')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('comparison_name_field')),
+          'Skates',
+        );
+        await tester.tap(
+          find.byKey(const Key('comparison_name_confirm_button')),
+        );
+      },
+    ),
+  ]) {
+    testWidgets('after adding to $description, the confirmation opens that '
+        'comparison', (tester) async {
+      final service = await loadedComparisonListService(tester, const [
+        ComparisonList(id: 'l1', name: 'Rays', speciesIds: []),
+      ]);
+      await pumpSheetOpener(
+        tester,
+        service,
+        speciesIds: {'sp1'},
+        speciesNames: {'Dasyatis pastinaca'},
+      );
+
+      await pick(tester);
+      await tester.pumpAndSettle();
+      expect(find.byType(AddToComparisonSheet), findsNothing);
+
+      final show = find.byKey(const Key('comparison_added_show_action'));
+      expect(show, findsOneWidget);
+      await tester.tap(show);
+      await tester.pumpAndSettle();
+
+      final name = description == 'a new list' ? 'Skates' : 'Rays';
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text(name)),
+        findsOneWidget,
+      );
+      expect(find.byType(ComparisonPage), findsOneWidget);
+    });
+  }
 }

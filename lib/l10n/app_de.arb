@@ -1339,6 +1339,7 @@
       }
     }
   },
+  "comparisonShow": "Anzeigen",
   "comparisonRemoveSpecies": "Aus dem Vergleich entfernen",
   "comparisonSpeciesRemoved": "\"{name}\" entfernt",
   "@comparisonSpeciesRemoved": {

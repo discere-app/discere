@@ -8,13 +8,11 @@ import 'package:discere/app/main_screen/widgets/main_screen_fab.dart';
 import 'package:discere/app/main_screen/widgets/main_screen_tabs.dart';
 import 'package:discere/app/reference_db_update/reference_db_update_dialog.dart';
 import 'package:discere/app/settings/settings_page.dart';
-import 'package:discere/app/species_detail_loader_page.dart';
-import 'package:discere/learning/decks/add_to_deck/add_to_deck_sheet.dart';
+import 'package:discere/app/species_detail_route.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/import_deck_page.dart';
 import 'package:discere/learning/import/onboarding_deck_picker_page.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -195,8 +193,8 @@ class _MainScreenState extends State<MainScreenPage> {
   Widget _buildScaffold(BuildContext context, int selectedIndex) {
     return Scaffold(
       appBar: MainScreenAppBar(
-        buildSpeciesDetailPage: _buildSpeciesDetailPage,
-        onAddToDeck: _addToDeck,
+        buildSpeciesDetailPage: buildAppSpeciesDetailPage,
+        onAddToDeck: addAppSpeciesToDeck,
         onOpenSettings: _openSettingsPage,
       ),
       bottomNavigationBar: AppBottomNavigationBar(watchlistKey: _watchlistKey),
@@ -212,7 +210,7 @@ class _MainScreenState extends State<MainScreenPage> {
                 Expanded(
                   child: MainScreenTabs(
                     selectedIndex: selectedIndex,
-                    buildSpeciesDetailPage: _buildSpeciesDetailPage,
+                    buildSpeciesDetailPage: buildAppSpeciesDetailPage,
                     deckFavKey: _deckFavKey,
                     deckEditKey: _deckEditKey,
                     onDeckReviewReturned: _recheckTutorialAfterReturn,
@@ -231,27 +229,6 @@ class _MainScreenState extends State<MainScreenPage> {
                   _openAndRecheckTutorial((_) => const ImportDeckPage()),
             )
           : null,
-    );
-  }
-
-  Widget _buildSpeciesDetailPage(String speciesId, [Language? language]) {
-    return SpeciesDetailLoaderPage(
-      speciesId: speciesId,
-      language: language,
-      buildSpeciesDetailPage: (id) => _buildSpeciesDetailPage(id),
-      onAddToDeck: _addToDeck,
-    );
-  }
-
-  Future<bool> _addToDeck(
-    BuildContext context,
-    Set<String> speciesIds,
-    Set<String> speciesNames,
-  ) {
-    return showAddToDeckSheet(
-      context,
-      speciesIds: speciesIds,
-      speciesNames: speciesNames,
     );
   }
 

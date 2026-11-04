@@ -1,3 +1,4 @@
+import 'package:discere/catalog/comparison/comparison_page_opener.dart';
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
 import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
@@ -19,8 +20,16 @@ Future<ComparisonListService> loadedComparisonListService(
   return service;
 }
 
-/// [home] in a localized app (English) that provides [service] and
-/// [providers].
+/// Opens comparisons whose species resolve to nothing — enough to see the
+/// page open, with its list's name.
+final testComparisonPageOpener = ComparisonPageOpener(
+  resolveFromCache: (_) async => const [],
+  resolveWithDownload: (_) async => const [],
+  buildSpeciesDetailPage: (_) => const SizedBox.shrink(),
+);
+
+/// [home] in a localized app (English) that provides [service], a
+/// [ComparisonPageOpener] and [providers].
 Widget comparisonTestApp({
   required ComparisonListService service,
   required Widget home,
@@ -29,6 +38,7 @@ Widget comparisonTestApp({
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<ComparisonListService>.value(value: service),
+      Provider<ComparisonPageOpener>.value(value: testComparisonPageOpener),
       ...providers,
     ],
     child: MaterialApp(

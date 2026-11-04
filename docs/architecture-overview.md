@@ -146,7 +146,9 @@ The reference catalog domain: species, taxonomy, search, source metadata, catalo
   the "add to comparison" sheet every entry point opens
   (`showAddToComparisonSheet` — species detail, taxonomy species selection,
   watchlist selection, edit-deck selection, the back of a flashcard), the
-  overview in the watchlist tab and `ComparisonPage`
+  overview in the watchlist tab and `ComparisonPage`, which only
+  `ComparisonPageOpener` opens — from the overview and from the sheet's
+  confirmation
 
 ### `enrichment/`
 Producer-consumer background pipeline that fetches and caches species photos

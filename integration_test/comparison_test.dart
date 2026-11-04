@@ -1,3 +1,4 @@
+import 'package:discere/catalog/comparison/comparison_page.dart';
 import 'package:discere/catalog/comparison/comparison_species_section.dart';
 import 'package:discere/catalog/search/search_result_list_item.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +16,8 @@ void main() {
 
     testWidgets(
       'a species added to a new comparison from its detail page shows in '
-      'that comparison, opened from the watchlist tab',
+      'that comparison, opened from the confirmation and from the watchlist '
+      'tab',
       (WidgetTester tester) async {
         await startApp(
           tester,
@@ -68,7 +70,29 @@ void main() {
           description: 'the comparison sheet to close once the list exists',
         );
 
-        // 3. Back to the main screen: off the detail page, then out of the
+        // 3. The confirmation opens the new comparison, with the species in
+        // it; back from there onto the detail page.
+        final show = find.byKey(const Key('comparison_added_show_action'));
+        await waitForFinder(tester, show, description: 'the "Show" action');
+        await tester.tap(show);
+        final speciesInComparison = find.descendant(
+          of: find.byType(ComparisonSpeciesSection),
+          matching: find.text('Carcharodon carcharias'),
+        );
+        await waitForFinder(
+          tester,
+          speciesInComparison,
+          description: 'the comparison opened from the confirmation',
+        );
+        await tester.tap(
+          find.descendant(
+            of: find.byType(ComparisonPage),
+            matching: find.byType(BackButton),
+          ),
+        );
+        await safePumpAndSettle(tester);
+
+        // 4. Back to the main screen: off the detail page, then out of the
         // search.
         await tester.tap(
           find.descendant(
@@ -81,7 +105,7 @@ void main() {
         final watchlistTab = find.byKey(const ValueKey('nav_watchlist'));
         await waitForFinder(tester, watchlistTab);
 
-        // 4. Open the comparison from the watchlist tab.
+        // 5. The same comparison, opened from the watchlist tab.
         await tester.tap(watchlistTab);
         await safePumpAndSettle(tester);
         await tester.tap(find.byKey(const Key('watchlist_view_comparisons')));
@@ -93,13 +117,9 @@ void main() {
         );
         await tester.tap(comparison);
 
-        // 5. The species is in it.
         await waitForFinder(
           tester,
-          find.descendant(
-            of: find.byType(ComparisonSpeciesSection),
-            matching: find.text('Carcharodon carcharias'),
-          ),
+          speciesInComparison,
           description: 'the comparison showing the species',
         );
       },

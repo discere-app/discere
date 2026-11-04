@@ -1,5 +1,6 @@
 import 'package:discere/catalog/comparison/add_to_comparison_presenter.dart';
 import 'package:discere/catalog/comparison/comparison_name_dialog.dart';
+import 'package:discere/catalog/comparison/comparison_page_opener.dart';
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
 import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
@@ -62,7 +63,7 @@ class _AddToComparisonSheetState extends State<AddToComparisonSheet> {
     final added = _presenter.missingFrom(list, widget.speciesIds).length;
     final service = context.read<ComparisonListService>();
     if (await _write(() => service.addSpecies(list.id, widget.speciesIds))) {
-      _closeWithConfirmation(added, list.name);
+      _closeWithConfirmation(added, list.name, list);
     }
   }
 
@@ -75,8 +76,16 @@ class _AddToComparisonSheetState extends State<AddToComparisonSheet> {
       initialName: _presenter.suggestedName(widget.speciesNames, loc),
     );
     if (name == null || !mounted) return;
-    if (await _write(() => service.createList(name, widget.speciesIds))) {
-      _closeWithConfirmation(widget.speciesIds.length, name);
+    String? id;
+    final created = await _write(
+      () async => id = await service.createList(name, widget.speciesIds),
+    );
+    if (created) {
+      _closeWithConfirmation(
+        widget.speciesIds.length,
+        name,
+        service.listById(id!),
+      );
     }
   }
 
@@ -105,13 +114,32 @@ class _AddToComparisonSheetState extends State<AddToComparisonSheet> {
     }
   }
 
-  void _closeWithConfirmation(int added, String listName) {
+  /// Closes the sheet and confirms what was added, with the action to open
+  /// [list] right away — left out only when the lists could not be reloaded
+  /// after creating it.
+  void _closeWithConfirmation(
+    int added,
+    String listName,
+    ComparisonList? list,
+  ) {
     if (!mounted) return;
+    // Both taken before the sheet's route goes.
     final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final opener = context.read<ComparisonPageOpener>();
     final loc = context.loc;
-    Navigator.of(context).pop(true);
+    navigator.pop(true);
     messenger.showSnackBar(
-      SnackBar(content: Text(loc.comparisonAddSuccess(added, listName))),
+      SnackBar(
+        content: Text(loc.comparisonAddSuccess(added, listName)),
+        action: list == null
+            ? null
+            : SnackBarAction(
+                key: const Key('comparison_added_show_action'),
+                label: loc.comparisonShow,
+                onPressed: () => opener.open(navigator, list),
+              ),
+      ),
     );
   }
 

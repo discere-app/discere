@@ -84,11 +84,7 @@ class _WatchlistTabState extends State<WatchlistTab> {
                 buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
               ),
               if (_hasShownComparisons)
-                ComparisonListsSection(
-                  resolveFromCache: widget.resolveFromCache,
-                  resolveWithDownload: widget.resolveWithDownload,
-                  buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
-                )
+                const ComparisonListsSection()
               else
                 const SizedBox.shrink(),
             ],
