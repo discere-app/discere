@@ -12,6 +12,8 @@ class UserPreferencesService extends ChangeNotifier {
       'has_seen_flashcard_tutorial_multiple_choice';
   static const String _hasSeenSpeciesDetailTutorialKey =
       'has_seen_species_detail_tutorial';
+  static const String _hasSeenSpeciesDetailCompareTutorialKey =
+      'has_seen_species_detail_compare_tutorial';
   static const String _hasSeenEditDeckTutorialKey =
       'has_seen_edit_deck_tutorial';
   static const String _hasSeenEditDeckSubdecksTutorialKey =
@@ -82,6 +84,17 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenSpeciesDetailTutorial(bool value) {
     _prefs.setBool(_hasSeenSpeciesDetailTutorialKey, value);
+    notifyListeners();
+  }
+
+  /// Separate from [hasSeenSpeciesDetailTutorial]: a user who has already
+  /// seen the "add to deck" step still gets the comparison step.
+  bool get hasSeenSpeciesDetailCompareTutorial {
+    return _prefs.getBool(_hasSeenSpeciesDetailCompareTutorialKey) ?? false;
+  }
+
+  set hasSeenSpeciesDetailCompareTutorial(bool value) {
+    _prefs.setBool(_hasSeenSpeciesDetailCompareTutorialKey, value);
     notifyListeners();
   }
 

@@ -4,7 +4,6 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/catalog/search/species_thumbnail_port.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
@@ -201,10 +200,7 @@ buildEnrichmentServices({
       Provider<EnrichmentHealthSnapshotService>.value(
         value: healthSnapshotService,
       ),
-      Provider<SpeciesMediaService>.value(value: media.speciesMediaService),
-      Provider<SpeciesThumbnailPort>.value(
-        value: media.speciesThumbnailService,
-      ),
+      ...media.providers,
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: iNatEnrichmentQueueService,
       ),

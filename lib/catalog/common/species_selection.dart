@@ -1,6 +1,6 @@
-/// Which species of EditDeckPage's list are selected for an action on several
-/// at once. While the selection [isActive], tapping a row toggles it instead
-/// of opening the species.
+/// Which species of a list are selected for an action on several at once —
+/// EditDeckPage's species and the watchlist. While the selection [isActive],
+/// tapping a row toggles it instead of opening the species.
 class SpeciesSelection {
   final bool isActive;
   final Set<String> selectedIds;

@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
 import 'package:discere/catalog/common/taxon_identity/display_languages.dart';
+import 'package:discere/catalog/comparison/add_to_comparison_sheet.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
@@ -27,6 +28,7 @@ class SpeciesDetailPage extends StatefulWidget {
   )?
   onAddToDeck;
   final GlobalKey? addToDeckButtonKey;
+  final GlobalKey? compareButtonKey;
 
   const SpeciesDetailPage({
     super.key,
@@ -37,6 +39,7 @@ class SpeciesDetailPage extends StatefulWidget {
     this.buildSpeciesDetailPage,
     this.onAddToDeck,
     this.addToDeckButtonKey,
+    this.compareButtonKey,
   });
 
   @override
@@ -82,6 +85,21 @@ class _SpeciesDetailPageState extends State<SpeciesDetailPage> {
                 {widget.species.species.getBinomialName()},
               ),
             ),
+          // The tutorial's key sits on a wrapper, so the button keeps its
+          // own key whether or not a tutorial points at it.
+          KeyedSubtree(
+            key: widget.compareButtonKey,
+            child: IconButton(
+              key: const Key('species_detail_compare_button'),
+              tooltip: context.loc.comparisonAdd,
+              icon: const Icon(Icons.compare),
+              onPressed: () => showAddToComparisonSheet(
+                context,
+                speciesIds: {widget.species.species.id},
+                speciesNames: {widget.species.species.getBinomialName()},
+              ),
+            ),
+          ),
           Consumer<WatchlistService>(
             builder: (context, watchlistService, child) {
               final isWatchlisted = watchlistService.containsSpecies(

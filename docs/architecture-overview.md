@@ -141,6 +141,14 @@ The reference catalog domain: species, taxonomy, search, source metadata, catalo
   than one catalog feature uses); `SpeciesInatMetadataService` and
   `TaxonomyService` in their own feature's `service/`
 - Species detail and taxonomy detail pages, watchlist tab
+- Comparison lists (`comparison/`): `ComparisonListService` and
+  `ComparisonListRepository` in the feature's own `service/`/`repository/`,
+  the "add to comparison" sheet every entry point opens
+  (`showAddToComparisonSheet` — species detail, taxonomy species selection,
+  watchlist selection, edit-deck selection, the back of a flashcard), the
+  overview in the watchlist tab and `ComparisonPage`, which only
+  `ComparisonPageOpener` opens — from the overview and from the sheet's
+  confirmation
 
 ### `enrichment/`
 Producer-consumer background pipeline that fetches and caches species photos
@@ -361,6 +369,18 @@ erDiagram
         TEXT deck_id PK
     }
 
+    comparison_lists {
+        TEXT id PK
+        TEXT name
+        INTEGER created_at
+    }
+
+    comparison_list_species {
+        TEXT list_id PK
+        TEXT species_id PK
+        INTEGER position
+    }
+
     deck_config {
         TEXT deck_id PK
         REAL desired_retention
@@ -390,6 +410,7 @@ erDiagram
     decks ||--o| deck_subdeck_customizations : "divided by the user"
     decks ||--o| deck_config : "configured by"
     decks ||--o| enrichment_jobs : "enriched by (cover job only)"
+    comparison_lists ||--o{ comparison_list_species : "holds"
 ```
 
 A species is in at most one subdeck of a deck, and in none when it was added
@@ -408,6 +429,14 @@ not resolve. A row in `deck_subdeck_customizations` marks a deck changed that
 way; switching a subdeck on or off is a setting and sets no mark. The mark
 decides what a deck update does to the subdecks (§7.5) and goes when the deck
 takes on a whole structure again (`SubdeckRepository.writeStructure`).
+
+A comparison list holds each species once, in the order it was added
+(`position`, then insertion order). A species removed from it is put back by
+"Undo" at its old `position`, which a timestamp could not restore: species
+added together share one. Deleting the list cascades to its species, and a
+list left empty stays. It belongs to no
+deck: the same species can be in a deck, on the watchlist and in any number of
+comparisons.
 
 `enrichment_jobs` tracks only the one remaining sequential job (the deck's
 cover-image download), whose progress is the `cover_state` column;
@@ -712,21 +741,25 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.3 Watchlist Load
 
-`WatchlistTab` loads in two passes, because the two cost orders of magnitude
-apart: `SpeciesMediaService.resolveAllFromCache` answers in a few queries from
-what is already on disk, while `resolveAllWithDownload` is bounded by the
-network and by iNaturalist's serialised downloads. The list renders from the
+`WatchlistSpeciesSection` (the species half of the watchlist tab) and
+`ComparisonPage` load their species through `SpeciesWithImagesLoader`
+(`catalog/common/`), in two passes, because the two cost orders of magnitude apart:
+`SpeciesMediaService.resolveAllFromCache` answers in a few queries from what is
+already on disk, while `resolveAllWithDownload` is bounded by the network and
+by iNaturalist's serialised downloads. The list renders from the
 first and adopts the second whenever it arrives; both return the same species in
 the same order, so adopting the second only fills in images rather than
 resorting the list.
 
 Every load carries a generation, and a result is applied only if it is still the
-one the tab is showing. Removing a species invalidates the in-flight load at
+one the list is showing. Removing a species invalidates the in-flight load at
 that moment rather than waiting for the rebuild a frame later — otherwise a
 download started for the longer list can land in between and put the just-removed
-entry back, on top of a `Dismissible` that has already been dismissed. A failed
+entry back, in the watchlist on top of a `Dismissible` that has already been
+dismissed. A comparison removes by a button instead of a swipe, since a swipe
+across its pictures pages through them. A failed
 download leaves the cached list standing instead of replacing it with an error:
-it is a usable watchlist, just without some pictures.
+it is a usable list, just without some pictures.
 
 ### 7.4 Enrichment Queue
 

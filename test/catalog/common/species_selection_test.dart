@@ -1,4 +1,4 @@
-import 'package:discere/learning/decks/edit/species_selection.dart';
+import 'package:discere/catalog/common/species_selection.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -50,6 +50,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
   Map<String, DeckEnrichmentInfo> _lastEnrichmentInfoByDeckId = {};
   bool _isRefreshingImages = false;
   final GlobalKey _addToDeckButtonKey = GlobalKey();
+  final GlobalKey _compareButtonKey = GlobalKey();
   bool _hasScheduledTutorial = false;
 
   @override
@@ -105,17 +106,26 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
     return added;
   }
 
+  /// Shows the coach marks not seen yet: the "add to deck" one, when the page
+  /// offers that action, and the comparison one.
   void _maybeScheduleTutorial() {
-    if (_hasScheduledTutorial || widget.onAddToDeck == null) return;
+    if (_hasScheduledTutorial) return;
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (prefs.hasSeenSpeciesDetailTutorial) return;
+    final addToDeck =
+        widget.onAddToDeck != null && !prefs.hasSeenSpeciesDetailTutorial;
+    final compare = !prefs.hasSeenSpeciesDetailCompareTutorial;
+    if (!addToDeck && !compare) return;
     _hasScheduledTutorial = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
       if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
-      prefs.hasSeenSpeciesDetailTutorial = true;
-      SpeciesDetailTutorial(addToDeckKey: _addToDeckButtonKey).show(context);
+      if (addToDeck) prefs.hasSeenSpeciesDetailTutorial = true;
+      if (compare) prefs.hasSeenSpeciesDetailCompareTutorial = true;
+      SpeciesDetailTutorial(
+        addToDeckKey: addToDeck ? _addToDeckButtonKey : null,
+        compareKey: compare ? _compareButtonKey : null,
+      ).show(context);
     });
   }
 
@@ -217,6 +227,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
           onAddToDeck: widget.onAddToDeck != null ? _handleAddToDeck : null,
           addToDeckButtonKey: _addToDeckButtonKey,
+          compareButtonKey: _compareButtonKey,
         );
       },
     );

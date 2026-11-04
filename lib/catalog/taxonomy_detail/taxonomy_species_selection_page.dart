@@ -1,6 +1,7 @@
 import 'package:discere/catalog/common/region_abundance_chip.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
+import 'package:discere/catalog/comparison/add_to_comparison_sheet.dart';
 import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
@@ -170,15 +171,16 @@ class _TaxonomySpeciesSelectionPageState
     });
   }
 
+  Set<String> get _selectedNames => _species
+      .where((s) => _selectedIds.contains(s.id))
+      .map((s) => s.name)
+      .toSet();
+
   Future<void> _handleAddToDeck() async {
-    final selectedNames = _species
-        .where((s) => _selectedIds.contains(s.id))
-        .map((s) => s.name)
-        .toSet();
     final added = await widget.onAddToDeck(
       context,
       _selectedIds,
-      selectedNames,
+      _selectedNames,
     );
     if (added && mounted) Navigator.of(context).pop();
   }
@@ -219,6 +221,18 @@ class _TaxonomySpeciesSelectionPageState
                 : context.loc.taxonomySpeciesSelectionSelectAll,
             icon: Icon(allSelected ? Icons.deselect : Icons.select_all),
             onPressed: isBusy ? null : _toggleSelectAll,
+          ),
+          IconButton(
+            key: const Key('taxonomy_species_selection_compare_button'),
+            tooltip: context.loc.comparisonAdd,
+            icon: const Icon(Icons.compare),
+            onPressed: isBusy || _selectedIds.isEmpty
+                ? null
+                : () => showAddToComparisonSheet(
+                    context,
+                    speciesIds: _selectedIds,
+                    speciesNames: _selectedNames,
+                  ),
           ),
         ],
       ),

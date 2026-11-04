@@ -7,6 +7,7 @@ import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
+import 'package:discere/learning/flashcard/comparison_button.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/watchlist_button.dart';
@@ -32,12 +33,12 @@ class FlashcardBackContent extends StatefulWidget {
   final bool namesMayStillRefine;
 
   /// Drives tap/drag-to-flip for everything except the hint badge, language
-  /// selector, and watchlist button, which are rendered as Stack siblings
-  /// instead of nested descendants precisely so each can win the tap
-  /// outright — a tap target nested inside a widget that ALSO recognizes
-  /// tap-to-flip is exactly the kind of gesture-arena race FlashcardFront
-  /// already avoids for its image (see its doc). Null in multiple-choice
-  /// mode, which never flips via gesture.
+  /// selector, and watchlist and comparison buttons, which are rendered as
+  /// Stack siblings instead of nested descendants precisely so each can win
+  /// the tap outright — a tap target nested inside a widget that ALSO
+  /// recognizes tap-to-flip is exactly the kind of gesture-arena race
+  /// FlashcardFront already avoids for its image (see its doc). Null in
+  /// multiple-choice mode, which never flips via gesture.
   final FlashcardFlipController? flipController;
 
   /// Optional footer (e.g. a "Continue" button) pinned below the scrollable
@@ -149,15 +150,25 @@ class _FlashcardBackContentState extends State<FlashcardBackContent> {
       child: Stack(
         children: [
           flippableBody,
-          // Same top-right spot and glass look as the front's button (see
-          // FlashcardImageHeader) so it doesn't visually jump when flipping.
+          // The watchlist button keeps the top-right spot and glass look of
+          // the front's (see FlashcardImageHeader) so it doesn't visually jump
+          // when flipping; the comparison button, back only, sits beside it.
           Positioned(
             top: AppSpacing.s12,
             right: AppSpacing.s12,
-            child: WatchlistButton(
-              speciesId: widget.speciesWithLocalImages.species.id,
-              buttonKey: widget.watchlistKey,
-              glass: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ComparisonButton(
+                  species: widget.speciesWithLocalImages.species,
+                ),
+                AppSpacing.widthS8,
+                WatchlistButton(
+                  speciesId: widget.speciesWithLocalImages.species.id,
+                  buttonKey: widget.watchlistKey,
+                  glass: true,
+                ),
+              ],
             ),
           ),
           // Language selector and hint badge share one corner, in a Row —

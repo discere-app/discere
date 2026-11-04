@@ -1,3 +1,5 @@
+import 'package:discere/catalog/comparison/repository/comparison_list_repository.dart';
+import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
@@ -58,6 +60,9 @@ buildCatalogServices({
 
   final sourceService = SourceService(sourceRepository);
   final watchlistService = WatchlistService(sharedPreferences);
+  final comparisonListService = ComparisonListService(
+    ComparisonListRepository(),
+  );
   final speciesSearchService = SpeciesSearchService(searchRepository);
   final taxonomyService = TaxonomyService(taxonomyRepository);
   final speciesInatMetadataService = SpeciesInatMetadataService(
@@ -86,6 +91,9 @@ buildCatalogServices({
         value: localePlaceMappingRepository,
       ),
       ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
+      ChangeNotifierProvider<ComparisonListService>.value(
+        value: comparisonListService,
+      ),
       Provider<SourceService>.value(value: sourceService),
       Provider<SpeciesInatMetadataService>.value(
         value: speciesInatMetadataService,

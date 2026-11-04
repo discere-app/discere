@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/add_to_deck/add_to_deck_list.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
@@ -8,9 +9,9 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/ui/sheet_messenger.dart';
 import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -68,6 +69,8 @@ class AddToDeckSheet extends StatefulWidget {
 class _AddToDeckSheetState extends State<AddToDeckSheet> {
   static final _log = Logger.forType(AddToDeckSheet);
 
+  /// See [SheetMessenger].
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   late final Future<List<DeckViewModel>> _decksFuture;
   bool _isAdding = false;
 
@@ -92,7 +95,23 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
     final messenger = ScaffoldMessenger.of(context);
     final loc = context.loc;
     final deckId = deck.stored.id!;
-    await decksService.addSpeciesToDeck(deckId, widget.speciesIds);
+    try {
+      await decksService.addSpeciesToDeck(deckId, widget.speciesIds);
+    } catch (error, stackTrace) {
+      _log.warn(
+        'Adding to a deck failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (!mounted) return;
+      // Unlocked and left open, to try again.
+      setState(() => _isAdding = false);
+      SheetMessenger.show(
+        _messengerKey,
+        loc.addToDeckFailed(loc.describeError(error)),
+      );
+      return;
+    }
     if (!mounted) return;
     await _offerINatEnrichment(enrichmentQueue, deckId);
     if (!mounted) return;
@@ -148,123 +167,66 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
       maxChildSize: 0.95,
       minChildSize: 0.4,
       builder: (context, scrollController) {
-        return Column(
-          children: [
-            const SizedBox(height: 8),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
+        return SheetMessenger(
+          messengerKey: _messengerKey,
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text(
-                    context.loc.addToDeckSheetTitle,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Text(
+                      context.loc.addToDeckSheetTitle,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              key: const Key('add_to_deck_create_new'),
-              leading: CircleAvatar(
-                backgroundColor: colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.create_new_folder_outlined,
-                  color: colorScheme.onPrimaryContainer,
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
               ),
-              title: Text(context.loc.addToDeckSheetCreateNewDeck),
-              onTap: _createNewDeck,
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: _buildExistingDecksList(scrollController, colorScheme),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildExistingDecksList(
-    ScrollController scrollController,
-    ColorScheme colorScheme,
-  ) {
-    return FutureBuilder<List<DeckViewModel>>(
-      future: _decksFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return _buildListMessage(
-            context.loc.errorWithDetail(
-              context.loc.describeError(snapshot.error),
-            ),
-            colorScheme,
-          );
-        }
-        final decks = snapshot.data ?? const [];
-        if (decks.isEmpty) {
-          return _buildListMessage(
-            context.loc.addToDeckSheetNoExistingDecks,
-            colorScheme,
-          );
-        }
-
-        return AbsorbPointer(
-          absorbing: _isAdding,
-          child: ListView.builder(
-            controller: scrollController,
-            itemCount: decks.length,
-            itemBuilder: (context, index) {
-              final deck = decks[index];
-              return ListTile(
-                key: ValueKey('add_to_deck_target_${deck.stored.id}'),
-                leading: Icon(
-                  Icons.style_outlined,
-                  color: colorScheme.onSurfaceVariant,
+              const Divider(height: 1),
+              ListTile(
+                key: const Key('add_to_deck_create_new'),
+                leading: CircleAvatar(
+                  backgroundColor: colorScheme.primaryContainer,
+                  child: Icon(
+                    Icons.create_new_folder_outlined,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
                 ),
-                title: Text(deck.stored.name),
-                trailing: const Icon(Icons.add),
-                onTap: () => _addToExisting(deck),
-              );
-            },
+                title: Text(context.loc.addToDeckSheetCreateNewDeck),
+                onTap: _createNewDeck,
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: AddToDeckList(
+                  decks: _decksFuture,
+                  scrollController: scrollController,
+                  isAdding: _isAdding,
+                  onPick: _addToExisting,
+                ),
+              ),
+            ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildListMessage(String message, ColorScheme colorScheme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.s16),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
     );
   }
 }

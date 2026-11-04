@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:discere/catalog/common/species_selection.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
@@ -17,7 +18,6 @@ import 'package:discere/learning/decks/edit/edit_deck_tutorial.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
-import 'package:discere/learning/decks/edit/species_selection.dart';
 import 'package:discere/learning/decks/edit/species_selection_app_bar.dart';
 import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/decks/edit/subdeck_section.dart';
@@ -500,7 +500,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         appBar: _selection.isActive
             ? SpeciesSelectionAppBar(
                 selection: _selection,
-                speciesIds: _speciesIdsFor(_species),
+                species: _species,
                 onChanged: _setSelection,
                 onDelete: () => _removeSpecies(_selection.selectedIds),
                 onAssignSubdeck: _assignSelectionToSubdeck,
