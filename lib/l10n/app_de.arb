@@ -1273,6 +1273,14 @@
   "addToDeckSheetTitle": "Zu Deck hinzufügen",
   "addToDeckSheetCreateNewDeck": "Neues Deck erstellen",
   "addToDeckSheetNoExistingDecks": "Noch keine Decks vorhanden. Erstelle zuerst ein neues Deck.",
+  "addToDeckFailed": "Die Arten konnten nicht zum Deck hinzugefügt werden: {error}",
+  "@addToDeckFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "addToDeckSuccess": "{count} Arten zu \"{deckName}\" hinzugefügt",
   "@addToDeckSuccess": {
     "placeholders": {

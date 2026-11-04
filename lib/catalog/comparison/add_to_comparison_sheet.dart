@@ -5,6 +5,7 @@ import 'package:discere/catalog/comparison/model/comparison_list.dart';
 import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/sheet_messenger.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -52,8 +53,7 @@ class _AddToComparisonSheetState extends State<AddToComparisonSheet> {
   static final _log = Logger.forType(AddToComparisonSheet);
   static const _presenter = AddToComparisonPresenter();
 
-  /// The sheet's own messenger: the app's one shows its SnackBars on the page
-  /// underneath, covered by this sheet.
+  /// See [SheetMessenger].
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   bool _isAdding = false;
@@ -105,10 +105,9 @@ class _AddToComparisonSheetState extends State<AddToComparisonSheet> {
       if (!mounted) return false;
       setState(() => _isAdding = false);
       final loc = context.loc;
-      _messengerKey.currentState?.showSnackBar(
-        SnackBar(
-          content: Text(loc.comparisonSaveFailed(loc.describeError(error))),
-        ),
+      SheetMessenger.show(
+        _messengerKey,
+        loc.comparisonSaveFailed(loc.describeError(error)),
       );
       return false;
     }
@@ -154,62 +153,59 @@ class _AddToComparisonSheetState extends State<AddToComparisonSheet> {
       maxChildSize: 0.95,
       minChildSize: 0.4,
       builder: (context, scrollController) {
-        return ScaffoldMessenger(
-          key: _messengerKey,
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: AbsorbPointer(
-              absorbing: _isAdding,
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+        return SheetMessenger(
+          messengerKey: _messengerKey,
+          child: AbsorbPointer(
+            absorbing: _isAdding,
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            context.loc.comparisonAdd,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          context.loc.comparisonAdd,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.of(context).pop(false),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    key: const Key('comparison_sheet_create_new'),
-                    leading: CircleAvatar(
-                      backgroundColor: colorScheme.primaryContainer,
-                      child: Icon(
-                        Icons.add,
-                        color: colorScheme.onPrimaryContainer,
                       ),
-                    ),
-                    title: Text(context.loc.comparisonCreateNew),
-                    onTap: _createNew,
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(false),
+                      ),
+                    ],
                   ),
-                  const Divider(height: 1),
-                  Expanded(child: _buildLists(scrollController, colorScheme)),
-                ],
-              ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  key: const Key('comparison_sheet_create_new'),
+                  leading: CircleAvatar(
+                    backgroundColor: colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.add,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  title: Text(context.loc.comparisonCreateNew),
+                  onTap: _createNew,
+                ),
+                const Divider(height: 1),
+                Expanded(child: _buildLists(scrollController, colorScheme)),
+              ],
             ),
           ),
         );

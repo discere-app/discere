@@ -1309,6 +1309,14 @@
   "addToDeckSheetTitle": "Add to deck",
   "addToDeckSheetCreateNewDeck": "Create new deck",
   "addToDeckSheetNoExistingDecks": "No decks yet. Create a new deck first.",
+  "addToDeckFailed": "Could not add the species to the deck: {error}",
+  "@addToDeckFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "addToDeckSuccess": "Added {count} species to \"{deckName}\"",
   "@addToDeckSuccess": {
     "placeholders": {
