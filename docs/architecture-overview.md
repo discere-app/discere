@@ -376,7 +376,7 @@ erDiagram
     comparison_list_species {
         TEXT list_id PK
         TEXT species_id PK
-        INTEGER added_at
+        INTEGER position
     }
 
     deck_config {
@@ -429,8 +429,10 @@ decides what a deck update does to the subdecks (§7.5) and goes when the deck
 takes on a whole structure again (`SubdeckRepository.writeStructure`).
 
 A comparison list holds each species once, in the order it was added
-(`added_at`, then insertion order for species added together); deleting the
-list cascades to its species, and a list left empty stays. It belongs to no
+(`position`, then insertion order). A species removed from it is put back by
+"Undo" at its old `position`, which a timestamp could not restore: species
+added together share one. Deleting the list cascades to its species, and a
+list left empty stays. It belongs to no
 deck: the same species can be in a deck, on the watchlist and in any number of
 comparisons.
 
@@ -751,7 +753,9 @@ Every load carries a generation, and a result is applied only if it is still the
 one the list is showing. Removing a species invalidates the in-flight load at
 that moment rather than waiting for the rebuild a frame later — otherwise a
 download started for the longer list can land in between and put the just-removed
-entry back, on top of a `Dismissible` that has already been dismissed. A failed
+entry back, in the watchlist on top of a `Dismissible` that has already been
+dismissed. A comparison removes by a button instead of a swipe, since a swipe
+across its pictures pages through them. A failed
 download leaves the cached list standing instead of replacing it with an error:
 it is a usable list, just without some pictures.
 

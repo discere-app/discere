@@ -14,16 +14,12 @@ class _FailingOnceRepository extends FakeComparisonListRepository {
   bool _failed = false;
 
   @override
-  Future<void> addSpecies(
-    String listId,
-    Set<String> speciesIds, {
-    required DateTime at,
-  }) async {
+  Future<void> addSpecies(String listId, Set<String> speciesIds) async {
     if (!_failed) {
       _failed = true;
       throw StateError('disk full');
     }
-    await super.addSpecies(listId, speciesIds, at: at);
+    await super.addSpecies(listId, speciesIds);
   }
 }
 

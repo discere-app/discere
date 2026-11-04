@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
+import 'package:discere/catalog/comparison/model/removed_comparison_species.dart';
 import 'package:discere/catalog/comparison/repository/comparison_list_repository.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -36,26 +37,40 @@ class ComparisonListService extends ChangeNotifier {
   ComparisonList? listById(String id) =>
       _lists?.where((list) => list.id == id).firstOrNull;
 
-  /// Creates a list named [name] holding [speciesIds].
-  Future<void> createList(String name, Set<String> speciesIds) async {
+  /// Creates a list named [name] holding [speciesIds], and answers its id.
+  Future<String> createList(String name, Set<String> speciesIds) async {
+    final id = const Uuid().v4();
     await _repository.createList(
-      id: const Uuid().v4(),
+      id: id,
       name: name,
       speciesIds: speciesIds,
       at: DateTime.now(),
     );
     await _refresh();
+    return id;
   }
 
   /// Adds [speciesIds] to [listId]; a species already in it is kept once.
   Future<void> addSpecies(String listId, Set<String> speciesIds) async {
-    await _repository.addSpecies(listId, speciesIds, at: DateTime.now());
+    await _repository.addSpecies(listId, speciesIds);
     await _refresh();
   }
 
-  /// Removes [speciesId] from [listId]. A list left empty stays.
-  Future<void> removeSpecies(String listId, String speciesId) async {
-    await _repository.removeSpecies(listId, speciesId);
+  /// Removes [speciesId] from [listId], and answers what [restoreSpecies]
+  /// takes to undo it (null when the list did not hold it). A list left
+  /// empty stays.
+  Future<RemovedComparisonSpecies?> removeSpecies(
+    String listId,
+    String speciesId,
+  ) async {
+    final removed = await _repository.removeSpecies(listId, speciesId);
+    await _refresh();
+    return removed;
+  }
+
+  /// Puts [removed] back where it was in its list.
+  Future<void> restoreSpecies(RemovedComparisonSpecies removed) async {
+    await _repository.restoreSpecies(removed);
     await _refresh();
   }
 

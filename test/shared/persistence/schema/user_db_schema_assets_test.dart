@@ -115,7 +115,7 @@ void main() {
         'deck_subdeck_unresolved_names.subdeck_id',
         'comparison_lists.name',
         'comparison_lists.created_at',
-        'comparison_list_species.added_at',
+        'comparison_list_species.position',
         'inat_photo_cache.fetched_at',
         'runtime_common_names.entity_key',
         'runtime_common_names.entity_type',

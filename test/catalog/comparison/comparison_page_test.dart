@@ -1,7 +1,10 @@
+import 'package:discere/catalog/common/resolve_species_with_images.dart';
 import 'package:discere/catalog/comparison/comparison_page.dart';
 import 'package:discere/catalog/comparison/comparison_species_section.dart';
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
 import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
@@ -22,22 +25,48 @@ Future<List<SpeciesWithLocalImages>> _resolve(Set<String> ids) async => [
   for (final id in ids) watchlistItem(id, 'species$id'),
 ];
 
+/// A species showing every fact a comparison compares, with long values, so
+/// that they wrap onto a second line on a phone.
+SpeciesWithLocalImages _withFacts(String id) {
+  final item = watchlistItem(id, 'species$id');
+  final species = item.species;
+  return SpeciesWithLocalImages(
+    Species(
+      species.id,
+      species.externalId,
+      species.externalSource,
+      species.scientificName,
+      const {},
+      species.classification,
+      species.pictures,
+      maxLengthCm: 1234.5,
+      depthMinM: 1000,
+      depthMaxM: 3500,
+      habitatTag: HabitatTag.openOceanMesopelagic,
+    ),
+    item.localPictures,
+  );
+}
+
 void main() {
   late ComparisonListService service;
 
-  /// Opens the page for [_rays] on a portrait screen unless [landscape].
+  /// Opens the page for [list] on a tall portrait screen, a landscape one if
+  /// [landscape], or one of [size].
   Future<void> pumpComparisonPage(
     WidgetTester tester, {
     bool landscape = false,
+    Size? size,
+    ComparisonList list = _rays,
+    ResolveSpeciesWithImages resolve = _resolve,
   }) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = landscape
-        ? const Size(1200, 700)
-        : const Size(500, 2400);
+    tester.view.physicalSize =
+        size ?? (landscape ? const Size(1200, 700) : const Size(500, 2400));
     addTearDown(tester.view.reset);
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    service = await loadedComparisonListService(tester, const [_rays]);
+    service = await loadedComparisonListService(tester, [list]);
     await tester.pumpWidget(
       comparisonTestApp(
         service: service,
@@ -51,9 +80,9 @@ void main() {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => ComparisonPage(
-                  list: _rays,
-                  resolveFromCache: _resolve,
-                  resolveWithDownload: _resolve,
+                  list: list,
+                  resolveFromCache: resolve,
+                  resolveWithDownload: resolve,
                   buildSpeciesDetailPage: (_) => const SizedBox.shrink(),
                 ),
               ),
@@ -103,19 +132,82 @@ void main() {
     expect(third.dy, greaterThan(first.dy));
   });
 
-  testWidgets(
-    'swiping a species away removes it from the list and the screen',
-    (tester) async {
-      await pumpComparisonPage(tester);
+  /// The species on screen, top to bottom.
+  List<String> shownOrder(WidgetTester tester) {
+    final sections = find.byType(ComparisonSpeciesSection).evaluate().toList()
+      ..sort(
+        (a, b) => tester
+            .getTopLeft(find.byWidget(a.widget))
+            .dy
+            .compareTo(tester.getTopLeft(find.byWidget(b.widget)).dy),
+      );
+    return [
+      for (final section in sections)
+        (section.widget as ComparisonSpeciesSection).species.scientificName,
+    ];
+  }
 
-      await tester.fling(section('speciessp2'), const Offset(-500, 0), 1000);
-      await tester.pumpAndSettle();
+  testWidgets('the remove button takes a species out; undo puts it back in '
+      'its old place', (tester) async {
+    await pumpComparisonPage(tester);
 
-      expect(service.listById('l1')!.speciesIds, ['sp1', 'sp3']);
-      expect(find.byType(ComparisonSpeciesSection), findsNWidgets(2));
-      expect(find.text('Genus speciessp2'), findsNothing);
-    },
-  );
+    await tester.tap(
+      find.descendant(
+        of: section('speciessp2'),
+        matching: find.byKey(const Key('comparison_species_remove')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.listById('l1')!.speciesIds, ['sp1', 'sp3']);
+    expect(shownOrder(tester), ['Genus speciessp1', 'Genus speciessp3']);
+    expect(find.text('Removed "Genus speciessp2"'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('comparison_species_undo')));
+    await tester.pumpAndSettle();
+
+    expect(service.listById('l1')!.speciesIds, ['sp1', 'sp2', 'sp3']);
+    expect(shownOrder(tester), [
+      'Genus speciessp1',
+      'Genus speciessp2',
+      'Genus speciessp3',
+    ]);
+  });
+
+  testWidgets('swiping across a species leaves it in the comparison', (
+    tester,
+  ) async {
+    await pumpComparisonPage(tester);
+
+    await tester.fling(section('speciessp2'), const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+
+    expect(service.listById('l1')!.speciesIds, ['sp1', 'sp2', 'sp3']);
+    expect(find.byType(ComparisonSpeciesSection), findsNWidgets(3));
+  });
+
+  testWidgets('on a phone in portrait, two species with their facts fit the '
+      'screen whole', (tester) async {
+    await pumpComparisonPage(
+      tester,
+      size: const Size(390, 844),
+      list: const ComparisonList(
+        id: 'l1',
+        name: 'Rays',
+        speciesIds: ['sp1', 'sp2'],
+      ),
+      resolve: (ids) async => [for (final id in ids) _withFacts(id)],
+    );
+
+    final viewport = tester.getRect(find.byType(ListView));
+    final sections = find.byType(ComparisonSpeciesSection);
+    expect(sections, findsNWidgets(2));
+    for (final section in sections.evaluate()) {
+      final rect = tester.getRect(find.byWidget(section.widget));
+      expect(rect.top, greaterThanOrEqualTo(viewport.top));
+      expect(rect.bottom, lessThanOrEqualTo(viewport.bottom));
+    }
+  });
 
   testWidgets('deleting the list after confirming closes the page', (
     tester,

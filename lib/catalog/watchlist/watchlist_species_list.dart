@@ -1,4 +1,3 @@
-import 'package:discere/catalog/common/remove_swipe_background.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/common/species_selection.dart';
@@ -45,7 +44,7 @@ class WatchlistSpeciesList extends StatelessWidget {
           direction: selection.isActive
               ? DismissDirection.none
               : DismissDirection.endToStart,
-          background: const RemoveSwipeBackground(),
+          background: _removeBackground(Theme.of(context)),
           onDismissed: (_) => onRemove(speciesId),
           child: SpeciesListItem(
             item: _presenter.presentSpeciesWithLocalImages(item, language),
@@ -66,6 +65,22 @@ class WatchlistSpeciesList extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _removeBackground(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: AppSpacing.s20),
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenPadding,
+        vertical: AppSpacing.elementSpacing,
+      ),
+      child: const Icon(Icons.delete, color: Colors.white),
     );
   }
 }

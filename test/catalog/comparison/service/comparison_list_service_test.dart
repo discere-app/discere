@@ -85,6 +85,20 @@ void main() {
     expect(await repository.getLists(), isEmpty);
   });
 
+  test('a species removed and put back is in its old place again, and the '
+      'id of a created list is answered', () async {
+    final (service, notifications) = await loadedService();
+    final id = await service.createList('Rays', {'sp-a', 'sp-b', 'sp-c'});
+    expect(service.listById(id)!.name, 'Rays');
+
+    final removed = await service.removeSpecies(id, 'sp-b');
+    expect(service.listById(id)!.speciesIds, ['sp-a', 'sp-c']);
+    await service.restoreSpecies(removed!);
+
+    expect(service.listById(id)!.speciesIds, ['sp-a', 'sp-b', 'sp-c']);
+    expect(notifications, hasLength(3));
+  });
+
   test('a failed load is reported and leaves the lists unloaded', () async {
     await db.close();
 

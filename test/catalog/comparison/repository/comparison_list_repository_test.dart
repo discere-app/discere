@@ -68,7 +68,7 @@ void main() {
       at: _monday,
     );
 
-    await repository.addSpecies('l1', {'sp-c', 'sp-a'}, at: _tuesday);
+    await repository.addSpecies('l1', {'sp-c', 'sp-a'});
 
     expect((await lists()).single.$3, 'sp-a,sp-b,sp-c');
     expect(
@@ -88,6 +88,41 @@ void main() {
     await repository.removeSpecies('l1', 'sp-a');
 
     expect(await lists(), [('l1', 'Rays', '')]);
+  });
+
+  test('a removed species put back takes its old place, also among species '
+      'added together', () async {
+    await repository.createList(
+      id: 'l1',
+      name: 'Rays',
+      speciesIds: {'sp-a', 'sp-b', 'sp-c'},
+      at: _monday,
+    );
+
+    final removed = await repository.removeSpecies('l1', 'sp-b');
+    expect((await lists()).single.$3, 'sp-a,sp-c');
+    await repository.restoreSpecies(removed!);
+
+    expect((await lists()).single.$3, 'sp-a,sp-b,sp-c');
+  });
+
+  test('removing a species the list does not hold answers nothing to put '
+      'back; putting back into a deleted list does nothing', () async {
+    await repository.createList(
+      id: 'l1',
+      name: 'Rays',
+      speciesIds: {'sp-a'},
+      at: _monday,
+    );
+
+    expect(await repository.removeSpecies('l1', 'sp-x'), isNull);
+
+    final removed = await repository.removeSpecies('l1', 'sp-a');
+    await repository.deleteList('l1');
+    await repository.restoreSpecies(removed!);
+
+    expect(await lists(), isEmpty);
+    expect(await db.query('comparison_list_species'), isEmpty);
   });
 
   test('renames a list', () async {

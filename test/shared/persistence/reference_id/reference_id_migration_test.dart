@@ -452,7 +452,7 @@ void main() {
         'created_at': 1,
       });
     }
-    for (final (listId, species, addedAt) in const [
+    for (final (listId, species, position) in const [
       ('l1', _merged, 1),
       ('l1', _unaliased, 2),
       ('l1', _aliasA, 3),
@@ -462,7 +462,7 @@ void main() {
       await userDb.insert('comparison_list_species', {
         'list_id': listId,
         'species_id': species,
-        'added_at': addedAt,
+        'position': position,
       });
     }
 
@@ -471,8 +471,8 @@ void main() {
     expect(
       (await rows(
         'comparison_list_species',
-        orderBy: 'list_id, added_at',
-      )).map((r) => (r['list_id'], r['species_id'], r['added_at'])),
+        orderBy: 'list_id, position',
+      )).map((r) => (r['list_id'], r['species_id'], r['position'])),
       [('l1', _merged, 1), ('l1', _unaliased, 2), ('l2', _merged, 1)],
     );
   });

@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:discere/catalog/common/remove_swipe_background.dart';
 import 'package:discere/catalog/common/resolve_species_with_images.dart';
 import 'package:discere/catalog/common/species_with_images_loader.dart';
+import 'package:discere/catalog/comparison/comparison_image_height.dart';
 import 'package:discere/catalog/comparison/comparison_name_dialog.dart';
 import 'package:discere/catalog/comparison/comparison_species_presenter.dart';
 import 'package:discere/catalog/comparison/comparison_species_section.dart';
@@ -10,6 +10,7 @@ import 'package:discere/catalog/comparison/delete_comparison_dialog.dart';
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
 import 'package:discere/catalog/comparison/service/comparison_list_service.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -132,24 +133,34 @@ class _ComparisonPageState extends State<ComparisonPage> {
         ? 2
         : 1;
     final rowCount = (species.length / columns).ceil();
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.elementSpacing),
-      itemCount: rowCount,
-      itemBuilder: (context, row) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var column = 0; column < columns; column++)
-            Expanded(
-              child: row * columns + column < species.length
-                  ? _speciesCell(
-                      context,
-                      species[row * columns + column],
-                      language,
-                    )
-                  : const SizedBox.shrink(),
-            ),
-        ],
-      ),
+    const listPadding = AppSpacing.elementSpacing;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final imageHeight = comparisonImageHeight(
+          viewportHeight: constraints.maxHeight - 2 * listPadding,
+          rowsPerScreen: columns == 2 ? 1 : 2,
+        );
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: listPadding),
+          itemCount: rowCount,
+          itemBuilder: (context, row) => Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var column = 0; column < columns; column++)
+                Expanded(
+                  child: row * columns + column < species.length
+                      ? _speciesCell(
+                          context,
+                          species[row * columns + column],
+                          language,
+                          imageHeight,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -157,18 +168,17 @@ class _ComparisonPageState extends State<ComparisonPage> {
     BuildContext context,
     SpeciesWithLocalImages entry,
     Language language,
+    double imageHeight,
   ) {
     final speciesId = entry.species.id;
-    return Dismissible(
+    final species = _presenter.present(entry.species, language, context.loc);
+    return ComparisonSpeciesSection(
       key: ValueKey(speciesId),
-      direction: DismissDirection.endToStart,
-      background: const RemoveSwipeBackground(),
-      onDismissed: (_) => _onRemove(speciesId),
-      child: ComparisonSpeciesSection(
-        species: _presenter.present(entry.species, language, context.loc),
-        speciesWithLocalImages: entry,
-        onOpen: () => _openSpeciesDetail(speciesId),
-      ),
+      species: species,
+      speciesWithLocalImages: entry,
+      imageHeight: imageHeight,
+      onOpen: () => _openSpeciesDetail(speciesId),
+      onRemove: () => _onRemove(speciesId, species.primaryName),
     );
   }
 
@@ -179,9 +189,33 @@ class _ComparisonPageState extends State<ComparisonPage> {
     );
   }
 
-  void _onRemove(String speciesId) {
+  /// Takes the species off the screen at once, and offers to put it back
+  /// where it was.
+  Future<void> _onRemove(String speciesId, String name) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final loc = context.loc;
     _loader.removeOptimistically(speciesId);
-    unawaited(_write(() => _service.removeSpecies(_list.id, speciesId)));
+    final removed = await _report(
+      messenger,
+      loc,
+      () => _service.removeSpecies(_list.id, speciesId),
+    );
+    if (removed == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(loc.comparisonSpeciesRemoved(name)),
+          action: SnackBarAction(
+            key: const Key('comparison_species_undo'),
+            label: loc.comparisonUndo,
+            // Still works once the page has gone: it reports through what
+            // was taken above, not through this page's context.
+            onPressed: () =>
+                _report(messenger, loc, () => _service.restoreSpecies(removed)),
+          ),
+        ),
+      );
   }
 
   Future<void> _onAction(_ComparisonAction action) async {
@@ -205,15 +239,21 @@ class _ComparisonPageState extends State<ComparisonPage> {
     }
   }
 
-  /// Runs [change] against the stored lists and tells the user if it failed.
+  Future<T?> _write<T>(Future<T> Function() change) =>
+      _report(ScaffoldMessenger.of(context), context.loc, change);
+
+  /// Runs [change] against the stored lists, answering its result, or null
+  /// after telling the user through [messenger] that it failed.
   ///
   /// A failed removal leaves the species off the screen until the next reload
   /// brings it back; the message says why it came back.
-  Future<void> _write(Future<void> Function() change) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final loc = context.loc;
+  static Future<T?> _report<T>(
+    ScaffoldMessengerState messenger,
+    AppLocalizations loc,
+    Future<T> Function() change,
+  ) async {
     try {
-      await change();
+      return await change();
     } catch (error, stackTrace) {
       _log.warn(
         'Comparison change failed',
@@ -225,6 +265,7 @@ class _ComparisonPageState extends State<ComparisonPage> {
           content: Text(loc.comparisonSaveFailed(loc.describeError(error))),
         ),
       );
+      return null;
     }
   }
 

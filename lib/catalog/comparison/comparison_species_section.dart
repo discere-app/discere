@@ -2,23 +2,30 @@ import 'package:discere/catalog/common/species_facts/species_fact_view_model.dar
 import 'package:discere/catalog/comparison/comparison_species_view_model.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/widgets/species_media_carousel.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
 /// One species of a comparison: its names, which open its detail page, its
-/// pictures to swipe through, and a few facts.
+/// pictures to swipe through, a few facts, and a button that takes it out of
+/// the comparison — a button rather than a swipe, which the pictures already
+/// answer to.
 class ComparisonSpeciesSection extends StatelessWidget {
-  static const _carouselHeight = 220.0;
-
   final ComparisonSpeciesViewModel species;
   final SpeciesWithLocalImages speciesWithLocalImages;
+
+  /// See `comparisonImageHeight`.
+  final double imageHeight;
   final VoidCallback onOpen;
+  final VoidCallback onRemove;
 
   const ComparisonSpeciesSection({
     required this.species,
     required this.speciesWithLocalImages,
+    required this.imageHeight,
     required this.onOpen,
+    required this.onRemove,
     super.key,
   });
 
@@ -36,32 +43,21 @@ class ComparisonSpeciesSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              InkWell(
-                onTap: onOpen,
-                borderRadius: BorderRadius.circular(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      species.primaryName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    AppSpacing.heightS4,
-                    Text(
-                      species.scientificName,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
+              Row(
+                children: [
+                  Expanded(child: _names(theme)),
+                  IconButton(
+                    key: const Key('comparison_species_remove'),
+                    icon: const Icon(Icons.remove_circle_outline),
+                    tooltip: context.loc.comparisonRemoveSpecies,
+                    onPressed: onRemove,
+                  ),
+                ],
               ),
-              AppSpacing.heightS12,
+              AppSpacing.heightS8,
               SpeciesMediaCarousel(
                 speciesWithLocalImages: speciesWithLocalImages,
-                height: _carouselHeight,
+                height: imageHeight,
                 borderRadius: BorderRadius.circular(12),
               ),
               if (species.facts.isNotEmpty) ...[
@@ -77,6 +73,31 @@ class ComparisonSpeciesSection extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _names(ThemeData theme) {
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            species.primaryName,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          AppSpacing.heightS4,
+          Text(
+            species.scientificName,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
       ),
     );
   }

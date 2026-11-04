@@ -4,7 +4,8 @@ class ComparisonList {
   final String id;
   final String name;
 
-  /// In the order they were added, each at most once.
+  /// In the order they were added — a species put back keeps its old place —
+  /// each at most once.
   final List<String> speciesIds;
 
   const ComparisonList({

@@ -1,4 +1,5 @@
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
+import 'package:discere/catalog/comparison/model/removed_comparison_species.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -15,17 +16,16 @@ class ComparisonListRepository {
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.userDb;
 
-  /// Every list, newest first, each with its species in the order they were
-  /// added.
+  /// Every list, newest first, each with its species in list order.
   Future<List<ComparisonList>> getLists() async {
     final db = await _database;
     final listRows = await db.query(_listsTable, orderBy: 'created_at DESC');
-    // rowid breaks the tie between species added in one call, which share
-    // their added_at: they keep the order they were passed in.
+    // rowid breaks a tie in position — a species put back after another took
+    // the last position in the meantime — by insertion order.
     final speciesRows = await db.query(
       _speciesTable,
       columns: ['list_id', 'species_id'],
-      orderBy: 'added_at, rowid',
+      orderBy: 'position, rowid',
     );
 
     final speciesIdsByList = <String, List<String>>{};
@@ -46,7 +46,8 @@ class ComparisonListRepository {
     ];
   }
 
-  /// Creates the list [id] holding [speciesIds], in one transaction.
+  /// Creates the list [id] holding [speciesIds] in their iteration order, in
+  /// one transaction.
   Future<void> createList({
     required String id,
     required String name,
@@ -60,44 +61,74 @@ class ComparisonListRepository {
         'name': name,
         'created_at': at.millisecondsSinceEpoch,
       });
-      await _insertSpecies(txn, id, speciesIds, at);
+      await _appendSpecies(txn, id, speciesIds);
     });
   }
 
   /// Adds [speciesIds] to [listId] after the species it already holds. A
   /// species already in the list stays where it is.
-  Future<void> addSpecies(
-    String listId,
-    Set<String> speciesIds, {
-    required DateTime at,
-  }) async {
+  Future<void> addSpecies(String listId, Set<String> speciesIds) async {
     final db = await _database;
-    await db.transaction((txn) => _insertSpecies(txn, listId, speciesIds, at));
+    await db.transaction((txn) => _appendSpecies(txn, listId, speciesIds));
   }
 
-  Future<void> _insertSpecies(
+  Future<void> _appendSpecies(
     Transaction txn,
     String listId,
     Set<String> speciesIds,
-    DateTime at,
   ) async {
+    final last = await txn.rawQuery(
+      'SELECT MAX(position) AS last FROM $_speciesTable WHERE list_id = ?',
+      [listId],
+    );
+    var position = (last.single['last'] as int? ?? -1) + 1;
     final batch = txn.batch();
     for (final speciesId in speciesIds) {
       batch.insert(_speciesTable, {
         'list_id': listId,
         'species_id': speciesId,
-        'added_at': at.millisecondsSinceEpoch,
+        'position': position++,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }
 
-  Future<void> removeSpecies(String listId, String speciesId) async {
+  /// Removes [speciesId] from [listId] and answers what [restoreSpecies]
+  /// needs to put it back, or null when the list did not hold it.
+  Future<RemovedComparisonSpecies?> removeSpecies(
+    String listId,
+    String speciesId,
+  ) async {
     final db = await _database;
-    await db.delete(
-      _speciesTable,
-      where: 'list_id = ? AND species_id = ?',
-      whereArgs: [listId, speciesId],
+    return db.transaction((txn) async {
+      const where = 'list_id = ? AND species_id = ?';
+      final whereArgs = [listId, speciesId];
+      final rows = await txn.query(
+        _speciesTable,
+        columns: ['position'],
+        where: where,
+        whereArgs: whereArgs,
+      );
+      if (rows.isEmpty) return null;
+      await txn.delete(_speciesTable, where: where, whereArgs: whereArgs);
+      return RemovedComparisonSpecies(
+        listId: listId,
+        speciesId: speciesId,
+        position: rows.single['position'] as int,
+      );
+    });
+  }
+
+  /// Puts [removed] back at its old position. Does nothing when its list has
+  /// gone in the meantime or holds the species again.
+  Future<void> restoreSpecies(RemovedComparisonSpecies removed) async {
+    final db = await _database;
+    // INSERT … SELECT rather than a plain insert: the foreign key would
+    // reject a row for a deleted list, and that is no error here.
+    await db.rawInsert(
+      'INSERT OR IGNORE INTO $_speciesTable (list_id, species_id, position) '
+      'SELECT id, ?, ? FROM $_listsTable WHERE id = ?',
+      [removed.speciesId, removed.position, removed.listId],
     );
   }
 

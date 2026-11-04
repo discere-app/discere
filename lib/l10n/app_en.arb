@@ -1375,6 +1375,16 @@
       }
     }
   },
+  "comparisonRemoveSpecies": "Remove from comparison",
+  "comparisonSpeciesRemoved": "Removed \"{name}\"",
+  "@comparisonSpeciesRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "comparisonUndo": "Undo",
   "regionPickerSearchHint": "Search region…",
   "regionPickerNoResults": "No region found.",
   "regionPickerOtherContinent": "Other",
