@@ -84,21 +84,6 @@ Future<void> pumpBootstrapApp(
   );
 }
 
-/// Pumps until [condition] holds, with real time passing in between for the
-/// file and database work. Run inside `tester.runAsync`.
-Future<void> pumpUntil(
-  WidgetTester tester,
-  bool Function() condition, {
-  String? reason,
-}) async {
-  for (var attempt = 0; attempt < 400; attempt++) {
-    await tester.pump();
-    if (condition()) return;
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-  }
-  fail('Timed out waiting for ${reason ?? 'the condition'}');
-}
-
 /// An HTTP client for which every host is unreachable.
 class MockClientOffline extends http.BaseClient {
   @override

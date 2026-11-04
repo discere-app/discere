@@ -14,18 +14,27 @@ import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 
 import '../../mocks.mocks.dart';
+import '../../support/pump_until.dart';
 
 // Not pumpAndSettle: the loading state uses an indeterminate
 // CircularProgressIndicator, which never "settles". The payload future
 // resolves via two real Isolate.run calls — tester.pump() alone never lets
 // those finish (it only drives the fake test clock/microtasks, not genuine
-// isolate scheduling), so give them a real async window via runAsync first.
+// isolate scheduling), so this pumps in real time until the page shows its
+// QR section: the code, or the warning that the deck is too large for one.
 Future<void> _waitForLoad(WidgetTester tester) async {
   await tester.runAsync(
-    () => Future<void>.delayed(const Duration(milliseconds: 500)),
+    () => pumpUntil(
+      tester,
+      () =>
+          find.byType(QrCodeView).evaluate().isNotEmpty ||
+          find
+              .byKey(const Key('share_qr_too_large_warning'))
+              .evaluate()
+              .isNotEmpty,
+      reason: 'the share payload to load',
+    ),
   );
-  await tester.pump();
-  await tester.pump();
 }
 
 void main() {
@@ -188,8 +197,13 @@ void main() {
     });
 
     // The share-sheet fallback writes a real temp file first, which only
-    // completes outside the fake test clock — hence runAsync around the tap.
-    Future<void> tapExport(WidgetTester tester) async {
+    // completes outside the fake test clock — hence pumping in real time
+    // around the tap, until [done] says the export has come to its end.
+    Future<void> tapExport(
+      WidgetTester tester, {
+      required bool Function() done,
+      required String reason,
+    }) async {
       await tester.pumpWidget(buildApp('deck-export'));
       await _waitForLoad(tester);
       final exportOption = find.byKey(const Key('share_download_json_option'));
@@ -197,10 +211,18 @@ void main() {
       await tester.pump();
       await tester.runAsync(() async {
         await tester.tap(exportOption);
-        await Future<void>.delayed(const Duration(milliseconds: 200));
+        await pumpUntil(tester, done, reason: reason);
       });
-      await tester.pump();
     }
+
+    /// The export option is ready again: its idle icon is back.
+    bool exportIdle() => find
+        .descendant(
+          of: find.byKey(const Key('share_download_json_option')),
+          matching: find.byKey(const ValueKey('idle')),
+        )
+        .evaluate()
+        .isNotEmpty;
 
     // Lets the snackbar and the delayed reset to idle run out, so no timer
     // is still pending when the test ends.
@@ -212,7 +234,11 @@ void main() {
     ) async {
       saveDialogAnswer = () async => Uri.parse('content://downloads/1');
 
-      await tapExport(tester);
+      await tapExport(
+        tester,
+        done: () => find.text('Deck saved').evaluate().isNotEmpty,
+        reason: 'the save confirmation',
+      );
 
       expect(find.text('Deck saved'), findsOneWidget);
       expect(shareCalls, isEmpty);
@@ -224,7 +250,13 @@ void main() {
     ) async {
       saveDialogAnswer = () async => null;
 
-      await tapExport(tester);
+      // The dialog was asked, and the option is idle again — the cancel has
+      // been handled, not just not yet reached.
+      await tapExport(
+        tester,
+        done: () => saveDialogCalls == 1 && exportIdle(),
+        reason: 'the cancelled save to be handled',
+      );
 
       expect(saveDialogCalls, 1);
       expect(find.byType(SnackBar), findsNothing);
@@ -238,7 +270,11 @@ void main() {
       saveDialogAnswer = () async =>
           throw PlatformException(code: 'Error while saving file');
 
-      await tapExport(tester);
+      await tapExport(
+        tester,
+        done: () => shareCalls.isNotEmpty,
+        reason: 'the share sheet fallback',
+      );
 
       expect(shareCalls, hasLength(1));
       expect(find.byType(SnackBar), findsNothing);
