@@ -27,7 +27,7 @@ class DiagnosticsEnrichmentSection extends StatelessWidget {
   /// `state: count`, plus how long until the next retry when the group is
   /// waiting on one — the only state where `nextAttemptAt` is set.
   String _stateLine(BuildContext context, EnrichmentWorkStateCount state) {
-    final base = '${state.state}: ${state.count}';
+    final base = '${state.state.wireName}: ${state.count}';
     final nextAttemptAt = state.nextAttemptAt;
     if (state.state != EnrichmentWorkState.retryScheduled ||
         nextAttemptAt == null) {

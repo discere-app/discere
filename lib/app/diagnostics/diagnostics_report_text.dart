@@ -46,8 +46,8 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     final states = entry.value
         .map(
           (state) => state.nextAttemptAt == null
-              ? '${state.state}=${state.count}'
-              : '${state.state}=${state.count} '
+              ? '${state.state.wireName}=${state.count}'
+              : '${state.state.wireName}=${state.count} '
                     '(next ${state.nextAttemptAt!.toIso8601String()})',
         )
         .join(', ');
