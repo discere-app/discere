@@ -149,12 +149,16 @@ class DeckEnrichmentProjectionRepository {
   /// non-terminal — the aggregate counterpart to
   /// `EnrichmentJobRepository.hasPendingWork` used to decide whether the
   /// background keepalive service needs to stay up.
+  ///
+  /// A `base` row in its long phase is not pending here, as it is not in the
+  /// deck projection: its next attempt is a day away, and keeping the
+  /// service up for it would hold the notification for nothing.
   Future<bool> hasPendingWork() async {
     final db = await _db;
     final capabilityRows = await db.query(
       EnrichmentWorkTables.capabilityState,
       columns: const ['species_id'],
-      where: 'state NOT IN (?, ?, ?)',
+      where: 'state NOT IN (?, ?, ?) AND NOT $baseLongPhaseCondition',
       whereArgs: terminalStates,
       limit: 1,
     );

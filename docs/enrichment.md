@@ -303,6 +303,10 @@ flowchart TD
   das endgültige Aufgeben macht daraus `doneWithGaps`. Auch das Vorziehen
   aller Wiederholungen beim Ende eines Host-Cooldowns lässt diese Zeilen aus:
   ein Cooldown von Sekunden sagt nichts über einen stundenlangen Ausfall.
+  Ebenso zählen sie in `hasPendingWork` nicht als offene Arbeit, sodass die
+  Hintergrund-Präsenz (Foreground-Service samt Notification) nicht für einen
+  Versuch stehen bleibt, der erst in einem Tag fällig ist. Nur „Erneut
+  anreichern“ holt eine solche Zeile sofort zurück (siehe Tabelle unten).
 - **Markierung für die Auswertung:** Der Fehlschlag, mit dem eine Art
   ausweicht, schreibt in derselben Zeile `fallback_reason`
   (`BaseImageFallbackReason`), `fallback_host` und `fallback_at`. Die

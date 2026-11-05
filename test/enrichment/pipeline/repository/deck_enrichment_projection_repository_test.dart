@@ -656,4 +656,36 @@ void main() {
       expect(pending, isEmpty);
     });
   });
+
+  group('hasPendingWork', () {
+    Future<void> insertBaseRetry(String speciesId, int attemptCount) =>
+        database.insert(EnrichmentWorkTables.capabilityState, {
+          'species_id': speciesId,
+          'capability': EnrichmentCapability.base.wireName,
+          'state': EnrichmentWorkState.retryScheduled.wireName,
+          'priority_tier': 0,
+          'attempt_count': attemptCount,
+          'next_attempt_at': DateTime.now()
+              .add(const Duration(days: 1))
+              .millisecondsSinceEpoch,
+          'updated_at': 0,
+        });
+
+    test('is false when the only open work is a base row waiting out its '
+        'long phase', () async {
+      await insertBaseRetry('sp-long', BaseImageRetryPolicy.shortPhaseAttempts);
+
+      expect(await projections.hasPendingWork(), isFalse);
+    });
+
+    test('is true for a base row still in its short phase', () async {
+      await insertBaseRetry('sp-long', BaseImageRetryPolicy.shortPhaseAttempts);
+      await insertBaseRetry(
+        'sp-short',
+        BaseImageRetryPolicy.shortPhaseAttempts - 1,
+      );
+
+      expect(await projections.hasPendingWork(), isTrue);
+    });
+  });
 }
