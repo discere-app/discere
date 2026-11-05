@@ -2,6 +2,9 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_download_result.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
@@ -37,19 +40,6 @@ class BaseWorker {
   /// per-batch memory usage proportional rather than loading the whole
   /// queue at once.
   static const _batchSize = 25;
-
-  /// After this many failed download attempts against the reference-image
-  /// host, give up and fall back to iNaturalist instead of retrying forever.
-  static const _maxAttempts = 5;
-
-  /// Escalating backoff applied between retry attempts.
-  static const _retryBackoffSteps = [
-    Duration(seconds: 15),
-    Duration(seconds: 30),
-    Duration(minutes: 1),
-    Duration(minutes: 2),
-    Duration(minutes: 4),
-  ];
 
   static const _inatPrimaryPriorityTier = 10;
   static const _inatBackfillPriorityTier = 40;
@@ -138,33 +128,39 @@ class BaseWorker {
         return;
       }
 
-      final summary = await _baseImageEnrichmentService
-          .downloadBaseImagesForSpecies({species.id});
-      if (summary.imageCount > 0) {
-        await _outcomeRepository.markCapabilityTerminal(
-          species.id,
-          EnrichmentCapability.base,
-          EnrichmentWorkState.done,
-          referenceDbVersion: referenceDbVersion,
-        );
-        // The species now has an image, but still only from the reference
-        // DB — seed a low-priority backfill item so it can eventually pick
-        // up an iNaturalist photo too, without competing with species that
-        // have no image at all yet (see INatWorker's priority tiers).
-        await _outcomeRepository.seedCapability(
-          species.id,
-          EnrichmentCapability.inatBackfill,
-          priorityTier: _inatBackfillPriorityTier,
-        );
-        return;
-      }
-
-      _log.warn('Base image download returned no images for ${species.id}');
-      await _retryOrFallBack(
-        species.id,
-        error: 'Base image download returned no images',
-        failureKind: EnrichmentFailureKind.temporary,
+      final result = await _baseImageEnrichmentService.downloadReferenceImages(
+        species,
       );
+      switch (result) {
+        case BaseImageSaved():
+          await _outcomeRepository.markCapabilityTerminal(
+            species.id,
+            EnrichmentCapability.base,
+            EnrichmentWorkState.done,
+            referenceDbVersion: referenceDbVersion,
+          );
+          // The species now has an image, but still only from the reference
+          // DB — seed a low-priority backfill item so it can eventually pick
+          // up an iNaturalist photo too, without competing with species that
+          // have no image at all yet (see INatWorker's priority tiers).
+          await _outcomeRepository.seedCapability(
+            species.id,
+            EnrichmentCapability.inatBackfill,
+            priorityTier: _inatBackfillPriorityTier,
+          );
+        case BaseImageFailed(:final reason, :final host):
+          final failure = host == null
+              ? reason.wireName
+              : '${reason.wireName} at $host';
+          _log.warn('Base image download failed for ${species.id}: $failure');
+          await _recordFailure(
+            species.id,
+            reason: reason,
+            host: host,
+            error: failure,
+            referenceDbVersion: referenceDbVersion,
+          );
+      }
     } catch (error, stackTrace) {
       // A real database error is booked like any other failure, so a
       // species that keeps failing burns its own retries instead of being
@@ -177,40 +173,41 @@ class BaseWorker {
         error: error,
         stackTrace: stackTrace,
       );
-      await _retryOrFallBack(
+      await _recordFailure(
         species.id,
+        reason: BaseImageFallbackReason.other,
+        host: null,
         error: error.toString(),
-        failureKind: classifyEnrichmentFailure(error),
+        referenceDbVersion: referenceDbVersion,
       );
     }
   }
 
-  /// Retries the download against the reference-image host up to
-  /// [_maxAttempts] times (with escalating backoff) before falling back to
-  /// iNaturalist — a single transient blip against that host shouldn't burn
-  /// iNaturalist's much more constrained request budget. A [failureKind] of
-  /// [EnrichmentFailureKind.permanent] (e.g. a non-retryable HTTP error)
-  /// skips straight to giving up instead of burning the full retry budget on
-  /// an error that was never going to succeed.
-  Future<void> _retryOrFallBack(
+  /// Books the failed attempt under [BaseImageRetryPolicy] and, once the
+  /// species stops waiting for its reference image, falls back to
+  /// iNaturalist. Unless the host said the image is missing, the reference
+  /// image is still retried after that, so a host outage costs the species
+  /// its reference image only for as long as it lasts.
+  Future<void> _recordFailure(
     String speciesId, {
+    required BaseImageFallbackReason reason,
+    required String? host,
     required String error,
-    required EnrichmentFailureKind failureKind,
+    required int? referenceDbVersion,
   }) async {
-    final gaveUp = await _outcomeRepository.recordCapabilityAttemptFailure(
+    final fallsBack = await _outcomeRepository.recordBaseImageAttemptFailure(
       speciesId,
-      EnrichmentCapability.base,
-      maxAttempts: failureKind == EnrichmentFailureKind.permanent
-          ? 1
-          : _maxAttempts,
-      backoffSteps: _retryBackoffSteps,
+      reason: reason,
+      host: host,
       error: error,
-      failureKind: failureKind.name,
+      failureKind: BaseImageRetryPolicy.givesUpAtOnce(reason)
+          ? EnrichmentFailureKind.permanent.name
+          : EnrichmentFailureKind.temporary.name,
+      referenceDbVersion: referenceDbVersion,
     );
-    if (gaveUp) {
+    if (fallsBack) {
       _log.warn(
-        'Giving up on base image for $speciesId '
-        '(${failureKind.name}) — falling back to iNaturalist',
+        'Falling back to iNaturalist for $speciesId (${reason.wireName})',
       );
       await _seedINatFallback(speciesId);
     }

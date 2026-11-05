@@ -1,5 +1,7 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
@@ -90,6 +92,33 @@ void main() {
       expect(projection.imageDoneSpeciesCount, 3);
       expect(projection.imageStagesComplete, isTrue);
       expect(projection.hasAnyImage, isTrue);
+    });
+
+    test('a base row in its long phase neither holds the deck back nor '
+        'pauses it', () async {
+      // Without iNat consent there is no inatPrimary row to wait for.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': false},
+      );
+      for (var i = 0; i < BaseImageRetryPolicy.shortPhaseAttempts; i++) {
+        await outcomes.recordBaseImageAttemptFailure(
+          'sp-a',
+          reason: BaseImageFallbackReason.hostUnavailable,
+          host: 'www.fishbase.se',
+          error: 'failed',
+          failureKind: 'temporary',
+          referenceDbVersion: null,
+        );
+      }
+
+      final projection = await projections.loadDeckProjection('deck-1');
+
+      expect(projection.imageStagesComplete, isTrue);
+      expect(projection.earliestRetryAt, isNull);
     });
 
     test(
@@ -481,6 +510,68 @@ void main() {
         );
       },
     );
+
+    test('loadBaseImageFallbackCounts groups the marked base rows by reason, '
+        'host and where they stand now', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-missing', 'sp-waiting', 'sp-recovered', 'sp-fine'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      Future<void> fail(
+        String speciesId,
+        BaseImageFallbackReason reason, {
+        int times = 1,
+      }) async {
+        for (var i = 0; i < times; i++) {
+          await outcomes.recordBaseImageAttemptFailure(
+            speciesId,
+            reason: reason,
+            host: 'www.fishbase.se',
+            error: 'failed',
+            failureKind: 'temporary',
+            referenceDbVersion: null,
+          );
+        }
+      }
+
+      await fail('sp-missing', BaseImageFallbackReason.imageMissing);
+      const hostUnavailable = BaseImageFallbackReason.hostUnavailable;
+      await fail('sp-waiting', hostUnavailable, times: 2);
+      await fail('sp-recovered', hostUnavailable, times: 2);
+      await outcomes.markCapabilityTerminal(
+        'sp-recovered',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
+      );
+
+      final counts = await projections.loadBaseImageFallbackCounts();
+
+      expect(
+        {
+          for (final count in counts)
+            (count.reason, count.host, count.baseState): count.count,
+        },
+        {
+          (
+            BaseImageFallbackReason.imageMissing,
+            'www.fishbase.se',
+            EnrichmentWorkState.permanentFailure,
+          ): 1,
+          (
+            BaseImageFallbackReason.hostUnavailable,
+            'www.fishbase.se',
+            EnrichmentWorkState.retryScheduled,
+          ): 1,
+          (
+            BaseImageFallbackReason.hostUnavailable,
+            'www.fishbase.se',
+            EnrichmentWorkState.done,
+          ): 1,
+        },
+      );
+    });
 
     test('loadTaxonomyWorkStateCounts groups by common_names_state', () async {
       await repository.registerTaxonomyWork(

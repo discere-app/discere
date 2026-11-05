@@ -47,6 +47,7 @@ void main() {
       final grouped = groupWorkStateCounts(
         EnrichmentHealthSnapshot(
           coverJobs: const [],
+          baseImageFallbackCounts: const [],
           workStateCounts: [
             _count('inatPrimary', EnrichmentWorkState.done),
             _count('base', EnrichmentWorkState.done),
@@ -64,6 +65,7 @@ void main() {
       final grouped = groupWorkStateCounts(
         EnrichmentHealthSnapshot(
           coverJobs: const [],
+          baseImageFallbackCounts: const [],
           workStateCounts: [
             _count('base', EnrichmentWorkState.done),
             _count('base', EnrichmentWorkState.retryScheduled),
@@ -83,7 +85,11 @@ void main() {
 
     test('an empty snapshot groups to nothing', () {
       final grouped = groupWorkStateCounts(
-        const EnrichmentHealthSnapshot(coverJobs: [], workStateCounts: []),
+        const EnrichmentHealthSnapshot(
+          coverJobs: [],
+          workStateCounts: [],
+          baseImageFallbackCounts: [],
+        ),
       );
       expect(grouped, isEmpty);
     });

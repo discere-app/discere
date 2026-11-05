@@ -4,6 +4,7 @@
 library;
 
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,28 @@ Map<String, List<EnrichmentWorkStateCount>> groupWorkStateCounts(
   }
   for (final states in grouped.values) {
     states.sort((left, right) => left.state.index.compareTo(right.state.index));
+  }
+  final sortedKeys = grouped.keys.toList()..sort();
+  return {for (final key in sortedKeys) key: grouped[key]!};
+}
+
+/// Base-image fallback counts grouped by reason and host — labelled in wire
+/// names, `<reason> at <host>` — each group in the lifecycle order of the
+/// `base` state its species are in now, like [groupWorkStateCounts].
+Map<String, List<BaseImageFallbackCount>> groupBaseImageFallbackCounts(
+  EnrichmentHealthSnapshot snapshot,
+) {
+  final grouped = <String, List<BaseImageFallbackCount>>{};
+  for (final entry in snapshot.baseImageFallbackCounts) {
+    final label = entry.host == null
+        ? entry.reason.wireName
+        : '${entry.reason.wireName} at ${entry.host}';
+    grouped.putIfAbsent(label, () => []).add(entry);
+  }
+  for (final counts in grouped.values) {
+    counts.sort(
+      (left, right) => left.baseState.index.compareTo(right.baseState.index),
+    );
   }
   final sortedKeys = grouped.keys.toList()..sort();
   return {for (final key in sortedKeys) key: grouped[key]!};

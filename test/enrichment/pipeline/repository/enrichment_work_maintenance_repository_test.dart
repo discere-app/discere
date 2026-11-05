@@ -1,5 +1,6 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
@@ -121,24 +122,86 @@ void main() {
       expect(resetCount, 1);
     });
 
-    test('leaves a permanentFailure row untouched', () async {
-      await seedBaseTerminal(
-        'sp-a',
-        'deck-1',
-        state: EnrichmentWorkState.done,
-        referenceDbVersion: 1,
-      );
-      await database.update(
-        EnrichmentWorkTables.capabilityState,
-        {'state': 'permanentFailure'},
-        where: "species_id = 'sp-a' AND capability = 'base'",
-      );
+    group('a permanentFailure row', () {
+      Future<void> seedGivenUp({int? referenceDbVersion}) async {
+        await seedBaseTerminal(
+          'sp-a',
+          'deck-1',
+          state: EnrichmentWorkState.done,
+        );
+        await database.update(
+          EnrichmentWorkTables.capabilityState,
+          {
+            'state': 'permanentFailure',
+            'attempt_count': 5,
+            'reference_db_version': referenceDbVersion,
+          },
+          where: "species_id = 'sp-a' AND capability = 'base'",
+        );
+      }
 
-      final resetCount = await maintenance.resetStaleBaseCapability(
-        deckId: 'deck-1',
-        currentReferenceDbVersion: 6,
-      );
-      expect(resetCount, 0);
+      test('stamped with an older version is stale and reset', () async {
+        await seedGivenUp(referenceDbVersion: 5);
+
+        expect(
+          await maintenance.countStaleBaseSpecies(
+            deckId: 'deck-1',
+            currentReferenceDbVersion: 6,
+          ),
+          1,
+        );
+        expect(
+          await maintenance.resetStaleBaseCapability(
+            deckId: 'deck-1',
+            currentReferenceDbVersion: 6,
+          ),
+          1,
+        );
+        final row = (await database.query(
+          EnrichmentWorkTables.capabilityState,
+          where: "species_id = 'sp-a' AND capability = 'base'",
+        )).single;
+        expect(row['state'], 'pending');
+        expect(row['attempt_count'], 0);
+      });
+
+      test('never stamped is stale and reset', () async {
+        await seedGivenUp();
+
+        expect(
+          await maintenance.countStaleBaseSpecies(
+            deckId: 'deck-1',
+            currentReferenceDbVersion: 6,
+          ),
+          1,
+        );
+        expect(
+          await maintenance.resetStaleBaseCapability(
+            deckId: 'deck-1',
+            currentReferenceDbVersion: 6,
+          ),
+          1,
+        );
+      });
+
+      test('stamped with the current version is left alone', () async {
+        await seedGivenUp(referenceDbVersion: 6);
+
+        expect(
+          await maintenance.countStaleBaseSpecies(
+            deckId: 'deck-1',
+            currentReferenceDbVersion: 6,
+          ),
+          0,
+        );
+        expect(
+          await maintenance.resetStaleBaseCapability(
+            deckId: 'deck-1',
+            currentReferenceDbVersion: 6,
+          ),
+          0,
+        );
+      });
     });
 
     test('deck-scoped reset only touches species referencing that deck', () async {
@@ -297,8 +360,8 @@ void main() {
       expect(resetCount, 1);
     });
 
-    test('resets a permanentFailure row too — unlike resetStaleBaseCapability, '
-        'a manual retrigger should retry those as well', () async {
+    test('resets a permanentFailure row too, whatever its stamp — a manual '
+        'retrigger should retry those as well', () async {
       await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.permanentFailure);
 
       final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
@@ -392,6 +455,76 @@ void main() {
       EnrichmentWorkTables.unresolvedNames,
     );
     expect(unresolvedRows.single['next_attempt_at'], isNull);
+  });
+
+  test('clearRetryAttemptForRetryScheduledWorkItems leaves a base row in its '
+      'long phase waiting, and brings a short-phase one forward', () async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final tomorrow = now + const Duration(days: 1).inMilliseconds;
+    Future<void> insertBase(String speciesId, int attemptCount) =>
+        database.insert(EnrichmentWorkTables.capabilityState, {
+          'species_id': speciesId,
+          'capability': 'base',
+          'state': 'retryScheduled',
+          'priority_tier': 0,
+          'attempt_count': attemptCount,
+          'next_attempt_at': tomorrow,
+          'updated_at': now,
+        });
+    await insertBase('sp-short', BaseImageRetryPolicy.shortPhaseAttempts - 1);
+    await insertBase('sp-long', BaseImageRetryPolicy.shortPhaseAttempts);
+
+    final cleared = await maintenance
+        .clearRetryAttemptForRetryScheduledWorkItems();
+
+    expect(cleared, 1);
+    final nextAttemptBySpecies = {
+      for (final row in await database.query(
+        EnrichmentWorkTables.capabilityState,
+      ))
+        row['species_id']: row['next_attempt_at'],
+    };
+    expect(nextAttemptBySpecies['sp-short'], isNull);
+    expect(nextAttemptBySpecies['sp-long'], tomorrow);
+  });
+
+  test('the fallback marking survives every reset', () async {
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+    );
+    const marking = {
+      'fallback_reason': 'hostUnavailable',
+      'fallback_host': 'www.fishbase.se',
+      'fallback_at': 1700,
+    };
+    Future<Map<String, Object?>> baseRow() async => (await database.query(
+      EnrichmentWorkTables.capabilityState,
+      where: "species_id = 'sp-a' AND capability = 'base'",
+    )).single;
+    Future<void> markGivenUp() => database.update(
+      EnrichmentWorkTables.capabilityState,
+      {...marking, 'state': 'permanentFailure', 'next_attempt_at': 1},
+      where: "species_id = 'sp-a' AND capability = 'base'",
+    );
+
+    await markGivenUp();
+    await maintenance.resetStaleBaseCapability(currentReferenceDbVersion: 6);
+    expect(await baseRow(), _has({...marking, 'state': 'pending'}));
+
+    await markGivenUp();
+    await maintenance.resetBaseCapabilityForRetrigger('deck-1');
+    expect(await baseRow(), _has({...marking, 'state': 'pending'}));
+
+    await database.update(
+      EnrichmentWorkTables.capabilityState,
+      {'state': 'retryScheduled', 'attempt_count': 1, 'next_attempt_at': 1},
+      where: "species_id = 'sp-a' AND capability = 'base'",
+    );
+    await maintenance.clearRetryAttemptForRetryScheduledWorkItems();
+    expect(await baseRow(), _has({...marking, 'next_attempt_at': null}));
   });
 
   test('recoverInterruptedWork reverts running rows back to pending across all '
@@ -546,3 +679,9 @@ void main() {
     },
   );
 }
+
+/// Matches a row holding every entry of [entries].
+Matcher _has(Map<String, Object?> entries) => allOf([
+  for (final MapEntry(:key, :value) in entries.entries)
+    containsPair(key, value),
+]);

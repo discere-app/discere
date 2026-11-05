@@ -1,4 +1,7 @@
 import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,5 +100,49 @@ void main() {
         contains('reference db sources: none\n'),
       );
     });
+  });
+
+  test('the base image fallbacks are listed by reason and host, with where '
+      'their reference image stands now', () {
+    final text = buildDiagnosticsReportText(
+      diagnosticsPageData(
+        baseImageFallbackCounts: const [
+          BaseImageFallbackCount(
+            reason: BaseImageFallbackReason.hostUnavailable,
+            host: 'www.fishbase.se',
+            baseState: EnrichmentWorkState.done,
+            count: 30,
+          ),
+          BaseImageFallbackCount(
+            reason: BaseImageFallbackReason.hostUnavailable,
+            host: 'www.fishbase.se',
+            baseState: EnrichmentWorkState.retryScheduled,
+            count: 120,
+          ),
+          BaseImageFallbackCount(
+            reason: BaseImageFallbackReason.imageMissing,
+            host: 'www.sealifebase.se',
+            baseState: EnrichmentWorkState.permanentFailure,
+            count: 4,
+          ),
+          BaseImageFallbackCount(
+            reason: BaseImageFallbackReason.other,
+            host: null,
+            baseState: EnrichmentWorkState.retryScheduled,
+            count: 1,
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      text,
+      contains(
+        'base image fallbacks (by base state now):\n'
+        '- hostUnavailable at www.fishbase.se: retryScheduled=120, done=30\n'
+        '- imageMissing at www.sealifebase.se: permanentFailure=4\n'
+        '- other: retryScheduled=1\n',
+      ),
+    );
   });
 }

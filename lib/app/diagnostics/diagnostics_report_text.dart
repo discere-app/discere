@@ -55,6 +55,16 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
   }
   buffer
     ..writeln()
+    ..writeln('base image fallbacks (by base state now):');
+  final fallbacks = groupBaseImageFallbackCounts(data.healthSnapshot);
+  for (final MapEntry(key: label, value: counts) in fallbacks.entries) {
+    final states = counts
+        .map((count) => '${count.baseState.wireName}=${count.count}')
+        .join(', ');
+    buffer.writeln('- $label: $states');
+  }
+  buffer
+    ..writeln()
     ..writeln('cover jobs:');
   for (final job in data.healthSnapshot.coverJobs) {
     buffer.writeln(

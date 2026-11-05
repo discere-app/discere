@@ -45,6 +45,7 @@ class DiagnosticsEnrichmentSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final grouped = groupWorkStateCounts(data.healthSnapshot);
+    final fallbacks = groupBaseImageFallbackCounts(data.healthSnapshot);
     final coverJobs = data.healthSnapshot.coverJobs;
     final activeCooldown = cooldown;
     return Card(
@@ -68,6 +69,32 @@ class DiagnosticsEnrichmentSection extends StatelessWidget {
                             children: entry.value
                                 .map(
                                   (state) => Text(_stateLine(context, state)),
+                                )
+                                .toList(growable: false),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+          const Divider(height: 1),
+          ExpansionTile(
+            title: Text(context.loc.diagnosticsBaseImageFallbacksTitle),
+            subtitle: Text(context.loc.diagnosticsBaseImageFallbacksSubtitle),
+            children: fallbacks.isEmpty
+                ? [const DiagnosticsEmptyRow()]
+                : fallbacks.entries
+                      .map(
+                        (entry) => ListTile(
+                          dense: true,
+                          title: Text(entry.key),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: entry.value
+                                .map(
+                                  (count) => Text(
+                                    '${count.baseState.wireName}: '
+                                    '${count.count}',
+                                  ),
                                 )
                                 .toList(growable: false),
                           ),

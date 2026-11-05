@@ -1,5 +1,8 @@
 import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
+import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_projection_builder.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
@@ -37,7 +40,8 @@ class DeckEnrichmentProjectionRepository {
     final speciesRows = await db.rawQuery(
       '''
       SELECT m.species_id AS species_id, c.capability AS capability,
-             c.state AS state, c.next_attempt_at AS next_attempt_at,
+             c.state AS state, c.attempt_count AS attempt_count,
+             c.next_attempt_at AS next_attempt_at,
              c.reference_db_version AS reference_db_version,
              w.wants_inat_photos AS wants_inat_photos,
              w.wants_common_names AS wants_common_names
@@ -226,6 +230,32 @@ class DeckEnrichmentProjectionRepository {
             state: EnrichmentWorkState.fromWire(row['state'] as String),
             count: row['count'] as int,
             nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Species that fell back from their reference image to iNaturalist,
+  /// grouped by why, at which host, and where their `base` row stands now —
+  /// see [BaseImageFallbackCount].
+  Future<List<BaseImageFallbackCount>> loadBaseImageFallbackCounts() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT fallback_reason, fallback_host, state, COUNT(*) as count '
+      'FROM ${EnrichmentWorkTables.capabilityState} '
+      "WHERE capability = '${EnrichmentCapability.base.wireName}' "
+      'AND fallback_reason IS NOT NULL '
+      'GROUP BY fallback_reason, fallback_host, state',
+    );
+    return rows
+        .map(
+          (row) => BaseImageFallbackCount(
+            reason: BaseImageFallbackReason.fromWire(
+              row['fallback_reason'] as String,
+            ),
+            host: row['fallback_host'] as String?,
+            baseState: EnrichmentWorkState.fromWire(row['state'] as String),
+            count: row['count'] as int,
           ),
         )
         .toList(growable: false);
