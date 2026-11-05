@@ -407,6 +407,78 @@ void main() {
       );
       expect(resetCount, 0);
     });
+
+    test('resets a row waiting out its long phase, keeping its fallback '
+        'marking, and leaves one in its short phase alone', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-short', 'sp-long'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      final tomorrow = DateTime.now()
+          .add(const Duration(days: 1))
+          .millisecondsSinceEpoch;
+      const marking = {
+        'fallback_reason': 'hostUnavailable',
+        'fallback_host': 'www.fishbase.se',
+        'fallback_at': 1700,
+      };
+      Future<void> scheduleRetry(
+        String speciesId,
+        int attemptCount, {
+        Map<String, Object?> extra = const {},
+      }) => database.update(
+        EnrichmentWorkTables.capabilityState,
+        {
+          ...extra,
+          'state': 'retryScheduled',
+          'attempt_count': attemptCount,
+          'next_attempt_at': tomorrow,
+        },
+        where: "species_id = ? AND capability = 'base'",
+        whereArgs: [speciesId],
+      );
+      await scheduleRetry(
+        'sp-short',
+        BaseImageRetryPolicy.shortPhaseAttempts - 1,
+      );
+      await scheduleRetry(
+        'sp-long',
+        BaseImageRetryPolicy.shortPhaseAttempts,
+        extra: marking,
+      );
+
+      final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+
+      expect(resetCount, 1);
+      final rows = {
+        for (final row in await database.query(
+          EnrichmentWorkTables.capabilityState,
+          where: "capability = 'base'",
+        ))
+          row['species_id']: row,
+      };
+      expect(
+        rows['sp-long'],
+        _has({
+          ...marking,
+          'state': 'pending',
+          'attempt_count': 0,
+          'next_attempt_at': null,
+        }),
+      );
+      expect(
+        rows['sp-short'],
+        _has({
+          'state': 'retryScheduled',
+          'attempt_count': BaseImageRetryPolicy.shortPhaseAttempts - 1,
+          'next_attempt_at': tomorrow,
+        }),
+      );
+    });
   });
 
   test('clearRetryAttemptForRetryScheduledWorkItems clears next_attempt_at '

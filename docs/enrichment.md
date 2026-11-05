@@ -599,7 +599,7 @@ nie automatisch**:
 |---|---|---|---|
 | Einmaliger Dialog direkt nach einem Referenz-DB-Update (`main_screen_page.dart` → `maybeShowBaseRefreshPrompt`) | `refreshAllStaleBaseImages()` | app-weit | nur tatsächlich veraltete Arten (`done`, `noResult`, `permanentFailure`) |
 | Edit-Deck-Hinweis "Nach aktuellen Bildern suchen" (sichtbar, sobald `staleBaseSpeciesCount > 0`) | `refreshStaleBaseImages(deckId)` | ein Deck | nur tatsächlich veraltete Arten des Decks (`done`, `noResult`, `permanentFailure`) |
-| Edit-Deck "Erneut anreichern"/"Jetzt anreichern" (Basis/Vollständig-Auswahl über `showDeckDownloadChoiceDialog`) | `retriggerBaseEnrichment(deckId)` | ein Deck | **alle** terminalen `base`-Zeilen des Decks, inkl. `permanentFailure` — unconditional, keine Versionsprüfung |
+| Edit-Deck "Erneut anreichern"/"Jetzt anreichern" (Basis/Vollständig-Auswahl über `showDeckDownloadChoiceDialog`) | `retriggerBaseEnrichment(deckId)` | ein Deck | **alle** terminalen `base`-Zeilen des Decks, inkl. `permanentFailure`, dazu jede, die ihre lange Phase abwartet — unconditional, keine Versionsprüfung; eine Zeile in der kurzen Phase bleibt, ihr nächster Versuch steht ohnehin in Sekunden an |
 
 Alle drei setzen die betroffenen `base`-Zeilen zurück auf `pending`, sodass
 `claimBaseWorkBatch` sie beim nächsten `_runForegroundJobs()`-Durchlauf ganz

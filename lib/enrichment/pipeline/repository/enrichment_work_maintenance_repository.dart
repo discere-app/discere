@@ -110,6 +110,11 @@ class EnrichmentWorkMaintenanceRepository {
   /// `base` row yet (never enriched at all) is unaffected — nothing to
   /// reset, `assignSpeciesOwners` seeds it fresh as usual. Returns the
   /// number of rows reset.
+  ///
+  /// A row in its long phase is reset too: it is waiting a day for its next
+  /// attempt, and the user asking to enrich now is reason enough not to wait.
+  /// A row still in its short phase is left alone — its next attempt is
+  /// seconds away anyway. The fallback marking is kept either way.
   Future<int> resetBaseCapabilityForRetrigger(String deckId) async {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -125,7 +130,8 @@ class EnrichmentWorkMaintenanceRepository {
       },
       where:
           "capability = '${EnrichmentCapability.base.wireName}' "
-          'AND state IN (${sqlList(terminalStates)}) '
+          'AND (state IN (${sqlList(terminalStates)}) '
+          'OR $baseLongPhaseCondition) '
           'AND species_id IN (SELECT species_id FROM ${EnrichmentWorkTables.deckMembership} WHERE deck_id = ?)',
       whereArgs: [deckId],
     );
