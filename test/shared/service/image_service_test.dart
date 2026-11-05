@@ -74,7 +74,7 @@ void main() {
     });
 
     test(
-      'downloadAndSaveImages downloads multiple images and returns paths',
+      'downloadAndSaveUrlMap downloads multiple images and maps them by URL',
       () async {
         mockClient = MockClient((request) async {
           if (request.url.host == 'domain.com') {
@@ -92,10 +92,10 @@ void main() {
           'https://domain.com/img1.jpg',
           'https://domain.com/img2.jpg',
         };
-        final paths = await imageService.downloadAndSaveImages(urls);
+        final paths = await imageService.downloadAndSaveUrlMap(urls);
 
-        expect(paths.length, 2);
-        for (final path in paths) {
+        expect(paths.keys, unorderedEquals(urls));
+        for (final path in paths.values) {
           expect(await File(path).exists(), isTrue);
           expect(await File(path).readAsBytes(), [7, 8, 9]);
         }
@@ -103,7 +103,7 @@ void main() {
     );
 
     test(
-      'downloadAndSaveImages handles colliding filenames via hashing',
+      'downloadAndSaveUrlMap handles colliding filenames via hashing',
       () async {
         mockClient = MockClient((request) async {
           return http.Response.bytes([1, 2, 3], 200);
@@ -117,17 +117,17 @@ void main() {
         final url1 = 'https://inat.org/photos/1/medium.jpg';
         final url2 = 'https://inat.org/photos/2/medium.jpg';
 
-        final paths = await imageService.downloadAndSaveImages({url1, url2});
+        final paths = await imageService.downloadAndSaveUrlMap({url1, url2});
 
-        expect(paths.length, 2);
+        expect(paths.keys, unorderedEquals([url1, url2]));
         expect(
-          paths[0],
-          isNot(paths[1]),
+          paths[url1],
+          isNot(paths[url2]),
           reason:
               'Filenames should be unique even if URL ends with same segment',
         );
-        expect(p.basename(paths[0]), isNot('medium.jpg'));
-        expect(p.basename(paths[1]), isNot('medium.jpg'));
+        expect(p.basename(paths[url1]!), isNot('medium.jpg'));
+        expect(p.basename(paths[url2]!), isNot('medium.jpg'));
       },
     );
 

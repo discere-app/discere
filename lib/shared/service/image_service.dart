@@ -39,14 +39,6 @@ class ImageService {
   }) : _client = client,
        _hostCooldownTracker = hostCooldownTracker;
 
-  /// Used for species images (flashcards)
-  Future<List<String>> downloadAndSaveImages(Set<String> urls) async =>
-      (await downloadAndSaveUrlMap(urls)).values.toList();
-
-  /// Downloads and caches images, returning a mapping of original URLs to their local file paths.
-  Future<Map<String, String>> downloadAndSaveImagesMap(Set<String> urls) =>
-      downloadAndSaveUrlMap(urls);
-
   /// Returns already-saved local paths for the given URLs without downloading
   /// missing files.
   Future<Map<String, String>> resolveSavedUrlMap(
