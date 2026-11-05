@@ -52,6 +52,43 @@ void main() {
     expect(failures.single.retryable, isTrue);
   });
 
+  group('the cf-mitigated header', () {
+    Future<Map<String, Object?>> detailsOf403(
+      Map<String, String> headers,
+    ) async {
+      final client = LoggingHttpClient(
+        _FakeHttpClient(
+          handler: (_) async => http.StreamedResponse(
+            Stream<List<int>>.empty(),
+            403,
+            headers: headers,
+          ),
+        ),
+        diagnostics: diagnostics,
+        hostCooldownTracker: HostCooldownTracker(),
+      );
+      final response = await client.send(
+        http.Request('GET', Uri.parse('https://www.sealifebase.org/a.jpg')),
+      );
+      await response.stream.drain<void>();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final failures = await repository.loadRecentNetworkFailures(limit: 10);
+      return failures.single.details;
+    }
+
+    test('is kept in the details when the response carries it', () async {
+      final details = await detailsOf403({'cf-mitigated': 'challenge'});
+
+      expect(details['cfMitigated'], 'challenge');
+    });
+
+    test('leaves no entry when the response does not carry it', () async {
+      final details = await detailsOf403(const {});
+
+      expect(details.containsKey('cfMitigated'), isFalse);
+    });
+  });
+
   test('records client exception details for transport failures', () async {
     final client = LoggingHttpClient(
       _FakeHttpClient(
