@@ -4,3 +4,4 @@ New: Decks carry their learning mode, name type and review mode; pick them when 
 Change: Deck cards show progress once; the button names the next step.
 New: Create and sort subdecks; select several species in “Edit deck” to delete or assign them.
 New: Compare similar species side by side.
+Fix: If FishBase/SeaLifeBase is down, iNaturalist photos show first; reference images follow later.

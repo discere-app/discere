@@ -4,3 +4,4 @@ Neu: Decks bringen Lernmodus, Namensart und Abfragemodus mit; wählbar beim Anle
 Änderung: Deck-Karten zeigen den Fortschritt einmal, der Button die nächste Aktion.
 Neu: Subdecks selbst anlegen und sortieren; Arten in „Deck bearbeiten“ mehrfach auswählen, löschen oder zuordnen.
 Neu: Arten vergleichen.
+Fix: Fällt FishBase/SeaLifeBase aus, kommen erst iNaturalist-Bilder, Referenzbilder folgen später.

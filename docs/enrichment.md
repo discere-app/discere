@@ -1,6 +1,6 @@
 # iNaturalist-Enrichment — wie der Ablauf funktioniert
 
-**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-10-24)
+**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-11-05)
 
 Kurzreferenz für den aktuellen Enrichment-Ablauf: ein import-weites,
 species-zentrisches Producer-Consumer-Modell mit zwei unabhängig laufenden
@@ -33,7 +33,7 @@ flowchart TD
     COVER --> PASS
     UNRES --> PASS
 
-    BW -->|"kein Referenzbild vorhanden,<br/>oder Download nach 5 Versuchen aufgegeben"| SEED1["seedCapability(inatPrimary@10)<br/>seedCapability(inatBackfill@40)<br/>— nur falls wants_inat_photos"]
+    BW -->|"kein Referenzbild vorhanden, Bild fehlt beim Host,<br/>oder Host nach 2 Versuchen weiter gestört<br/>(Referenzbild wird danach täglich nachgeholt)"| SEED1["seedCapability(inatPrimary@10)<br/>seedCapability(inatBackfill@40)<br/>— nur falls wants_inat_photos"]
     BW -->|"Download erfolgreich"| SEED2["seedCapability(inatBackfill@40)<br/>— nur falls wants_inat_photos"]
     SEED1 --> IW
     SEED2 --> IW
@@ -130,7 +130,9 @@ Species** (nicht pro Deck) additiv verODERt in
 Jede Capability-Zeile (`enrichment_species_capability_state`,
 `enrichment_taxonomy_work`, `enrichment_unresolved_names`) durchläuft
 denselben Zustandsautomaten — unabhängig davon, ob es eine Species-, eine
-Taxonomie- oder eine Namensauflösungs-Zeile ist:
+Taxonomie- oder eine Namensauflösungs-Zeile ist. Budget und Abstände der
+Wiederholungen unten gelten für die Arbeit des `INatWorker`; das Referenzbild
+(`base`) hat eigene, siehe [Referenzbilder](#referenzbilder-base):
 
 ```mermaid
 flowchart TD
@@ -146,19 +148,17 @@ flowchart TD
     RETRY -->|"next_attempt_at erreicht<br/>(Backoff: 15s/30s/1m/2m/4m)"| PENDING
 
     RUNNING -.->|"App/Prozess killt mid-claim —<br/>recoverInterruptedWork() beim nächsten<br/>App-Start (blanket reset, kein Lease nötig)"| PENDING
-
-    PERM -.->|"BaseWorker: fällt auf<br/>inatPrimary/inatBackfill zurück<br/>(falls konsentiert)"| PENDING
 ```
 
 Wichtige Details dazu:
 
 - **Klassifizierung vor Retry-Entscheidung** (`classifyEnrichmentFailure`,
-  geteilt mit `CoverJobRunner`): `TimeoutException`/`http.ClientException`/
-  ein retrybarer `HttpDownloadException` gelten als `temporary` (volles
-  5-Versuche-Backoff-Budget); alles andere — inklusive eines nicht-retrybaren
-  `HttpDownloadException` (z. B. 404) — gilt als `permanent` und gibt sofort
-  auf, statt ~7 Minuten Backoff für einen Fehler zu verbrennen, der ohnehin
-  nie erfolgreich gewesen wäre.
+  geteilt von `INatWorker` und `CoverJobRunner`): `TimeoutException`/
+  `http.ClientException`/ein retrybarer `HttpDownloadException` gelten als
+  `temporary` (volles 5-Versuche-Backoff-Budget); alles andere — inklusive
+  eines nicht-retrybaren `HttpDownloadException` (z. B. 404) — gilt als
+  `permanent` und gibt sofort auf, statt ~7 Minuten Backoff für einen Fehler
+  zu verbrennen, der ohnehin nie erfolgreich gewesen wäre.
 - **Crash-Recovery ist ein blanket reset, kein Lease-System:** Anders als
   `EnrichmentJobRepository`'s Job-Leases (mehrere mögliche Runner-Instanzen)
   gibt es pro Prozess genau einen `BaseWorker`/`INatWorker`. Jede beim letzten
@@ -181,12 +181,17 @@ Wichtige Details dazu:
   additiv nach ("Nachzügler-Runde", `registerResolvedSpeciesForDeck`). Jede
   dieser Folge-Seeds ist idempotent (`ConflictAlgorithm.ignore`) und
   respektiert dieselbe Consent-Prüfung wie oben.
-- **Host-Cooldown ist rein informativ:** `HostCooldownTracker` (gespeist von
-  `LoggingHttpClient`s HTTP-Fehlerprotokoll) gate't keine Requests der Worker
-  selbst — die eigentliche Drosselung passiert ausschließlich über die
-  Backoff-Schritte pro Capability-Zeile oben. Der Tracker steuert nur die
+- **Host-Cooldown bremst jeden Request an den Host:** `HostCooldownTracker`
+  wird von `LoggingHttpClient` gespeist, und derselbe Client wartet vor jedem
+  Request einen aktiven Cooldown des Ziel-Hosts ab (`waitIfCoolingDown`) —
+  für die Worker wie für jeden anderen Aufrufer. Wer nicht warten soll,
+  überspringt den Host stattdessen (`ImageService.downloadAndSaveUrls` mit
+  `skipIfHostCoolingDown`, genutzt vom Referenzbild-Download und vom
+  interaktiven Nachladen einer Karte). Daneben steuert der Tracker die
   `DeckEnrichmentState.cooldown`-Anzeige und ob die Android-Foreground-
-  Service-Notification aktiv bleiben soll.
+  Service-Notification aktiv bleiben soll. Endet ein Cooldown, zieht
+  `clearRetryAttemptForRetryScheduledWorkItems` alle geplanten Wiederholungen
+  vor — außer denen eines Referenzbilds in der langen Phase (siehe unten).
 - **Restart-Wunsch bei laufendem Durchlauf:** `_ensureForegroundRunner()`
   markiert einen Restart-Wunsch, wenn es während eines bereits laufenden
   `_runForegroundJobs()`-Durchlaufs aufgerufen wird, damit kurz hintereinander
@@ -232,6 +237,85 @@ Wichtige Details dazu:
   darüber hinaus als prozessübergreifender Dedup-Cache bestehen (auch für
   Species in keinem Deck), damit erneutes Hinzufügen dieselbe Enrichment nicht
   wiederholt.
+
+### Referenzbilder (`base`)
+
+Ein Referenzbild (FishBase/SeaLifeBase) folgt einer eigenen Regel,
+`BaseImageRetryPolicy` (`pipeline/model/`). Sie hält die Zahlen an einer
+Stelle: `BaseWorker` bucht danach, die Deck-Projektion und
+`clearRetryAttemptForRetryScheduledWorkItems` erkennen danach die lange
+Phase (in SQL über `baseLongPhaseCondition` aus `enrichment_work_tables.dart`,
+abgeleitet aus derselben Konstante).
+
+```mermaid
+flowchart TD
+    RUN["running"] -->|"mind. ein Bild gespeichert"| DONE(["done"])
+    RUN -->|"keine Bild-URL"| NORES(["noResult + iNat-Fallback"])
+    RUN -->|"imageMissing:<br/>alle URLs 404/410/andere 4xx"| PERM(["permanentFailure<br/>+ iNat-Fallback + Markierung<br/>+ reference_db_version"])
+    RUN -->|"Host-Problem / other,<br/>1. Fehlschlag"| SHORT["retryScheduled<br/>(+15 s)"]
+    SHORT --> RUN2["running"]
+    RUN2 -->|"2. Fehlschlag"| LONG["retryScheduled, lange Phase<br/>+ iNat-Fallback + Markierung<br/>(+24 h)"]
+    LONG -->|"nächster Durchlauf nach 24 h"| RUN3["running"]
+    RUN3 -->|"Fehlschlag 3 oder 4"| LONG
+    RUN3 -->|"5. Fehlschlag"| PERM2(["permanentFailure<br/>+ reference_db_version"])
+    RUN2 -->|"Erfolg"| DONE
+    RUN3 -->|"Erfolg"| DONE
+```
+
+- **Ergebnis je URL statt verschluckter Fehler:**
+  `ImageService.downloadAndSaveUrls` meldet je URL ein
+  `ImageDownloadOutcome` (`shared/service/`):
+  gespeichert (auch: lag schon im Cache), Host nicht erreichbar
+  (Verbindungsfehler, Timeout, 408/425/429/5xx, im Cooldown übersprungen),
+  Host verweigert (403), Bild fehlt (404, 410 und jedes andere 4xx) oder
+  lokaler Fehler. `downloadAndSaveUrlMap` leitet sich daraus ab.
+- **Zusammenfassung je Art** (`BaseImageEnrichmentService`): ein gespeichertes
+  Bild genügt. Sonst entscheidet ein Host-Problem vor einem fehlenden Bild —
+  Grund `hostBlocked`, wenn alle Host-Probleme 403 waren, sonst
+  `hostUnavailable`. Ein lokaler Fehler wird als `other` wiederholt, ebenso
+  jede Ausnahme, die bis in den `BaseWorker` durchschlägt (auch ein
+  Datenbankfehler). Nur wenn jede URL ohne Bild beantwortet wurde, gilt
+  `imageMissing`.
+- **Zwei Phasen:** Zwei kurze Versuche (der zweite 15 s nach dem ersten),
+  damit ein kurzer Aussetzer nicht einen Tag Referenzbild kostet. Scheitert
+  auch der zweite, weicht die Art sofort auf iNaturalist aus (`inatPrimary`
+  + `inatBackfill`, wie bei fehlender Bild-URL), und das Referenzbild wird in
+  der langen Phase noch dreimal im Abstand von 24 h versucht; danach
+  `permanentFailure`. Ein fehlendes Bild gibt sofort auf — Wiederholen
+  bringt dieselbe Antwort.
+- **Kein Wecker:** Für `next_attempt_at` gibt es keinen Timer. Eine fällige
+  Zeile wird beim nächsten Durchlauf geclaimt (App-Start, Resume,
+  Netzwechsel, neue Einplanung, Cooldown-Ende). Für 24 h genügt das.
+- **Ersatz-Host:** Hat ein Bild-Host ein Problem (auch: im Cooldown
+  übersprungen) und einen Eintrag in `imageHostFallbacks`
+  (`shared/service/image_host_fallbacks.dart`), lädt `ImageService` denselben
+  Pfad vom Ersatz-Host — heute `www.fishbase.se` → `fishbase.de`. Die Datei
+  wird unter dem Namen der ursprünglichen URL abgelegt, denn der lokale Cache
+  ist nach der URL aus der Referenz-DB benannt. Ein 404 fragt den Ersatz-Host
+  nicht. SeaLifeBase hat keinen Eintrag: sein zweiter Host antwortet einer
+  App mit einer Cloudflare-Challenge (403).
+- **Das Deck wartet nicht auf die lange Phase:** Eine `base`-Zeile in der
+  langen Phase zählt in `DeckProjectionBuilder` wie ein `base` ohne
+  Ergebnis — die Art ist bildfertig, sobald `inatPrimary` terminal ist oder
+  keine iNat-Einwilligung besteht — und ihr `next_attempt_at` speist weder
+  `earliestRetryAt` (Pause) noch `hasImmediatePendingWork`. Ein Deck zeigt
+  in der langen Phase also `done`, sobald die übrige Arbeit fertig ist; erst
+  das endgültige Aufgeben macht daraus `doneWithGaps`. Auch das Vorziehen
+  aller Wiederholungen beim Ende eines Host-Cooldowns lässt diese Zeilen aus:
+  ein Cooldown von Sekunden sagt nichts über einen stundenlangen Ausfall.
+- **Markierung für die Auswertung:** Der Fehlschlag, mit dem eine Art
+  ausweicht, schreibt in derselben Zeile `fallback_reason`
+  (`BaseImageFallbackReason`), `fallback_host` und `fallback_at`. Die
+  Markierung heißt „zuletzt ausgewichen am …, weil …": Ein späteres
+  `done` und die Resets lassen sie stehen, erst ein erneutes Ausweichen
+  überschreibt sie. Die lange Phase wird bewusst nicht daran erkannt, sondern
+  an `attempt_count` und Zustand — die Markierung überdauert Resets, die
+  Phase nicht. Die Diagnoseseite und ihr Textbericht zählen markierte Arten
+  nach Grund × Host × heutigem `base`-Zustand
+  (`loadBaseImageFallbackCounts`); `done` darunter sind Arten, die ihr
+  Referenzbild später doch bekommen haben. Das HTTP-Fehlerprotokoll hält
+  zusätzlich den Header `cf-mitigated` fest (`details.cfMitigated`), sodass
+  eine Cloudflare-Sperre von einem gewöhnlichen 403 zu unterscheiden ist.
 
 ## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
 
@@ -499,19 +583,22 @@ geholt wurden. Die Fotodateien verworfener Fotos bleiben unter
 Jede terminal-markierte `base`-Capability-Zeile trägt zusätzlich
 `reference_db_version` — die `ReferenceDatabaseProvisioner`-Version
 (`shared/persistence/`), die zum Zeitpunkt des Abschlusses installiert war
-(`BaseWorker._runOne`, gestempelt sowohl bei `done` als auch `noResult`).
-Damit lässt sich erkennen, welche Arten mit einer älteren Version der
-Referenz-DB (FishBase/SeaLifeBase) angereichert wurden als aktuell
-installiert ist — eine Zeile ohne Stempel (`NULL`, vor Einführung dieser
-Spalte abgeschlossen) gilt ebenfalls als veraltet.
+(`BaseWorker`, gestempelt bei `done`, `noResult` und beim Aufgeben,
+`permanentFailure`). Damit lässt sich erkennen, welche Arten mit einer
+älteren Version der Referenz-DB (FishBase/SeaLifeBase) angereichert wurden
+als aktuell installiert ist — eine Zeile ohne Stempel (`NULL`) gilt
+ebenfalls als veraltet. Das schließt `permanentFailure` ein: Eine neuere
+Referenz-DB kann andere Bild-URLs nennen. Zählung, Reset und
+Deck-Projektion verwenden dieselbe Zustandsmenge
+(`staleCheckedBaseStates` in `enrichment_work_tables.dart`).
 
 Drei unabhängige Wege, das aufzulösen — **immer nur manuell/nutzergetriggert,
 nie automatisch**:
 
 | Auslöser | Methode (`INatEnrichmentQueueService`) | Umfang | Betrifft |
 |---|---|---|---|
-| Einmaliger Dialog direkt nach einem Referenz-DB-Update (`main_screen_page.dart` → `maybeShowBaseRefreshPrompt`) | `refreshAllStaleBaseImages()` | app-weit | nur tatsächlich veraltete Arten |
-| Edit-Deck-Hinweis "Nach aktuellen Bildern suchen" (sichtbar, sobald `staleBaseSpeciesCount > 0`) | `refreshStaleBaseImages(deckId)` | ein Deck | nur tatsächlich veraltete Arten des Decks |
+| Einmaliger Dialog direkt nach einem Referenz-DB-Update (`main_screen_page.dart` → `maybeShowBaseRefreshPrompt`) | `refreshAllStaleBaseImages()` | app-weit | nur tatsächlich veraltete Arten (`done`, `noResult`, `permanentFailure`) |
+| Edit-Deck-Hinweis "Nach aktuellen Bildern suchen" (sichtbar, sobald `staleBaseSpeciesCount > 0`) | `refreshStaleBaseImages(deckId)` | ein Deck | nur tatsächlich veraltete Arten des Decks (`done`, `noResult`, `permanentFailure`) |
 | Edit-Deck "Erneut anreichern"/"Jetzt anreichern" (Basis/Vollständig-Auswahl über `showDeckDownloadChoiceDialog`) | `retriggerBaseEnrichment(deckId)` | ein Deck | **alle** terminalen `base`-Zeilen des Decks, inkl. `permanentFailure` — unconditional, keine Versionsprüfung |
 
 Alle drei setzen die betroffenen `base`-Zeilen zurück auf `pending`, sodass
@@ -575,7 +662,8 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `DeckEnrichmentStatusStore` | `queue/service/` | Hält den Deck-Zustand im Speicher (Delta-Laden, High-Water-Marks) und leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
 | `PauseVisibilityScheduler` | `queue/service/` | Hält Pausen und Host-Cooldowns zurück, bis sie lange genug dauern, um sie zu zeigen — und weckt die UI in dem Moment, in dem das eintritt |
 | `EnrichmentBackgroundPresence` | `queue/service/` | Entscheidet, ob die App eine sichtbare Hintergrund-Präsenz für Enrichment hält (Android-Foreground-Service samt Notification) und was darin steht |
-| `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit |
+| `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit; setzt `BaseImageRetryPolicy` um |
+| `BaseImageRetryPolicy` | `pipeline/model/` | Kurze und lange Phase eines Referenzbilds: Versuche, Abstände, wann die Art auf iNat ausweicht |
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
 | `CoverJobRunner` | `queue/service/` | Führt den Cover-Mini-Job aus (Lease/Retry) |
 | `EnrichmentJobRepository` | `queue/repository/` | Eine Zeile pro Deck in `enrichment_jobs`: Lebenszyklus (Status, Lease, Retry) und `cover_state` |
@@ -595,7 +683,8 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `ExternalIdRejectionRepository` / `INatAllowedAncestorRepository` | `catalog/repository/` | Lesen die Ablehnungen und die erlaubten iNat-Stämme und -Klassen je Klasse aus der Referenz-DB; ohne die Tabellen (ältere Referenz-DB) keine Ablehnung bzw. keine Prüfung |
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
-| `HostCooldownTracker` | `shared/service/` | Rein informativ: UI-Cooldown-Anzeige + Keepalive-Signal, gate't keine Requests |
+| `HostCooldownTracker` | `shared/service/` | Cooldown je Host: `LoggingHttpClient` wartet ihn vor jedem Request ab; speist außerdem die Cooldown-Anzeige und das Keepalive-Signal |
+| `ImageService` / `imageHostFallbacks` | `shared/service/` | Lädt Bilder und meldet je URL ein `ImageDownloadOutcome`; versucht bei einem Host-Problem den Ersatz-Host |
 | `ReferenceDatabaseProvisioner` | `shared/persistence/` | Download/Installation der Referenz-DB; `currentVersion()` wird von `BaseWorker` beim Terminal-Markieren von `base` gestempelt und für die Staleness-Erkennung oben gelesen |
 
 ## Wo die UI das liest
