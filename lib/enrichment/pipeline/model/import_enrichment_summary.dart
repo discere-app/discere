@@ -3,10 +3,10 @@
 /// The import flow can enrich decks with local reference images,
 /// iNaturalist photos, and multilingual common names. This value object keeps
 /// the combined counts in one place so the UI can render a single summary.
-/// Shared across every enrichment capability service
-/// (`BaseImageEnrichmentService`, `INatPhotoEnrichmentService`,
-/// `SpeciesCommonNameEnrichmentService`, `TaxonomyCommonNameEnrichmentService`)
-/// rather than owned by any one of them.
+/// Shared across the iNaturalist enrichment capability services
+/// (`INatPhotoEnrichmentService`, `SpeciesCommonNameEnrichmentService`,
+/// `TaxonomyCommonNameEnrichmentService`) rather than owned by any one of
+/// them.
 class ImportEnrichmentSummary {
   final int imageSpeciesCount;
   final int imageCount;

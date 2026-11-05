@@ -1,5 +1,7 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
@@ -173,5 +175,103 @@ void main() {
       EnrichmentWorkTables.taxonomyWork,
     );
     expect(rows.single['common_names_state'], 'done');
+  });
+
+  group('recordBaseImageAttemptFailure', () {
+    setUp(() async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+    });
+
+    Future<bool> fail({
+      BaseImageFallbackReason reason = BaseImageFallbackReason.hostUnavailable,
+      String? host = 'www.fishbase.se',
+    }) => outcomes.recordBaseImageAttemptFailure(
+      'sp-a',
+      reason: reason,
+      host: host,
+      error: 'failed',
+      failureKind: 'temporary',
+      referenceDbVersion: 7,
+    );
+
+    Future<Map<String, Object?>> baseRow() async => (await database.query(
+      EnrichmentWorkTables.capabilityState,
+      where: "species_id = 'sp-a' AND capability = 'base'",
+    )).single;
+
+    test('falls back with the last short attempt only, and gives up after '
+        'the long phase with the reference-DB version stamped', () async {
+      final fallsBack = [for (var i = 0; i < 5; i++) await fail()];
+
+      expect(fallsBack, [false, true, false, false, false]);
+      final row = await baseRow();
+      expect(row['state'], 'permanentFailure');
+      expect(row['attempt_count'], BaseImageRetryPolicy.maxAttempts);
+      expect(row['reference_db_version'], 7);
+    });
+
+    test('stamps no reference-DB version while it still retries', () async {
+      await fail();
+      await fail();
+
+      expect((await baseRow())['reference_db_version'], isNull);
+    });
+
+    test('marks the fallback, and a failure in the long phase leaves the '
+        'marking as it was', () async {
+      await fail();
+      expect((await baseRow())['fallback_reason'], isNull);
+
+      await fail(host: 'www.fishbase.se');
+      final marked = await baseRow();
+      expect(marked['fallback_reason'], 'hostUnavailable');
+      expect(marked['fallback_host'], 'www.fishbase.se');
+      expect(marked['fallback_at'], isNotNull);
+
+      await fail(reason: BaseImageFallbackReason.hostBlocked, host: 'x.org');
+      final later = await baseRow();
+      expect(later['fallback_reason'], 'hostUnavailable');
+      expect(later['fallback_host'], 'www.fishbase.se');
+      expect(later['fallback_at'], marked['fallback_at']);
+    });
+
+    test('a missing image falls back and gives up with the first '
+        'failure', () async {
+      final fallsBack = await fail(
+        reason: BaseImageFallbackReason.imageMissing,
+      );
+
+      expect(fallsBack, isTrue);
+      final row = await baseRow();
+      expect(row['state'], 'permanentFailure');
+      expect(row['reference_db_version'], 7);
+      expect(row['fallback_reason'], 'imageMissing');
+    });
+
+    test('the marking outlives a later success, and the next fallback '
+        'overwrites it', () async {
+      await fail();
+      await fail();
+      await outcomes.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
+      );
+      final succeeded = await baseRow();
+      expect(succeeded['state'], 'done');
+      expect(succeeded['fallback_reason'], 'hostUnavailable');
+      expect(succeeded['fallback_host'], 'www.fishbase.se');
+
+      await fail(reason: BaseImageFallbackReason.imageMissing, host: 'a.org');
+
+      final refallen = await baseRow();
+      expect(refallen['fallback_reason'], 'imageMissing');
+      expect(refallen['fallback_host'], 'a.org');
+    });
   });
 }

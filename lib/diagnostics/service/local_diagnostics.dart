@@ -130,6 +130,9 @@ class LocalDiagnostics implements DiagnosticsSink {
         details: {
           'requestUrl': request.url.toString(),
           'reasonPhrase': reasonPhrase,
+          // Cloudflare names its own interventions here (e.g. `challenge`),
+          // which is what tells a host's bot wall apart from a plain 403.
+          'cfMitigated': ?response.headers['cf-mitigated'],
         },
       );
     }

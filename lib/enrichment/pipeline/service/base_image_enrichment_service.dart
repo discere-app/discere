@@ -1,78 +1,66 @@
-import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_download_result.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
+import 'package:discere/shared/service/image_download_outcome.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/util/concurrency_utils.dart';
 
-/// Downloads FishBase/SealifeBase reference images for species that don't
+/// Downloads a species' FishBase/SealifeBase reference images that don't
 /// already have a local copy — the `base` capability in the producer-consumer
-/// enrichment pipeline, driven by `BaseWorker`. Reports how many species got
-/// an image actually saved to disk (and the total image count) through the
-/// returned [ImportEnrichmentSummary]; `BaseWorker` marks a species terminal
-/// only when that count is non-zero, so a species whose download silently
-/// failed stays pending for retry rather than completing without a local file.
+/// enrichment pipeline, driven by `BaseWorker` — and folds how each URL
+/// ended into one [BaseImageDownloadResult] for the species.
 class BaseImageEnrichmentService {
-  static const _maxConcurrentFetches = 3;
   static const _referenceImagesDirectory = 'reference_images';
 
-  final SpeciesRepository _speciesRepository;
   final ImageService _imageService;
 
-  const BaseImageEnrichmentService(this._speciesRepository, this._imageService);
+  const BaseImageEnrichmentService(this._imageService);
 
-  Future<ImportEnrichmentSummary> downloadBaseImagesForSpecies(
-    Set<String> speciesIds, {
-    bool Function()? isCancelled,
-  }) async {
-    if (speciesIds.isEmpty) {
-      return ImportEnrichmentSummary.empty;
-    }
-
-    final speciesList = (await _speciesRepository.getSpecies(
-      speciesIds,
-    )).toList();
-    var speciesWithImages = 0;
-    var imageCount = 0;
-
-    await runConcurrently<Species>(
-      speciesList,
-      maxConcurrent: _maxConcurrentFetches,
-      isCancelled: isCancelled,
-      task: (species) async {
-        try {
-          final picturesByUrl = _picturesByUrl(species.pictures);
-          if (picturesByUrl.isNotEmpty) {
-            final downloaded = await _imageService.downloadAndSaveUrlMap(
-              picturesByUrl.keys.toSet(),
-              storageDirectory: _referenceImagesDirectory,
-            );
-            if (downloaded.isNotEmpty) {
-              speciesWithImages++;
-              imageCount += picturesByUrl.length;
-            }
-          }
-        } catch (_) {
-          // Keep going so one broken species image set does not block the deck.
-        }
-      },
+  /// A host in cooldown is skipped rather than waited for: during an outage
+  /// every species of a batch would otherwise sit out the same cooldown in
+  /// turn, only to fail the same way.
+  Future<BaseImageDownloadResult> downloadReferenceImages(
+    Species species,
+  ) async {
+    final outcomes = await _imageService.downloadAndSaveUrls(
+      {for (final picture in species.pictures) ?picture.url},
+      storageDirectory: _referenceImagesDirectory,
+      skipIfHostCoolingDown: true,
     );
-
-    return ImportEnrichmentSummary(
-      imageSpeciesCount: speciesWithImages,
-      imageCount: imageCount,
-      commonNameSpeciesCount: 0,
-      commonNameCount: 0,
-    );
+    return _resultOf(outcomes.values);
   }
 
-  Map<String, Picture> _picturesByUrl(Iterable<Picture> pictures) {
-    final picturesByUrl = <String, Picture>{};
-    for (final picture in pictures) {
-      final url = picture.url;
-      if (url == null || url.isEmpty) continue;
-      picturesByUrl.putIfAbsent(url, () => picture);
+  /// One image on disk is enough for the species. Otherwise a host problem
+  /// outweighs a missing image, because a host that could not be asked might
+  /// still have the image, while giving up on it cannot be undone by a
+  /// retry: the reason is [BaseImageFallbackReason.hostBlocked] when every
+  /// host problem was a refusal, else
+  /// [BaseImageFallbackReason.hostUnavailable]. A local failure is retried
+  /// like a host problem ([BaseImageFallbackReason.other]) rather than given
+  /// up on silently. Only when every URL was answered without its image is
+  /// the species [BaseImageFallbackReason.imageMissing].
+  static BaseImageDownloadResult _resultOf(
+    Iterable<ImageDownloadOutcome> outcomes,
+  ) {
+    if (outcomes.any((outcome) => outcome is ImageSaved)) {
+      return const BaseImageSaved();
     }
-    return picturesByUrl;
+    final hostProblems = outcomes.whereType<ImageHostProblem>().toList();
+    if (hostProblems.isNotEmpty) {
+      final allRefused = hostProblems.every(
+        (problem) => problem is ImageHostRefused,
+      );
+      final reason = allRefused
+          ? BaseImageFallbackReason.hostBlocked
+          : BaseImageFallbackReason.hostUnavailable;
+      return BaseImageFailed(reason, host: hostProblems.first.host);
+    }
+    if (outcomes.any((outcome) => outcome is ImageLocalFailure)) {
+      return const BaseImageFailed(BaseImageFallbackReason.other);
+    }
+    final missing = outcomes.whereType<ImageNotFound>().firstOrNull;
+    return BaseImageFailed(
+      BaseImageFallbackReason.imageMissing,
+      host: missing?.host,
+    );
   }
 }

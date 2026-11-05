@@ -46,12 +46,22 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     final states = entry.value
         .map(
           (state) => state.nextAttemptAt == null
-              ? '${state.state}=${state.count}'
-              : '${state.state}=${state.count} '
+              ? '${state.state.wireName}=${state.count}'
+              : '${state.state.wireName}=${state.count} '
                     '(next ${state.nextAttemptAt!.toIso8601String()})',
         )
         .join(', ');
     buffer.writeln('- ${entry.key}: $states');
+  }
+  buffer
+    ..writeln()
+    ..writeln('base image fallbacks (by base state now):');
+  final fallbacks = groupBaseImageFallbackCounts(data.healthSnapshot);
+  for (final MapEntry(key: label, value: counts) in fallbacks.entries) {
+    final states = counts
+        .map((count) => '${count.baseState.wireName}=${count.count}')
+        .join(', ');
+    buffer.writeln('- $label: $states');
   }
   buffer
     ..writeln()

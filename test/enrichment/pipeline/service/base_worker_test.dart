@@ -1,9 +1,8 @@
-import 'dart:async';
-
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_download_result.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
@@ -64,6 +63,7 @@ void main() {
   late BaseWorker worker;
 
   setUp(() async {
+    provideDummy<BaseImageDownloadResult>(const BaseImageSaved());
     SharedPreferences.setMockInitialValues({});
     database = await openInMemoryUserDatabase();
     ownershipRepository = EnrichmentOwnershipRepository(database);
@@ -106,7 +106,7 @@ void main() {
 
   test(
     'a species with no reference picture at all falls back to iNat '
-    'immediately, without ever calling downloadBaseImagesForSpecies',
+    'immediately, without ever calling downloadReferenceImages',
     () async {
       await seedSpecies('sp-no-pic');
       when(speciesRepository.getSpecies(any)).thenAnswer(
@@ -116,7 +116,7 @@ void main() {
       final processedAny = await worker.runUntilIdle(shouldStop: () => false);
 
       expect(processedAny, isTrue);
-      verifyNever(baseImageEnrichmentService.downloadBaseImagesForSpecies(any));
+      verifyNever(baseImageEnrichmentService.downloadReferenceImages(any));
 
       final base = await loadCapability('sp-no-pic', 'base');
       expect(base['state'], 'noResult');
@@ -138,15 +138,8 @@ void main() {
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenAnswer(
-      (_) async => const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      ),
-    );
+      baseImageEnrichmentService.downloadReferenceImages(any),
+    ).thenAnswer((_) async => const BaseImageSaved());
 
     await worker.runUntilIdle(shouldStop: () => false);
 
@@ -171,15 +164,8 @@ void main() {
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenAnswer(
-      (_) async => const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      ),
-    );
+      baseImageEnrichmentService.downloadReferenceImages(any),
+    ).thenAnswer((_) async => const BaseImageSaved());
 
     await worker.runUntilIdle(shouldStop: () => false);
 
@@ -212,15 +198,8 @@ void main() {
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenAnswer(
-      (_) async => const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      ),
-    );
+      baseImageEnrichmentService.downloadReferenceImages(any),
+    ).thenAnswer((_) async => const BaseImageSaved());
 
     await worker.runUntilIdle(shouldStop: () => false);
 
@@ -229,107 +208,136 @@ void main() {
     expect(base['reference_db_version'], isNull);
   });
 
-  test('a download that keeps returning zero images retries with backoff below '
-      'the attempt cap, without falling back to iNat yet', () async {
-    await seedSpecies('sp-a');
+  /// Runs the worker [times] times, each time against a failure for
+  /// [reason] at [host], making the retry due at once in between rather than
+  /// waiting out the real backoff.
+  Future<void> failAttempts(
+    int times, {
+    BaseImageFallbackReason reason = BaseImageFallbackReason.hostUnavailable,
+    String? host = 'www.fishbase.se',
+  }) async {
     when(
-      speciesRepository.getSpecies(any),
-    ).thenAnswer((_) async => {_species('sp-a')});
-    when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenAnswer((_) async => ImportEnrichmentSummary.empty);
-
-    for (var attempt = 0; attempt < 4; attempt++) {
-      await worker.runUntilIdle(shouldStop: () => false);
-      // Force the row immediately claimable again for the next attempt in
-      // this test, rather than waiting out the real backoff duration.
+      baseImageEnrichmentService.downloadReferenceImages(any),
+    ).thenAnswer((_) async => BaseImageFailed(reason, host: host));
+    for (var attempt = 0; attempt < times; attempt++) {
       await database.update(
         EnrichmentWorkTables.capabilityState,
         {'next_attempt_at': null},
         where: "species_id = ? AND capability = 'base'",
         whereArgs: ['sp-a'],
       );
+      await worker.runUntilIdle(shouldStop: () => false);
     }
+  }
 
-    final base = await loadCapability('sp-a', 'base');
-    expect(base['state'], 'retryScheduled');
-    expect(base['attempt_count'], 4);
+  /// How far [row]'s retry lies from now.
+  Duration retryDelayOf(Map<String, Object?> row) =>
+      DateTime.fromMillisecondsSinceEpoch(
+        row['next_attempt_at'] as int,
+      ).difference(DateTime.now());
 
-    final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
-    expect(inatPrimary, isEmpty);
+  group('a host problem', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeyVersion: 7,
+      });
+      await seedSpecies('sp-a');
+      when(
+        speciesRepository.getSpecies(any),
+      ).thenAnswer((_) async => {_species('sp-a')});
+    });
+
+    test('is retried shortly after the first failure, without falling back '
+        'to iNat yet', () async {
+      await failAttempts(1);
+
+      final base = await loadCapability('sp-a', 'base');
+      expect(base['state'], 'retryScheduled');
+      expect(base['attempt_count'], 1);
+      expect(
+        retryDelayOf(base),
+        lessThanOrEqualTo(const Duration(seconds: 15)),
+      );
+      expect(base['fallback_reason'], isNull);
+      expect(await loadCapability('sp-a', 'inatPrimary'), isEmpty);
+    });
+
+    test('falls back to iNat after the second failure, marks the species '
+        'and retries the reference image a day later', () async {
+      final before = DateTime.now().millisecondsSinceEpoch;
+
+      await failAttempts(2);
+
+      final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
+      expect(inatPrimary['state'], 'pending');
+      expect(inatPrimary['priority_tier'], 10);
+      final inatBackfill = await loadCapability('sp-a', 'inatBackfill');
+      expect(inatBackfill['state'], 'pending');
+      expect(inatBackfill['priority_tier'], 40);
+      final base = await loadCapability('sp-a', 'base');
+      expect(base['state'], 'retryScheduled');
+      expect(base['attempt_count'], 2);
+      expect(
+        retryDelayOf(base),
+        greaterThan(const Duration(hours: 23, minutes: 59)),
+      );
+      expect(base['fallback_reason'], 'hostUnavailable');
+      expect(base['fallback_host'], 'www.fishbase.se');
+      expect(base['fallback_at'], greaterThanOrEqualTo(before));
+    });
+
+    test('gives up after the fifth failure, stamping the reference-DB '
+        'version and keeping the marking of the fallback', () async {
+      await failAttempts(2, host: 'www.fishbase.se');
+      await failAttempts(3, host: 'fishbase.de');
+
+      final base = await loadCapability('sp-a', 'base');
+      expect(base['state'], 'permanentFailure');
+      expect(base['attempt_count'], 5);
+      expect(base['reference_db_version'], 7);
+      expect(base['fallback_host'], 'www.fishbase.se');
+    });
   });
 
-  test('a download that keeps failing gives up after the attempt cap and falls '
-      'back to iNat', () async {
+  test('a missing image is given up on at once, falling back to iNat and '
+      'marking the species', () async {
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 7,
+    });
     await seedSpecies('sp-a');
     when(
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
-    when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenAnswer((_) async => ImportEnrichmentSummary.empty);
 
-    for (var attempt = 0; attempt < 5; attempt++) {
-      await worker.runUntilIdle(shouldStop: () => false);
-      await database.update(
-        EnrichmentWorkTables.capabilityState,
-        {'next_attempt_at': null},
-        where: "species_id = ? AND capability = 'base'",
-        whereArgs: ['sp-a'],
-      );
-    }
+    await failAttempts(1, reason: BaseImageFallbackReason.imageMissing);
 
     final base = await loadCapability('sp-a', 'base');
     expect(base['state'], 'permanentFailure');
-    expect(base['attempt_count'], 5);
-
-    final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
-    expect(inatPrimary['state'], 'pending');
-    expect(inatPrimary['priority_tier'], 10);
-
-    final inatBackfill = await loadCapability('sp-a', 'inatBackfill');
-    expect(inatBackfill['state'], 'pending');
-    expect(inatBackfill['priority_tier'], 40);
-  });
-
-  test('a transient exception from downloadBaseImagesForSpecies is treated '
-      'the same as a zero-image result: retried, not thrown', () async {
-    await seedSpecies('sp-a');
-    when(
-      speciesRepository.getSpecies(any),
-    ).thenAnswer((_) async => {_species('sp-a')});
-    when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenThrow(TimeoutException('boom'));
-
-    final processedAny = await worker.runUntilIdle(shouldStop: () => false);
-
-    expect(processedAny, isTrue);
-    final base = await loadCapability('sp-a', 'base');
-    expect(base['state'], 'retryScheduled');
     expect(base['attempt_count'], 1);
+    expect(base['reference_db_version'], 7);
+    expect(base['fallback_reason'], 'imageMissing');
+    expect(base['fallback_host'], 'www.fishbase.se');
+    expect((await loadCapability('sp-a', 'inatPrimary'))['state'], 'pending');
   });
 
-  test('a non-network exception from downloadBaseImagesForSpecies is '
-      'classified permanent and gives up immediately instead of burning the '
-      'retry budget', () async {
+  test('an exception from downloadReferenceImages is booked as a failed '
+      'attempt and retried like a host problem, not thrown', () async {
     await seedSpecies('sp-a');
     when(
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+      baseImageEnrichmentService.downloadReferenceImages(any),
     ).thenThrow(StateError('boom'));
 
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
 
     expect(processedAny, isTrue);
     final base = await loadCapability('sp-a', 'base');
-    expect(base['state'], 'permanentFailure');
+    expect(base['state'], 'retryScheduled');
     expect(base['attempt_count'], 1);
-
-    final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
-    expect(inatPrimary['state'], 'pending');
+    expect(base['last_error'], 'Bad state: boom');
+    expect(await loadCapability('sp-a', 'inatPrimary'), isEmpty);
   });
 
   test('a real database error while processing a species is booked as its '
@@ -340,29 +348,28 @@ void main() {
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+      baseImageEnrichmentService.downloadReferenceImages(any),
     ).thenAnswer((_) async {
       await database.rawQuery('SELECT * FROM no_such_table');
-      return ImportEnrichmentSummary.empty;
+      return const BaseImageSaved();
     });
 
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
 
     expect(processedAny, isTrue);
     final base = await loadCapability('sp-a', 'base');
-    expect(base['state'], 'permanentFailure');
+    expect(base['state'], 'retryScheduled');
     expect(base['attempt_count'], 1);
-    expect(warnings, hasLength(2));
+    expect(warnings, hasLength(1));
     expect(
-      warnings.first,
+      warnings.single,
       startsWith(
         '[BaseWorker] Base image download failed for sp-a — '
         'SqfliteFfiException: ',
       ),
     );
-    expect(warnings.first, contains('no such table: no_such_table'));
-    expect(warnings.first, contains('\n    #0 '));
-    expect(warnings.last, contains('Giving up on base image for sp-a'));
+    expect(warnings.single, contains('no such table: no_such_table'));
+    expect(warnings.single, contains('\n    #0 '));
   });
 
   test('a database closed while processing a species ends the loop without '
@@ -374,7 +381,7 @@ void main() {
       speciesRepository.getSpecies(any),
     ).thenAnswer((_) async => {_species('sp-a')});
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+      baseImageEnrichmentService.downloadReferenceImages(any),
     ).thenThrow(closed);
 
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
@@ -384,9 +391,7 @@ void main() {
     final base = await loadCapability('sp-a', 'base');
     expect(base['state'], 'running');
     expect(base['attempt_count'], 0);
-    verify(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).called(1);
+    verify(baseImageEnrichmentService.downloadReferenceImages(any)).called(1);
   });
 
   test('runUntilIdle ends quietly, reporting the work it claimed, when the '
@@ -401,7 +406,7 @@ void main() {
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
 
     expect(processedAny, isTrue);
-    verifyNever(baseImageEnrichmentService.downloadBaseImagesForSpecies(any));
+    verifyNever(baseImageEnrichmentService.downloadReferenceImages(any));
   });
 
   test('runUntilIdle surfaces any other database error', () async {
@@ -456,15 +461,8 @@ void main() {
       return ids.map((id) => _species(id)).toSet();
     });
     when(
-      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    ).thenAnswer(
-      (_) async => const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      ),
-    );
+      baseImageEnrichmentService.downloadReferenceImages(any),
+    ).thenAnswer((_) async => const BaseImageSaved());
 
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
 

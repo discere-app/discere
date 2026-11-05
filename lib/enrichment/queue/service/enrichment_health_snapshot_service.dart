@@ -1,3 +1,4 @@
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
@@ -6,10 +7,12 @@ import 'package:discere/enrichment/queue/repository/enrichment_job_repository.da
 
 class EnrichmentHealthSnapshot {
   final List<EnrichmentWorkStateCount> workStateCounts;
+  final List<BaseImageFallbackCount> baseImageFallbackCounts;
   final List<EnrichmentJobRecord> coverJobs;
 
   const EnrichmentHealthSnapshot({
     required this.workStateCounts,
+    required this.baseImageFallbackCounts,
     required this.coverJobs,
   });
 
@@ -45,6 +48,7 @@ class EnrichmentHealthSnapshotService {
       _projectionRepository.loadTaxonomyWorkStateCounts(),
       _projectionRepository.loadUnresolvedNamesStateCounts(),
       _jobRepository.loadAllJobs(),
+      _projectionRepository.loadBaseImageFallbackCounts(),
     ]);
     final workStateCounts = [
       ...results[0] as List<EnrichmentWorkStateCount>,
@@ -53,6 +57,7 @@ class EnrichmentHealthSnapshotService {
     ];
     return EnrichmentHealthSnapshot(
       workStateCounts: workStateCounts,
+      baseImageFallbackCounts: results[4] as List<BaseImageFallbackCount>,
       coverJobs: results[3] as List<EnrichmentJobRecord>,
     );
   }

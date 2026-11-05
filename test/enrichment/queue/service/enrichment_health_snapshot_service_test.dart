@@ -1,8 +1,10 @@
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +63,32 @@ void main() {
     expect(snapshot.coverJobs.single.deckId, 'deck-1');
   });
 
+  test('loadSnapshot carries the base image fallbacks', () async {
+    await ownershipRepository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+    );
+    final outcomes = EnrichmentWorkOutcomeRepository(database);
+    await outcomes.recordBaseImageAttemptFailure(
+      'sp-a',
+      reason: BaseImageFallbackReason.imageMissing,
+      host: 'www.fishbase.se',
+      error: 'missing',
+      failureKind: 'permanent',
+      referenceDbVersion: null,
+    );
+
+    final snapshot = await service.loadSnapshot();
+
+    expect(snapshot.baseImageFallbackCounts.single.count, 1);
+    expect(
+      snapshot.baseImageFallbackCounts.single.reason,
+      BaseImageFallbackReason.imageMissing,
+    );
+  });
+
   test('recoverStuckWork recovers expired cover job leases', () async {
     await jobRepository.scheduleDeckJob(
       deckId: 'deck-1',
@@ -105,6 +133,7 @@ void main() {
             count: 5,
           ),
         ],
+        baseImageFallbackCounts: [],
         coverJobs: [],
       );
 

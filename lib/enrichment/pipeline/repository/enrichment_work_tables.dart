@@ -8,7 +8,9 @@
 /// those be separate classes without each inventing its own spelling.
 library;
 
+import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 
 class EnrichmentWorkTables {
   const EnrichmentWorkTables._();
@@ -38,11 +40,24 @@ final terminalStates = [
     if (state.isTerminal) state.wireName,
 ];
 
-/// The terminal states that carry a real answer from the source, as opposed
-/// to giving up. A stale-image refresh reclaims these but leaves
-/// `permanentFailure` alone — that one already exhausted its retry budget,
-/// and re-running it would just spend the budget again.
-final resolvedStates = [doneState, noResultState];
+/// The `base` states a newer reference DB can make stale — every terminal
+/// one. `done` and `noResult` were answered against the older catalog, and
+/// `permanentFailure` gave up on picture URLs the newer one may have
+/// replaced. The stale-image refresh counts and resets exactly these, and
+/// the deck projection counts the same set.
+final staleCheckedBaseStates = [
+  doneState,
+  noResultState,
+  permanentFailureState,
+];
+
+/// SQL condition, over a row of [EnrichmentWorkTables.capabilityState], for
+/// a `base` row in its long phase — the SQL form of
+/// [BaseImageRetryPolicy.isInLongPhase].
+final baseLongPhaseCondition =
+    "(capability = '${EnrichmentCapability.base.wireName}' "
+    'AND state NOT IN (${sqlList(terminalStates)}) '
+    'AND attempt_count >= ${BaseImageRetryPolicy.shortPhaseAttempts})';
 
 /// Renders wire values as a SQL literal list. Safe to interpolate: every
 /// value originates in [EnrichmentWorkState]/`EnrichmentCapability`, never in

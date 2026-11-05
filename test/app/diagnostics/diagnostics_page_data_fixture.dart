@@ -1,28 +1,34 @@
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
+import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// Page data with nothing to report but the reference-DB facts a test sets.
+/// Page data with nothing to report but the reference-DB facts, the
+/// work-state counts and the base-image fallbacks a test sets.
 DiagnosticsPageData diagnosticsPageData({
   DateTime? referenceDbFileModifiedAt,
   List<Source> referenceDbSources = const [],
   ReferenceDbUpdateState referenceDbUpdateState = const ReferenceDbUpToDate(),
   int? referenceIdsAppliedVersion,
   ReferenceIdMigrationRun? lastReferenceIdMigrationRun,
+  List<EnrichmentWorkStateCount> workStateCounts = const [],
+  List<BaseImageFallbackCount> baseImageFallbackCounts = const [],
 }) => DiagnosticsPageData(
   report: const LocalDiagnosticsReport(
     totalNetworkFailureCount: 0,
     hostFailures: [],
     recentFailures: [],
   ),
-  healthSnapshot: const EnrichmentHealthSnapshot(
-    workStateCounts: [],
-    coverJobs: [],
+  healthSnapshot: EnrichmentHealthSnapshot(
+    workStateCounts: workStateCounts,
+    baseImageFallbackCounts: baseImageFallbackCounts,
+    coverJobs: const [],
   ),
   referenceDbStatus: ReferenceDbStatus(
     installedVersion: 7,

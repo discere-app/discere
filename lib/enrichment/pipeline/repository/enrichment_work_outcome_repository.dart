@@ -1,5 +1,7 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
@@ -7,7 +9,7 @@ import 'package:sqflite/sqflite.dart';
 /// How an attempt on a claimed work item ended: done, no result, a
 /// scheduled retry, or given up on.
 ///
-/// The three `record*AttemptFailure` methods share [_recordAttemptFailure],
+/// The `record*AttemptFailure` methods share [_recordAttemptFailure],
 /// which decides between another retry and a permanent failure by comparing
 /// the attempt count against the caller's budget — the one rule the three
 /// queue tables genuinely have in common, which is why they are one class
@@ -93,8 +95,7 @@ class EnrichmentWorkOutcomeRepository {
   /// with escalating backoff (picked from [backoffSteps] by attempt count,
   /// clamped to the last step) unless [maxAttempts] has been reached, in
   /// which case the row becomes `permanentFailure`. Returns whether this call
-  /// just gave up, so the caller knows whether to trigger a reactive
-  /// fallback (e.g. `BaseWorker` falling back to `inatPrimary`).
+  /// just gave up.
   Future<bool> recordCapabilityAttemptFailure(
     String speciesId,
     EnrichmentCapability capability, {
@@ -113,6 +114,56 @@ class EnrichmentWorkOutcomeRepository {
       error: error,
       failureKind: failureKind,
     );
+  }
+
+  /// Records a failed attempt at [speciesId]'s reference image (`base`)
+  /// under [BaseImageRetryPolicy], and returns whether the species falls
+  /// back to iNaturalist with this failure — the caller seeds the iNat
+  /// capabilities then.
+  ///
+  /// The failure that falls back also marks the row with [reason], [host]
+  /// and the time, in the same write. The marking outlives everything that
+  /// follows — a later success, a reset — and is only overwritten by the
+  /// next fallback, so the diagnostics page can tell how many species fell
+  /// back for which reason, and how many got their reference image after
+  /// all. A failure that gives up stamps [referenceDbVersion], so a newer
+  /// reference DB makes the row stale and its reset retries the species.
+  Future<bool> recordBaseImageAttemptFailure(
+    String speciesId, {
+    required BaseImageFallbackReason reason,
+    required String? host,
+    required String error,
+    required String failureKind,
+    required int? referenceDbVersion,
+  }) async {
+    final failedAt = DateTime.now().millisecondsSinceEpoch;
+    var fallsBack = false;
+    await _recordAttemptFailure(
+      table: EnrichmentWorkTables.capabilityState,
+      stateColumn: 'state',
+      whereClause: 'species_id = ? AND capability = ?',
+      whereArgs: [speciesId, EnrichmentCapability.base.wireName],
+      maxAttempts: BaseImageRetryPolicy.attemptBudgetFor(reason),
+      backoffSteps: BaseImageRetryPolicy.backoffSteps,
+      error: error,
+      failureKind: failureKind,
+      extraValues: (attemptCount, gaveUp) {
+        fallsBack = BaseImageRetryPolicy.fallsBackAt(
+          attemptCount,
+          gaveUp: gaveUp,
+        );
+        return {
+          if (gaveUp && referenceDbVersion != null)
+            'reference_db_version': referenceDbVersion,
+          if (fallsBack) ...{
+            'fallback_reason': reason.wireName,
+            'fallback_host': host,
+            'fallback_at': failedAt,
+          },
+        };
+      },
+    );
+    return fallsBack;
   }
 
   /// Marks [workKey]'s taxonomy common-names capability terminal with a
@@ -225,7 +276,8 @@ class EnrichmentWorkOutcomeRepository {
   /// [recordUnresolvedNameAttemptFailure] — same escalating-backoff/give-up
   /// policy, different table/state-column/key shape. [hasFailureKindColumn]
   /// is false for [EnrichmentWorkTables.unresolvedNames], which has no `last_failure_kind`
-  /// column.
+  /// column. [extraValues] adds columns to the same write, given the attempt
+  /// count this failure brings the row to and whether it gave up.
   Future<bool> _recordAttemptFailure({
     required String table,
     required String stateColumn,
@@ -236,6 +288,7 @@ class EnrichmentWorkOutcomeRepository {
     String? error,
     String? failureKind,
     bool hasFailureKindColumn = true,
+    Map<String, Object?> Function(int attemptCount, bool gaveUp)? extraValues,
   }) async {
     final db = await _db;
     final rows = await db.query(
@@ -263,6 +316,7 @@ class EnrichmentWorkOutcomeRepository {
     if (hasFailureKindColumn) {
       values['last_failure_kind'] = failureKind;
     }
+    values.addAll(extraValues?.call(nextAttempts, gaveUp) ?? const {});
     await db.update(table, values, where: whereClause, whereArgs: whereArgs);
     return gaveUp;
   }

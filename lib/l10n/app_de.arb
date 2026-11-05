@@ -1128,6 +1128,8 @@
   "diagnosticsEnrichmentQueueTitle": "Enrichment-Queue",
   "diagnosticsNextRetryIn": "nächster Versuch in {duration}",
   "diagnosticsNextRetryDue": "nächster Versuch fällig",
+  "diagnosticsBaseImageFallbacksTitle": "Auf iNaturalist ausgewichen",
+  "diagnosticsBaseImageFallbacksSubtitle": "Arten, deren Referenzbild zuletzt nicht zu laden war, nach Grund und Host — darunter, wo ihr Referenzbild heute steht",
   "diagnosticsCoverJobsTitle": "Cover-Jobs",
   "diagnosticsHostCooldownTitle": "Host-Cooldown",
   "diagnosticsHostCooldownNone": "Kein aktiver Cooldown.",

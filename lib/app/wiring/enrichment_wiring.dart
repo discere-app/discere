@@ -91,10 +91,7 @@ buildEnrichmentServices({
   final runtimeCommonNameRepository = RuntimeCommonNameRepository(
     searchRepository: RuntimeCommonNameSearchRepository(),
   );
-  final baseImageEnrichmentService = BaseImageEnrichmentService(
-    speciesRepository,
-    imageService,
-  );
+  final baseImageEnrichmentService = BaseImageEnrichmentService(imageService);
   final photoEnrichmentService = INatPhotoEnrichmentService(
     speciesRepository,
     iNatPhotos,

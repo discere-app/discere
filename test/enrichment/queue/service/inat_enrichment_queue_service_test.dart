@@ -5,6 +5,8 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_download_result.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
@@ -75,6 +77,11 @@ Species _species(String id, {bool withReferencePicture = true}) {
         : const [],
   );
 }
+
+/// Matches the [Species] with [id] as the argument of a stubbed or verified
+/// `downloadReferenceImages` call.
+Species? _speciesWithId(String id) =>
+    argThat(isA<Species>().having((species) => species.id, 'id', id));
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -191,23 +198,12 @@ void main() {
       final ids = invocation.positionalArguments.first as Set<String>;
       return ids.map((id) => _species(id)).toSet();
     });
-    // BaseWorker reads the *returned summary*'s imageCount (not a callback)
-    // to decide success — default to "found an image" for every species so
-    // scheduling a deck reaches a learnable state without per-test wiring.
+    // Default to "found an image" for every species so scheduling a deck
+    // reaches a learnable state without per-test wiring.
+    provideDummy<BaseImageDownloadResult>(const BaseImageSaved());
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        argThat(isA<Set<String>>()),
-        isCancelled: anyNamed('isCancelled'),
-      ),
-    ).thenAnswer((invocation) async {
-      final speciesIds = invocation.positionalArguments.first as Set<String>;
-      return ImportEnrichmentSummary(
-        imageSpeciesCount: speciesIds.length,
-        imageCount: speciesIds.length,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      );
-    });
+      mockBaseImageEnrichmentService.downloadReferenceImages(any),
+    ).thenAnswer((_) async => const BaseImageSaved());
     // Default: iNat photo cache has something cached, so a primary/backfill
     // fetch (when one is actually attempted) resolves 'done' rather than
     // 'noResult'.
@@ -330,9 +326,8 @@ void main() {
     ], waitForForegroundIdle: true);
 
     verify(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     ).called(1);
     // Base already found an image — inatPrimary is never seeded, saving
@@ -404,19 +399,13 @@ void main() {
     final downloadStarted = Completer<void>();
     final finishDownload = Completer<void>();
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     ).thenAnswer((_) async {
       downloadStarted.complete();
       await finishDownload.future;
-      return const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      );
+      return const BaseImageSaved();
     });
     final queue = createService();
     await queue.scheduleDeckEnrichment(['deck-1']);
@@ -535,9 +524,7 @@ void main() {
     ], waitForForegroundIdle: true);
 
     // No reference picture — BaseWorker never even attempts the download.
-    verifyNever(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(any),
-    );
+    verifyNever(mockBaseImageEnrichmentService.downloadReferenceImages(any));
     verify(
       mockPhotoEnrichmentService.fetchINatPhotosForSpecies(
         {'sp1'},
@@ -593,9 +580,8 @@ void main() {
     );
 
     verify(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     ).called(1);
     // Common names are only ever seeded when consented to — this stays gated
@@ -667,9 +653,8 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
 
     verify(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     ).called(2);
 
@@ -764,9 +749,8 @@ void main() {
     );
 
     verifyNever(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     );
   });
@@ -796,9 +780,8 @@ void main() {
     );
 
     verify(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     ).called(2);
 
@@ -835,18 +818,12 @@ void main() {
       );
 
       when(
-        mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-          {'sp1'},
-          isCancelled: anyNamed('isCancelled'),
+        mockBaseImageEnrichmentService.downloadReferenceImages(
+          _speciesWithId('sp1'),
         ),
       ).thenAnswer((invocation) async {
         await baseStageGate.future;
-        return const ImportEnrichmentSummary(
-          imageSpeciesCount: 1,
-          imageCount: 1,
-          commonNameSpeciesCount: 0,
-          commonNameCount: 0,
-        );
+        return const BaseImageSaved();
       });
 
       await service!.scheduleDeckEnrichment(['deck-1']);
@@ -880,41 +857,31 @@ void main() {
     );
     final callCountBySpecies = <String, int>{};
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     ).thenAnswer((invocation) async {
       callCountBySpecies.update('sp1', (n) => n + 1, ifAbsent: () => 1);
-      throw TimeoutException('temporary');
+      return const BaseImageFailed(
+        BaseImageFallbackReason.hostUnavailable,
+        host: 'www.fishbase.se',
+      );
     });
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp2'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp2'),
       ),
     ).thenAnswer((invocation) async {
       callCountBySpecies.update('sp2', (n) => n + 1, ifAbsent: () => 1);
-      return const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      );
+      return const BaseImageSaved();
     });
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp3'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp3'),
       ),
     ).thenAnswer((invocation) async {
       callCountBySpecies.update('sp3', (n) => n + 1, ifAbsent: () => 1);
-      return const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      );
+      return const BaseImageSaved();
     });
 
     service = createService();
@@ -1025,9 +992,8 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     verifyNever(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp1'),
       ),
     );
     final status = service!.status;
@@ -1105,18 +1071,12 @@ void main() {
     );
 
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp2'},
-        isCancelled: anyNamed('isCancelled'),
+      mockBaseImageEnrichmentService.downloadReferenceImages(
+        _speciesWithId('sp2'),
       ),
     ).thenAnswer((invocation) async {
       callOrder.add('base');
-      return const ImportEnrichmentSummary(
-        imageSpeciesCount: 1,
-        imageCount: 1,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      );
+      return const BaseImageSaved();
     });
 
     service = createService(
@@ -1246,22 +1206,11 @@ void main() {
     );
 
     when(
-      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-        any,
-        isCancelled: anyNamed('isCancelled'),
-      ),
+      mockBaseImageEnrichmentService.downloadReferenceImages(any),
     ).thenAnswer((invocation) async {
-      final speciesSet = (invocation.positionalArguments.first as Set<String>)
-          .toSet();
-      for (final speciesId in speciesSet) {
-        callCounts.update(speciesId, (n) => n + 1, ifAbsent: () => 1);
-      }
-      return ImportEnrichmentSummary(
-        imageSpeciesCount: speciesSet.length,
-        imageCount: speciesSet.length,
-        commonNameSpeciesCount: 0,
-        commonNameCount: 0,
-      );
+      final species = invocation.positionalArguments.first as Species;
+      callCounts.update(species.id, (n) => n + 1, ifAbsent: () => 1);
+      return const BaseImageSaved();
     });
 
     service = createService();
@@ -1309,22 +1258,11 @@ void main() {
       );
 
       when(
-        mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
-          argThat(isA<Set<String>>()),
-          isCancelled: anyNamed('isCancelled'),
-        ),
+        mockBaseImageEnrichmentService.downloadReferenceImages(any),
       ).thenAnswer((invocation) async {
-        final speciesSet = (invocation.positionalArguments.first as Set<String>)
-            .toSet();
-        for (final speciesId in speciesSet) {
-          callCounts.update(speciesId, (n) => n + 1, ifAbsent: () => 1);
-        }
-        return ImportEnrichmentSummary(
-          imageSpeciesCount: speciesSet.length,
-          imageCount: speciesSet.length,
-          commonNameSpeciesCount: 0,
-          commonNameCount: 0,
-        );
+        final species = invocation.positionalArguments.first as Species;
+        callCounts.update(species.id, (n) => n + 1, ifAbsent: () => 1);
+        return const BaseImageSaved();
       });
 
       service = createService();

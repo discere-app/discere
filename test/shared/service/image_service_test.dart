@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
+import 'package:discere/shared/service/image_download_outcome.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,7 +74,7 @@ void main() {
     });
 
     test(
-      'downloadAndSaveImages downloads multiple images and returns paths',
+      'downloadAndSaveUrlMap downloads multiple images and maps them by URL',
       () async {
         mockClient = MockClient((request) async {
           if (request.url.host == 'domain.com') {
@@ -87,10 +92,10 @@ void main() {
           'https://domain.com/img1.jpg',
           'https://domain.com/img2.jpg',
         };
-        final paths = await imageService.downloadAndSaveImages(urls);
+        final paths = await imageService.downloadAndSaveUrlMap(urls);
 
-        expect(paths.length, 2);
-        for (final path in paths) {
+        expect(paths.keys, unorderedEquals(urls));
+        for (final path in paths.values) {
           expect(await File(path).exists(), isTrue);
           expect(await File(path).readAsBytes(), [7, 8, 9]);
         }
@@ -98,7 +103,7 @@ void main() {
     );
 
     test(
-      'downloadAndSaveImages handles colliding filenames via hashing',
+      'downloadAndSaveUrlMap handles colliding filenames via hashing',
       () async {
         mockClient = MockClient((request) async {
           return http.Response.bytes([1, 2, 3], 200);
@@ -112,17 +117,17 @@ void main() {
         final url1 = 'https://inat.org/photos/1/medium.jpg';
         final url2 = 'https://inat.org/photos/2/medium.jpg';
 
-        final paths = await imageService.downloadAndSaveImages({url1, url2});
+        final paths = await imageService.downloadAndSaveUrlMap({url1, url2});
 
-        expect(paths.length, 2);
+        expect(paths.keys, unorderedEquals([url1, url2]));
         expect(
-          paths[0],
-          isNot(paths[1]),
+          paths[url1],
+          isNot(paths[url2]),
           reason:
               'Filenames should be unique even if URL ends with same segment',
         );
-        expect(p.basename(paths[0]), isNot('medium.jpg'));
-        expect(p.basename(paths[1]), isNot('medium.jpg'));
+        expect(p.basename(paths[url1]!), isNot('medium.jpg'));
+        expect(p.basename(paths[url2]!), isNot('medium.jpg'));
       },
     );
 
@@ -186,6 +191,217 @@ void main() {
         expect(requestCount, 0);
       },
     );
+
+    group('downloadAndSaveUrls reports', () {
+      Future<ImageDownloadOutcome> outcomeOf(
+        Future<http.Response> Function(http.Request request) respond, {
+        String url = 'https://images.example.org/a.jpg',
+      }) async {
+        imageService = ImageService(
+          client: MockClient(respond),
+          hostCooldownTracker: hostCooldownTracker,
+        );
+        final outcomes = await imageService.downloadAndSaveUrls({url});
+        return outcomes[url]!;
+      }
+
+      test('a saved image with its local path', () async {
+        final outcome = await outcomeOf(
+          (_) async => http.Response.bytes([1, 2, 3], 200),
+        );
+
+        expect(outcome, isA<ImageSaved>());
+        final localPath = (outcome as ImageSaved).localPath;
+        expect(await File(localPath).readAsBytes(), [1, 2, 3]);
+      });
+
+      test('a cached image as saved, without a request', () async {
+        const url = 'https://images.example.org/a.jpg';
+        await outcomeOf((_) async => http.Response.bytes([1], 200), url: url);
+
+        var requests = 0;
+        final outcome = await outcomeOf((_) async {
+          requests++;
+          return http.Response('', 503);
+        }, url: url);
+
+        expect(outcome, isA<ImageSaved>());
+        expect(requests, 0);
+      });
+
+      for (final (label, respond)
+          in <(String, Future<http.Response> Function(http.Request))>[
+            ('a timeout', (_) async => throw TimeoutException('slow')),
+            (
+              'a dropped connection',
+              (request) async =>
+                  throw http.ClientException('reset', request.url),
+            ),
+            ('a 503', (_) async => http.Response('', 503)),
+            ('a 429', (_) async => http.Response('', 429)),
+          ]) {
+        test('$label as an unreachable host', () async {
+          final outcome = await outcomeOf(respond);
+
+          expect(
+            outcome,
+            isA<ImageHostUnreachable>().having(
+              (o) => o.host,
+              'host',
+              'images.example.org',
+            ),
+          );
+        });
+      }
+
+      test('a 403 as a refusing host', () async {
+        final outcome = await outcomeOf((_) async => http.Response('', 403));
+
+        expect(
+          outcome,
+          isA<ImageHostRefused>().having(
+            (o) => o.host,
+            'host',
+            'images.example.org',
+          ),
+        );
+      });
+
+      test('a 404 as a missing image', () async {
+        final outcome = await outcomeOf((_) async => http.Response('', 404));
+
+        expect(
+          outcome,
+          isA<ImageNotFound>()
+              .having((o) => o.host, 'host', 'images.example.org')
+              .having((o) => o.statusCode, 'statusCode', 404),
+        );
+      });
+
+      test('a host skipped while cooling down as unreachable', () async {
+        for (var i = 0; i < 3; i++) {
+          hostCooldownTracker.recordRetryableFailure('images.example.org');
+        }
+        var requests = 0;
+        imageService = ImageService(
+          client: MockClient((_) async {
+            requests++;
+            return http.Response.bytes([1], 200);
+          }),
+          hostCooldownTracker: hostCooldownTracker,
+        );
+
+        final outcomes = await imageService.downloadAndSaveUrls({
+          'https://images.example.org/a.jpg',
+        }, skipIfHostCoolingDown: true);
+
+        expect(outcomes.values.single, isA<ImageHostUnreachable>());
+        expect(requests, 0);
+      });
+
+      test('a failure on this device as a local failure', () async {
+        // A file where the host's folder should go makes creating it fail
+        // before any request.
+        final blocker = File(
+          p.join(tempDir.path, 'reference_images', 'images_example_org'),
+        );
+        await blocker.parent.create(recursive: true);
+        await blocker.create();
+
+        final outcome = await outcomeOf(
+          (_) async => http.Response.bytes([1], 200),
+        );
+
+        expect(outcome, isA<ImageLocalFailure>());
+      });
+    });
+
+    group('the fallback host', () {
+      const url = 'https://www.fishbase.se/images/species/Ornil_ug.jpg';
+      late List<Uri> requested;
+
+      void respondWith(Map<String, http.Response> responsesByHost) {
+        requested = [];
+        imageService = ImageService(
+          client: MockClient((request) async {
+            requested.add(request.url);
+            return responsesByHost[request.url.host]!;
+          }),
+          hostCooldownTracker: hostCooldownTracker,
+        );
+      }
+
+      test('stands in when the original host has a problem, and its copy '
+          'is saved under the original URL', () async {
+        respondWith({
+          'www.fishbase.se': http.Response('', 503),
+          'fishbase.de': http.Response.bytes([4, 2], 200),
+        });
+
+        final outcomes = await imageService.downloadAndSaveUrls({url});
+
+        expect(
+          requested.last.toString(),
+          'https://fishbase.de/images/species/Ornil_ug.jpg',
+        );
+        final expectedPath = p.join(
+          tempDir.path,
+          'reference_images',
+          'www_fishbase_se',
+          '${md5.convert(utf8.encode(url))}.jpg',
+        );
+        expect(
+          outcomes[url],
+          isA<ImageSaved>().having(
+            (o) => o.localPath,
+            'localPath',
+            expectedPath,
+          ),
+        );
+        expect(await File(expectedPath).readAsBytes(), [4, 2]);
+      });
+
+      test("reports the original host's problem when it fails too", () async {
+        respondWith({
+          'www.fishbase.se': http.Response('', 503),
+          'fishbase.de': http.Response('', 404),
+        });
+
+        final outcomes = await imageService.downloadAndSaveUrls({url});
+
+        expect(
+          outcomes[url],
+          isA<ImageHostUnreachable>().having(
+            (o) => o.host,
+            'host',
+            'www.fishbase.se',
+          ),
+        );
+      });
+
+      test('is not asked when the original host says the image is '
+          'missing', () async {
+        respondWith({
+          'www.fishbase.se': http.Response('', 404),
+          'fishbase.de': http.Response.bytes([1], 200),
+        });
+
+        final outcomes = await imageService.downloadAndSaveUrls({url});
+
+        expect(outcomes[url], isA<ImageNotFound>());
+        expect(requested.map((uri) => uri.host), ['www.fishbase.se']);
+      });
+
+      test('does not exist for a host without a table entry', () async {
+        respondWith({'www.sealifebase.se': http.Response('', 503)});
+
+        await imageService.downloadAndSaveUrls({
+          'https://www.sealifebase.se/images/species/a.jpg',
+        });
+
+        expect(requested.map((uri) => uri.host), ['www.sealifebase.se']);
+      });
+    });
 
     test(
       'resolveSavedUrlMap finds legacy external files saved as reference images',

@@ -1,5 +1,6 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_projection_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,6 +11,7 @@ Map<String, Object?> speciesRow(
   String speciesId, {
   EnrichmentCapability? capability,
   EnrichmentWorkState? state,
+  int attemptCount = 0,
   int? nextAttemptAt,
   int? referenceDbVersion,
   bool wantsInatPhotos = true,
@@ -18,6 +20,7 @@ Map<String, Object?> speciesRow(
   'species_id': speciesId,
   'capability': capability?.wireName,
   'state': state?.wireName,
+  'attempt_count': attemptCount,
   'next_attempt_at': nextAttemptAt,
   'reference_db_version': referenceDbVersion,
   'wants_inat_photos': wantsInatPhotos ? 1 : 0,
@@ -143,6 +146,83 @@ void main() {
     });
   });
 
+  group('a base row in its long phase', () {
+    final tomorrow = DateTime(2026, 11, 6).millisecondsSinceEpoch;
+
+    Map<String, Object?> waitingBase(int attemptCount, {bool consent = true}) =>
+        speciesRow(
+          'sp-a',
+          capability: EnrichmentCapability.base,
+          state: EnrichmentWorkState.retryScheduled,
+          attemptCount: attemptCount,
+          nextAttemptAt: tomorrow,
+          wantsInatPhotos: consent,
+        );
+
+    test('leaves the species image-complete once iNat is done, and the deck '
+        'not waiting on its retry', () {
+      final projection = builder(
+        species: [
+          waitingBase(BaseImageRetryPolicy.shortPhaseAttempts),
+          speciesRow(
+            'sp-a',
+            capability: EnrichmentCapability.inatPrimary,
+            state: EnrichmentWorkState.done,
+          ),
+        ],
+      ).build('d');
+
+      expect(projection.imageCompleteSpeciesCount, 1);
+      expect(projection.earliestRetryAt, isNull);
+    });
+
+    test('leaves the species image-complete without iNat consent', () {
+      final projection = builder(
+        species: [
+          waitingBase(BaseImageRetryPolicy.shortPhaseAttempts, consent: false),
+        ],
+      ).build('d');
+
+      expect(projection.imageCompleteSpeciesCount, 1);
+      expect(projection.earliestRetryAt, isNull);
+    });
+
+    test('still waits on iNat while that is not done', () {
+      final projection = builder(
+        species: [
+          waitingBase(BaseImageRetryPolicy.shortPhaseAttempts),
+          speciesRow(
+            'sp-a',
+            capability: EnrichmentCapability.inatPrimary,
+            state: EnrichmentWorkState.pending,
+          ),
+        ],
+      ).build('d');
+
+      expect(projection.imageCompleteSpeciesCount, 0);
+    });
+
+    test('is no short-phase row: that one keeps the species waiting and '
+        'counts as the deck\'s next retry', () {
+      final projection = builder(
+        species: [
+          waitingBase(BaseImageRetryPolicy.shortPhaseAttempts - 1),
+          speciesRow(
+            'sp-a',
+            capability: EnrichmentCapability.inatPrimary,
+            state: EnrichmentWorkState.done,
+          ),
+        ],
+      ).build('d');
+
+      expect(projection.imageCompleteSpeciesCount, 0);
+      expect(
+        projection.earliestRetryAt,
+        DateTime.fromMillisecondsSinceEpoch(tomorrow),
+      );
+    });
+  });
+
   group('stale base results', () {
     Map<String, Object?> base(EnrichmentWorkState state, int? stampedVersion) =>
         speciesRow(
@@ -179,15 +259,26 @@ void main() {
       expect(projection.staleBaseSpeciesCount, 0);
     });
 
-    test('a permanent failure is left alone', () {
-      // It already spent its retry budget; reclaiming it would just spend it
-      // again on the same failure.
+    test('a permanent failure counts like any other result', () {
+      // A newer reference DB may name other picture URLs for it.
       final projection = builder(
-        species: [base(EnrichmentWorkState.permanentFailure, null)],
+        species: [
+          for (final (speciesId, stampedVersion) in [
+            ('sp-older', 4),
+            ('sp-unstamped', null),
+            ('sp-current', 5),
+          ])
+            speciesRow(
+              speciesId,
+              capability: EnrichmentCapability.base,
+              state: EnrichmentWorkState.permanentFailure,
+              referenceDbVersion: stampedVersion,
+            ),
+        ],
         currentReferenceDbVersion: 5,
       ).build('d');
 
-      expect(projection.staleBaseSpeciesCount, 0);
+      expect(projection.staleBaseSpeciesCount, 2);
     });
 
     test('nothing is judged stale without a current version', () {

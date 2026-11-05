@@ -1142,6 +1142,8 @@
     }
   },
   "diagnosticsNextRetryDue": "next retry due now",
+  "diagnosticsBaseImageFallbacksTitle": "Fell back to iNaturalist",
+  "diagnosticsBaseImageFallbacksSubtitle": "Species whose reference image last failed to load, by reason and host — below, where their reference image stands now",
   "diagnosticsCoverJobsTitle": "Cover jobs",
   "diagnosticsHostCooldownTitle": "Host cooldown",
   "diagnosticsHostCooldownNone": "No active cooldown.",

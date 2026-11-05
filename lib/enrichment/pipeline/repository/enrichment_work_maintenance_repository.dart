@@ -17,12 +17,11 @@ class EnrichmentWorkMaintenanceRepository {
 
   Future<Database> get _db async => _injectedDb ?? DatabaseHelper.userDb;
 
-  /// Resets stale `base` capability rows back to `pending` — terminal
-  /// (`done` or `noResult`) and stamped with a `reference_db_version` older
-  /// than [currentReferenceDbVersion], or never stamped at all (`NULL`, a row
-  /// that completed before that column existed) — so [claimBaseWorkBatch]
-  /// reclaims them and `BaseWorker` re-checks the species against the
-  /// now-installed reference DB.
+  /// Resets stale `base` capability rows back to `pending` — terminal (any
+  /// of [staleCheckedBaseStates]) and stamped with a `reference_db_version`
+  /// older than [currentReferenceDbVersion], or never stamped at all
+  /// (`NULL`) — so [claimBaseWorkBatch] reclaims them and `BaseWorker`
+  /// re-checks the species against the now-installed reference DB.
   ///
   /// When [deckId] is given, scoped to that deck's member species (like
   /// [loadDeckProjection]) — used by the Edit Deck manual refresh. When
@@ -60,7 +59,7 @@ class EnrichmentWorkMaintenanceRepository {
       },
       where:
           "capability = '${EnrichmentCapability.base.wireName}' "
-          'AND state IN (${sqlList(resolvedStates)}) '
+          'AND state IN (${sqlList(staleCheckedBaseStates)}) '
           'AND (reference_db_version IS NULL OR reference_db_version < ?) '
           '$membershipClause',
       whereArgs: [currentReferenceDbVersion, ?deckId],
@@ -86,7 +85,7 @@ class EnrichmentWorkMaintenanceRepository {
         FROM ${EnrichmentWorkTables.capabilityState} c
         JOIN ${EnrichmentWorkTables.deckMembership} m ON m.species_id = c.species_id
        WHERE c.capability = '${EnrichmentCapability.base.wireName}'
-         AND c.state IN (${sqlList(resolvedStates)})
+         AND c.state IN (${sqlList(staleCheckedBaseStates)})
          AND (c.reference_db_version IS NULL OR c.reference_db_version < ?)
          $membershipClause
       ''',
@@ -104,15 +103,18 @@ class EnrichmentWorkMaintenanceRepository {
   /// valid resolves instantly with no network call).
   ///
   /// Unlike [resetStaleBaseCapability] (which only targets rows genuinely
-  /// stamped with an older reference-DB version, and deliberately skips
-  /// `permanentFailure`), this also resets `permanentFailure` rows — a
-  /// manual "try again" should retry those too — and is not staleness-gated
-  /// at all, since the point is an explicit, user-requested full
-  /// re-verification (Edit Deck's "Erneut anreichern"/"Jetzt anreichern"),
+  /// stamped with an older reference-DB version), this is not
+  /// staleness-gated at all, since the point is an explicit, user-requested
+  /// full re-verification (Edit Deck's "Erneut anreichern"/"Jetzt anreichern"),
   /// not an automatic/opportunistic refresh. A deck whose species have no
   /// `base` row yet (never enriched at all) is unaffected — nothing to
   /// reset, `assignSpeciesOwners` seeds it fresh as usual. Returns the
   /// number of rows reset.
+  ///
+  /// A row in its long phase is reset too: it is waiting a day for its next
+  /// attempt, and the user asking to enrich now is reason enough not to wait.
+  /// A row still in its short phase is left alone — its next attempt is
+  /// seconds away anyway. The fallback marking is kept either way.
   Future<int> resetBaseCapabilityForRetrigger(String deckId) async {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -128,7 +130,8 @@ class EnrichmentWorkMaintenanceRepository {
       },
       where:
           "capability = '${EnrichmentCapability.base.wireName}' "
-          'AND state IN (${sqlList(terminalStates)}) '
+          'AND (state IN (${sqlList(terminalStates)}) '
+          'OR $baseLongPhaseCondition) '
           'AND species_id IN (SELECT species_id FROM ${EnrichmentWorkTables.deckMembership} WHERE deck_id = ?)',
       whereArgs: [deckId],
     );
@@ -138,13 +141,20 @@ class EnrichmentWorkMaintenanceRepository {
   /// queue tables, so they become immediately claimable again — mirrors
   /// `EnrichmentJobRepository.clearRetryAttemptForRetryScheduledJobs`. Called
   /// once a `HostCooldownTracker` cooldown clears.
+  ///
+  /// A `base` row in its long phase keeps its retry time: its species already
+  /// shows iNaturalist pictures, and the day between its attempts is what
+  /// gives a longer outage of the reference-image host time to end — a
+  /// cooldown of seconds clearing says nothing about that.
   Future<int> clearRetryAttemptForRetryScheduledWorkItems() async {
     final db = await _db;
     var count = 0;
     count += await db.update(
       EnrichmentWorkTables.capabilityState,
       {'next_attempt_at': null},
-      where: 'state = ? AND next_attempt_at IS NOT NULL',
+      where:
+          'state = ? AND next_attempt_at IS NOT NULL '
+          'AND NOT $baseLongPhaseCondition',
       whereArgs: [retryScheduledState],
     );
     count += await db.update(

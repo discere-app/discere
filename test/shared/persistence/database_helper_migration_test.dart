@@ -1971,6 +1971,36 @@ CREATE TABLE flashcard_stats (
       isTrue,
     );
   });
+
+  test('v24 -> v25 adds the fallback marking to the capability rows, leaving '
+      'the rows already there unmarked', () async {
+    final db = await openInMemoryUserDatabase();
+    addTearDown(db.close);
+    await db.execute('DROP TABLE enrichment_species_capability_state');
+    await db.execute('''
+      CREATE TABLE enrichment_species_capability_state (
+        species_id TEXT NOT NULL, capability TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        priority_tier INTEGER NOT NULL DEFAULT 0,
+        attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at INTEGER,
+        last_error TEXT, last_failure_kind TEXT,
+        reference_db_version INTEGER, updated_at INTEGER NOT NULL,
+        PRIMARY KEY (species_id, capability))''');
+    await db.insert('enrichment_species_capability_state', {
+      'species_id': 'sp1',
+      'capability': 'base',
+      'state': 'permanentFailure',
+      'updated_at': 1,
+    });
+
+    await UserDbSchema.upgrade(db, 24, UserDbSchema.version);
+
+    final row = (await db.query('enrichment_species_capability_state')).single;
+    for (final column in ['fallback_reason', 'fallback_host', 'fallback_at']) {
+      expect(row.containsKey(column), isTrue, reason: column);
+      expect(row[column], isNull, reason: column);
+    }
+  });
 }
 
 Future<bool> _tableExistsInTest(Database db, String table) async {

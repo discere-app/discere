@@ -123,7 +123,7 @@ class UserDbSchema {
   /// Current user DB schema version — bump whenever a migration is added, and
   /// whenever an asset gains a column: reconciliation only runs on create and
   /// upgrade, so an existing database gets the column through a bump alone.
-  static const int version = 24;
+  static const int version = 25;
 
   /// Every table of the current schema, in creation order — `decks` first,
   /// because the tables after it declare a foreign key to it,
@@ -210,6 +210,8 @@ class UserDbSchema {
     // brings.
     // v24 only adds tables (comparison_lists, comparison_list_species), which
     // reconciliation brings.
+    // v25 only adds columns (the base-image fallback marking on
+    // enrichment_species_capability_state), which reconciliation brings.
 
     // Bring whatever the ladder produced to the current shape: missing
     // tables, missing columns, missing indexes. A migration describes the

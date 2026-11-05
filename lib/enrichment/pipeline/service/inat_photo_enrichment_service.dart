@@ -123,8 +123,8 @@ class INatPhotoEnrichmentService {
           }
           // A species with known photo URLs whose download failed must stay
           // pending and retry — the flashcard UI needs the local file, not
-          // just cached metadata. See downloadBaseImagesForSpecies for the
-          // same reasoning.
+          // just cached metadata. Reference images follow the same reasoning
+          // (see BaseImageEnrichmentService.downloadReferenceImages).
           if (outcome.isTerminal && downloadSucceeded) {
             onSpeciesCompleted?.call(species.id);
           }

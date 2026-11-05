@@ -1,5 +1,7 @@
 import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
+import 'package:discere/enrichment/pipeline/model/base_image_retry_policy.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 
 /// Folds the queue rows belonging to one deck into its
@@ -19,7 +21,7 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.da
 class DeckProjectionBuilder {
   /// One row per (species, capability) pair from the deck's membership,
   /// left-joined so a species with no capability rows still appears:
-  /// `species_id`, `capability`, `state`, `next_attempt_at`,
+  /// `species_id`, `capability`, `state`, `attempt_count`, `next_attempt_at`,
   /// `reference_db_version`, `wants_inat_photos`, `wants_common_names`.
   final List<Map<String, Object?>> speciesRows;
 
@@ -90,12 +92,28 @@ class DeckProjectionBuilder {
       }
       if (capability == EnrichmentCapability.base.wireName) {
         current.baseReferenceDbVersion = row['reference_db_version'] as int?;
+        current.baseInLongPhase = _isBaseInLongPhase(row);
       }
       current.wantsInatPhotos = (row['wants_inat_photos'] as int? ?? 0) == 1;
       current.wantsCommonNames = (row['wants_common_names'] as int? ?? 0) == 1;
-      tally.considerPending(state, row['next_attempt_at']);
+      // The deck does not wait on a base row in its long phase: the species
+      // has fallen back to iNaturalist, and a retry a day away would
+      // otherwise show the whole deck as paused until then.
+      if (capability != EnrichmentCapability.base.wireName ||
+          !current.baseInLongPhase) {
+        tally.considerPending(state, row['next_attempt_at']);
+      }
     }
     return species;
+  }
+
+  static bool _isBaseInLongPhase(Map<String, Object?> row) {
+    final state = row['state'] as String?;
+    return state != null &&
+        BaseImageRetryPolicy.isInLongPhase(
+          EnrichmentWorkState.fromWire(state),
+          row['attempt_count'] as int? ?? 0,
+        );
   }
 
   void _countSpecies(_Species species, _Tally tally) {
@@ -104,7 +122,7 @@ class DeckProjectionBuilder {
     final primaryState = states[EnrichmentCapability.inatPrimary.wireName];
 
     if (currentReferenceDbVersion != null &&
-        resolvedStates.contains(baseState)) {
+        staleCheckedBaseStates.contains(baseState)) {
       final stored = species.baseReferenceDbVersion;
       if (stored == null || stored < currentReferenceDbVersion!) {
         tally.staleBase++;
@@ -119,8 +137,10 @@ class DeckProjectionBuilder {
     // for a species without iNat-photo consent, which never gets that row
     // either — without this branch its image stage would never resolve and
     // the whole deck would sit in loadingBase forever, waiting on a request
-    // that will never be made.
-    if (terminalStates.contains(baseState)) {
+    // that will never be made. A base row in its long phase counts like a
+    // base without a result: the species waits on its iNat picture, not on a
+    // reference image that is a day away at best.
+    if (terminalStates.contains(baseState) || species.baseInLongPhase) {
       if (baseState == doneState ||
           terminalStates.contains(primaryState) ||
           !species.wantsInatPhotos) {
@@ -184,6 +204,7 @@ class DeckProjectionBuilder {
 class _Species {
   final Map<String, String> states = {};
   int? baseReferenceDbVersion;
+  bool baseInLongPhase = false;
   bool wantsInatPhotos = false;
   bool wantsCommonNames = false;
 }
