@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
+import 'package:discere/shared/service/image_download_outcome.dart';
+import 'package:discere/shared/service/image_host_fallbacks.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +17,10 @@ class ImageService {
   static const _maxConcurrentDownloads = 6;
   static const _referenceImageTimeout = Duration(seconds: 5);
   static const _deckCoverTimeout = Duration(seconds: 10);
+
+  /// The 4xx statuses that describe the host's state rather than the
+  /// requested image: timed out waiting, too early, too many requests.
+  static const _hostSideClientErrors = {408, 425, 429};
 
   final http.Client _client;
   final HostCooldownTracker _hostCooldownTracker;
@@ -34,39 +40,12 @@ class ImageService {
        _hostCooldownTracker = hostCooldownTracker;
 
   /// Used for species images (flashcards)
-  Future<List<String>> downloadAndSaveImages(Set<String> urls) async {
-    final results = await runWithConcurrency<String, String?>(
-      urls.toList(),
-      maxConcurrent: _maxConcurrentDownloads,
-      task: (url) =>
-          _downloadAndSaveImage(url, storageDirectory: 'reference_images'),
-    );
-
-    return results.where((path) => path != null).cast<String>().toList();
-  }
+  Future<List<String>> downloadAndSaveImages(Set<String> urls) async =>
+      (await downloadAndSaveUrlMap(urls)).values.toList();
 
   /// Downloads and caches images, returning a mapping of original URLs to their local file paths.
-  Future<Map<String, String>> downloadAndSaveImagesMap(Set<String> urls) async {
-    final Map<String, String> urlToLocalPath = {};
-    final entries = await runWithConcurrency<String, MapEntry<String, String>?>(
-      urls.toList(),
-      maxConcurrent: _maxConcurrentDownloads,
-      task: (url) async {
-        final localPath = await _downloadAndSaveImage(
-          url,
-          storageDirectory: 'reference_images',
-        );
-        if (localPath == null) return null;
-        return MapEntry(url, localPath);
-      },
-    );
-
-    for (final entry in entries) {
-      if (entry == null) continue;
-      urlToLocalPath[entry.key] = entry.value;
-    }
-    return urlToLocalPath;
-  }
+  Future<Map<String, String>> downloadAndSaveImagesMap(Set<String> urls) =>
+      downloadAndSaveUrlMap(urls);
 
   /// Returns already-saved local paths for the given URLs without downloading
   /// missing files.
@@ -92,7 +71,29 @@ class ImageService {
     return urlToLocalPath;
   }
 
-  /// Downloads URLs directly and returns a mapping to local file paths.
+  /// Downloads URLs directly and returns a mapping to local file paths —
+  /// [downloadAndSaveUrls] for callers that only need what was saved.
+  Future<Map<String, String>> downloadAndSaveUrlMap(
+    Set<String> urls, {
+    String storageDirectory = 'reference_images',
+    int maxConcurrent = _maxConcurrentDownloads,
+    bool skipIfHostCoolingDown = false,
+    void Function(int completed, int total)? onProgress,
+  }) async {
+    final outcomes = await downloadAndSaveUrls(
+      urls,
+      storageDirectory: storageDirectory,
+      maxConcurrent: maxConcurrent,
+      skipIfHostCoolingDown: skipIfHostCoolingDown,
+      onProgress: onProgress,
+    );
+    return {
+      for (final MapEntry(key: url, value: outcome) in outcomes.entries)
+        if (outcome case ImageSaved(:final localPath)) url: localPath,
+    };
+  }
+
+  /// Downloads URLs directly and reports how each one ended, keyed by URL.
   ///
   /// Callers can override [maxConcurrent] when a host should be treated more
   /// conservatively than the default reference-image pipeline. Discere uses
@@ -103,48 +104,44 @@ class ImageService {
   /// [skipIfHostCoolingDown]: when true, a URL whose host is currently in a
   /// [HostCooldownTracker] cooldown is skipped outright instead of issuing
   /// the request (which would otherwise block for the remaining cooldown
-  /// duration inside the shared HTTP client). Used by bounded, interactive
-  /// callers such as [LocalSpeciesImageService.resolveEnsuringSingleImage]
-  /// that need a fast best-effort attempt rather than the backoff behavior
-  /// background bulk downloads intentionally respect.
-  Future<Map<String, String>> downloadAndSaveUrlMap(
+  /// duration inside the shared HTTP client), and reported as
+  /// [ImageHostUnreachable]. Used by bounded, interactive callers such as
+  /// [LocalSpeciesImageService.resolveEnsuringSingleImage] that need a fast
+  /// best-effort attempt, and by the reference-image worker, which would
+  /// otherwise let every species of a large batch wait out the same outage.
+  ///
+  /// A URL whose host has a problem is tried once more from the host's
+  /// mirror in [imageHostFallbacks], if it has one.
+  Future<Map<String, ImageDownloadOutcome>> downloadAndSaveUrls(
     Set<String> urls, {
     String storageDirectory = 'reference_images',
     int maxConcurrent = _maxConcurrentDownloads,
     bool skipIfHostCoolingDown = false,
     void Function(int completed, int total)? onProgress,
   }) async {
-    final uniqueUrls = urls.where((url) => url.isNotEmpty).toSet();
+    final uniqueUrls = urls.where((url) => url.isNotEmpty).toList();
     final total = uniqueUrls.length;
     if (total == 0) {
       onProgress?.call(0, 0);
       return {};
     }
 
-    final Map<String, String> urlToLocalPath = {};
     var completed = 0;
-
-    final entries = await runWithConcurrency<String, MapEntry<String, String>?>(
-      uniqueUrls.toList(),
+    final outcomes = await runWithConcurrency<String, ImageDownloadOutcome>(
+      uniqueUrls,
       maxConcurrent: maxConcurrent,
       task: (url) async {
-        final localPath = await _downloadAndSaveImage(
+        final outcome = await _downloadAndSaveImage(
           url,
           storageDirectory: storageDirectory,
           skipIfHostCoolingDown: skipIfHostCoolingDown,
         );
         completed++;
         onProgress?.call(completed, total);
-        if (localPath == null) return null;
-        return MapEntry(url, localPath);
+        return outcome;
       },
     );
-
-    for (final entry in entries) {
-      if (entry == null) continue;
-      urlToLocalPath[entry.key] = entry.value;
-    }
-    return urlToLocalPath;
+    return Map.fromIterables(uniqueUrls, outcomes);
   }
 
   /// Saves a picked or downloaded image as a permanent deck cover.
@@ -216,10 +213,10 @@ class ImageService {
     return dir;
   }
 
-  Future<String?> _downloadAndSaveImage(
+  Future<ImageDownloadOutcome> _downloadAndSaveImage(
     String url, {
     required String storageDirectory,
-    bool skipIfHostCoolingDown = false,
+    required bool skipIfHostCoolingDown,
   }) async {
     final existingPath = await _resolveExistingImagePath(
       url,
@@ -227,13 +224,44 @@ class ImageService {
     );
     if (existingPath != null) {
       _log.debug('Reusing cached image for $url at $existingPath');
-      return existingPath;
+      return ImageSaved(existingPath);
     }
 
+    final source = Uri.parse(url);
+    final outcome = await _fetchAndSave(
+      url,
+      from: source,
+      storageDirectory: storageDirectory,
+      skipIfHostCoolingDown: skipIfHostCoolingDown,
+    );
+    final fallbackHost = imageHostFallbacks[source.host];
+    if (outcome is! ImageHostProblem || fallbackHost == null) return outcome;
+
+    _log.debug('Retrying $url from fallback host $fallbackHost');
+    final fallbackOutcome = await _fetchAndSave(
+      url,
+      from: source.replace(host: fallbackHost),
+      storageDirectory: storageDirectory,
+      skipIfHostCoolingDown: skipIfHostCoolingDown,
+    );
+    // A failed mirror says nothing new: the problem to report is still the
+    // one with the host the URL names.
+    return fallbackOutcome is ImageSaved ? fallbackOutcome : outcome;
+  }
+
+  /// Downloads [from] and saves it as the cached copy of [url] — the two
+  /// differ when [from] is on a fallback host (see [imageHostFallbacks] for
+  /// why the copy is still filed under [url]).
+  Future<ImageDownloadOutcome> _fetchAndSave(
+    String url, {
+    required Uri from,
+    required String storageDirectory,
+    required bool skipIfHostCoolingDown,
+  }) async {
     if (skipIfHostCoolingDown &&
-        _hostCooldownTracker.cooldownForHost(Uri.parse(url).host) != null) {
-      _log.debug('Skipping $url: host is cooling down');
-      return null;
+        _hostCooldownTracker.cooldownForHost(from.host) != null) {
+      _log.debug('Skipping $from: host is cooling down');
+      return ImageHostUnreachable(from.host);
     }
 
     File? tempFile;
@@ -250,23 +278,41 @@ class ImageService {
       tempFile = File('$filePath.part');
 
       _log.debug(
-        'Downloading reference image from $url into $storageDirectory',
+        'Downloading reference image from $from into $storageDirectory',
       );
       final responseBytes = await _downloadBytes(
-        Uri.parse(url),
+        from,
         timeout: _referenceImageTimeout,
       );
       await tempFile.writeAsBytes(responseBytes);
       await tempFile.rename(file.path);
-      return file.path;
+      return ImageSaved(file.path);
     } catch (e) {
       if (tempFile != null && await tempFile.exists()) {
         await tempFile.delete();
       }
       _log.warn(e.toString());
+      return _outcomeOfFailure(e, host: from.host);
     }
-    return null;
   }
+
+  static ImageDownloadOutcome _outcomeOfFailure(
+    Object error, {
+    required String host,
+  }) => switch (error) {
+    HttpDownloadException(statusCode: 403) => ImageHostRefused(host),
+    HttpDownloadException(:final statusCode)
+        when statusCode >= 400 &&
+            statusCode < 500 &&
+            !_hostSideClientErrors.contains(statusCode) =>
+      ImageNotFound(host, statusCode),
+    HttpDownloadException() ||
+    TimeoutException() ||
+    http.ClientException() ||
+    SocketException() ||
+    TlsException() => ImageHostUnreachable(host),
+    _ => const ImageLocalFailure(),
+  };
 
   Future<List<int>> _downloadBytes(Uri url, {required Duration timeout}) async {
     final response = await _client
