@@ -1386,4 +1386,88 @@ void main() {
       expect(genusResult.id, 'discere:genus:42');
     },
   );
+
+  group('synonyms', () {
+    // Seeded into the hand-built reference DB rather than read from the
+    // reference-DB fixture, whose FTS4 tables the host's SQLite cannot open.
+    // The species and synonyms are the reference DB's own.
+    setUp(() async {
+      await _createReferenceFtsTable(
+        referenceDb,
+        tableName: 'species_synonyms_fts',
+        columns: 'species_id, name',
+      );
+      for (final (id, genus, epithet, synonyms) in [
+        ('discere:species:91476', 'Conus', 'coronatus', <String>[]),
+        (
+          'discere:species:100205',
+          'Pygmaeconus',
+          'papalis',
+          ['Conus coronatus'],
+        ),
+        (
+          'discere:species:10',
+          'Scyris',
+          'indica',
+          ['Alectis indica', 'Alectis indicus'],
+        ),
+      ]) {
+        await referenceDb.insert('genera', {'id': 'genus:$genus', 'name': genus});
+        await referenceDb.insert('species', {
+          'id': id,
+          'genus': 'genus:$genus',
+          'name': epithet,
+          'status': 'active',
+        });
+        await referenceDb.insert('species_fts', {'id': id, 'name': epithet});
+        for (final synonym in synonyms) {
+          await referenceDb.insert('species_synonyms_fts', {
+            'species_id': id,
+            'name': synonym,
+          });
+        }
+      }
+    });
+
+    Future<List<SearchResult>> speciesFound(String term) async =>
+        (await searchRepository.searchAll(term, run: SearchRun.single))
+            .where((result) => result.type == SearchEntityType.species)
+            .toList();
+
+    test('a synonym equal to another species\' current name leaves that '
+        'species found, and first', () async {
+      final results = await speciesFound('Conus coronatus');
+
+      expect(
+        results.map((result) => (result.name, result.matchedSynonym)),
+        [('Conus coronatus', null), ('Pygmaeconus papalis', 'Conus coronatus')],
+      );
+    });
+
+    test('finds a species under a synonym, named as it is now', () async {
+      final results = await speciesFound('Alectis indica');
+
+      expect(
+        results.map((result) => (result.name, result.matchedSynonym)),
+        [('Scyris indica', 'Alectis indica')],
+      );
+    });
+
+    test('a species also found directly carries no synonym', () async {
+      final results = await speciesFound('indica');
+
+      expect(
+        results.map((result) => (result.name, result.matchedSynonym)),
+        [('Scyris indica', null)],
+      );
+    });
+
+    test('the quick search does not look at synonyms', () async {
+      expect(await speciesFound('Alectis'), isNotEmpty);
+      expect(
+        await searchRepository.searchQuick('Alectis', run: SearchRun.single),
+        isEmpty,
+      );
+    });
+  });
 }

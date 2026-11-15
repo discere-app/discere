@@ -27,6 +27,15 @@ SearchCandidate reference(
   sourcePriority: sourcePriority,
 );
 
+SearchCandidate synonym(
+  Map<String, dynamic> r, {
+  required String matchedSynonym,
+  String term = '',
+}) => candidateFromSynonymRow({
+  ...r,
+  'matched_synonym': matchedSynonym,
+}, normalizedSearchTerm: term);
+
 void main() {
   group('how well a row matches the term', () {
     test('an exact name ranks above a prefix, which ranks above the rest', () {
@@ -200,6 +209,71 @@ void main() {
       ]).single;
 
       expect(merged.matchPriority, 0);
+    });
+  });
+
+  group('a species found through a synonym', () {
+    test('is matched by the synonym, not by its current name', () {
+      final candidate = synonym(
+        row(scientificName: 'Scyris indica'),
+        matchedSynonym: 'Alectis indica',
+        term: 'alectis indica',
+      );
+
+      expect(candidate.matchPriority, 0);
+      expect(candidate.matchedSynonym, 'Alectis indica');
+    });
+
+    test('ranks behind a direct hit that matches as well, ahead of names '
+        'and alphabet', () {
+      final direct = reference(
+        row(id: 'a', scientificName: 'Conus coronatus'),
+        term: 'conus coronatus',
+      );
+      final bySynonym = synonym(
+        row(id: 'b', scientificName: 'Abramis brama', en: 'Bream'),
+        matchedSynonym: 'Conus coronatus',
+        term: 'conus coronatus',
+      );
+
+      expect(compareCandidates(direct, bySynonym), isNegative);
+    });
+
+    test('ranks ahead of a direct hit that matches worse', () {
+      final direct = reference(
+        row(id: 'a', scientificName: 'Scyris indica'),
+        term: 'alectis indica',
+      );
+      final bySynonym = synonym(
+        row(id: 'b', scientificName: 'Alectis ciliaris'),
+        matchedSynonym: 'Alectis indica',
+        term: 'alectis indica',
+      );
+
+      expect(compareCandidates(bySynonym, direct), isNegative);
+    });
+
+    test('merged with a direct hit, is shown and ranked as the direct hit, '
+        'whichever comes first', () {
+      final direct = reference(
+        row(scientificName: 'Scyris indica'),
+        term: 'alectis indica',
+      );
+      final bySynonym = synonym(
+        row(scientificName: 'Scyris indica'),
+        matchedSynonym: 'Alectis indica',
+        term: 'alectis indica',
+      );
+
+      final merged = [
+        mergeCandidates([direct, bySynonym]).single,
+        mergeCandidates([bySynonym, direct]).single,
+      ];
+
+      expect(
+        merged.map((m) => (m.matchedSynonym, m.matchPriority)),
+        [(null, direct.matchPriority), (null, direct.matchPriority)],
+      );
     });
   });
 }

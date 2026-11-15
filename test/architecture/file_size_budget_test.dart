@@ -62,7 +62,7 @@ const _slack = 25;
 /// means the file wants splitting.
 const _knownOversized = <String, int>{
   'lib/app/bootstrap/bootstrap_app.dart': 328,
-  'lib/catalog/repository/search_repository.dart': 365,
+  'lib/catalog/repository/search_repository.dart': 363,
   'lib/catalog/repository/species_repository.dart': 722,
   'lib/catalog/repository/taxonomy_repository.dart': 435,
   'lib/enrichment/pipeline/repository/enrichment_ownership_repository.dart': 331,

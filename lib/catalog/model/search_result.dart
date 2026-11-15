@@ -16,12 +16,17 @@ class SearchResult {
   /// than a taxon — see `Classification.placeholderRanks`.
   final bool isPlaceholder;
 
+  /// The synonym this species was found through; `null` when it was found
+  /// directly.
+  final String? matchedSynonym;
+
   SearchResult({
     required this.id,
     required this.name,
     required this.commonNames,
     required this.type,
     this.isPlaceholder = false,
+    this.matchedSynonym,
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) =>

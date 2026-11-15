@@ -146,6 +146,32 @@ String referenceFtsUnionAllSql(
   )
 ''';
 
+/// The synonyms matching a term, read from the synonym index alone: the
+/// statement names no other table, so there is no entity table for the
+/// planner to start from, and FTS is evaluated first by construction. Each
+/// row is a `species_id` and the synonym as `name`; a synonym of several
+/// species comes back once for each.
+String speciesSynonymFtsSql(int rowLimit) =>
+    '''
+  SELECT species_id, name
+  FROM species_synonyms_fts
+  WHERE species_synonyms_fts MATCH ?
+  LIMIT $rowLimit
+''';
+
+/// The active species among [idCount] bound ids, shaped like the species
+/// rows of [referenceFtsUnionAllSql].
+String activeSpeciesByIdSql(int idCount) =>
+    '''
+  SELECT s.id,
+         $_speciesScientificName AS scientific_name,
+         'species' AS entity_type
+  FROM species s
+  LEFT JOIN genera g ON g.id = s.genus
+  WHERE s.status = 'active'
+    AND s.id IN (${List.filled(idCount, '?').join(', ')})
+''';
+
 /// `LIKE`-based fallback statements, one per reference table, used only when
 /// the FTS path above returned nothing (e.g. the term is too short for FTS
 /// tokenization). Each expects two bound `%term%` arguments: one for the

@@ -9,6 +9,7 @@ import 'package:discere/catalog/repository/inat_reference_resolver.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_common_name_enricher.dart';
 import 'package:discere/catalog/repository/search_sql.dart';
+import 'package:discere/catalog/repository/species_synonym_search.dart';
 import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/util/search_text.dart';
@@ -38,6 +39,7 @@ class SearchRepository {
     referenceDatabase: () => _referenceDatabase,
     userDatabase: () => _userDatabase,
   );
+  late final _synonyms = SpeciesSynonymSearch(() => _referenceDatabase);
   // One runner per database connection: sqflite serves a connection one
   // statement at a time anyway, and queueing here means a superseded search
   // can be dropped before its query starts rather than after it returns.
@@ -90,14 +92,24 @@ class SearchRepository {
     // A term of nothing but FTS syntax leaves the FTS branches nothing to
     // match; the fallbacks below still get the typed term.
     final localResults = matchTerm.isEmpty
-        ? const [<Map<String, dynamic>>[], <Map<String, dynamic>>[]]
+        ? List.filled(3, const <Map<String, dynamic>>[])
         : await Future.wait([
             _searchReferenceFts(wildcardTerm, isAbandoned: isAbandoned),
             _searchRuntimeCommonNameFtsSafely(wildcardTerm, isAbandoned),
+            fallingBackOnDatabaseError(
+              _log,
+              'Synonym FTS',
+              () => _synonyms.search(wildcardTerm, normalizedTerm),
+              fallback: const <Map<String, dynamic>>[],
+            ),
           ]);
     if (isAbandoned()) return [];
 
     final referenceRows = localResults[0];
+    // Synonym hits only add species: no fallback below counts them, so a
+    // synonym equal to another species' current name cannot keep that
+    // species from the LIKE fallback, where a typed binomial name finds it.
+    final synonymRows = localResults[2];
     final runtimeCommonNameRows = await _inatResolver
         .resolveRuntimeTaxonomyReferenceRows(localResults[1]);
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
@@ -115,6 +127,7 @@ class SearchRepository {
     _log.debug(
       'Search: reference FTS=${referenceRows.length}, '
       'runtime common-name FTS=${runtimeCommonNameRows.length}, '
+      'synonym FTS=${synonymRows.length}, '
       'iNat=${inatRows.length}, '
       'reference LIKE=${referenceFallbackRows.length}',
     );
@@ -148,6 +161,7 @@ class SearchRepository {
       runtimeCommonNameRows,
       fallbackRows,
       inatRows,
+      synonymRows,
     ]);
     if (isAbandoned()) return [];
 
@@ -160,6 +174,7 @@ class SearchRepository {
         fallbackRows: enrichedGroups[3],
         inatRows: _commonNames.applyLiveINatPreferredNames(enrichedGroups[4]),
         referenceFallbackRows: enrichedGroups[1],
+        synonymRows: enrichedGroups[5],
       ),
     );
     if (isAbandoned() || workerResponse.isStale) return [];
@@ -184,8 +199,7 @@ class SearchRepository {
     if (matchTerm.isEmpty) return [];
 
 
-    final quickSearchTerm = _quickSearchTerm(matchTerm);
-    final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
+    final quickSearchQuery = _quickSearchQuery(matchTerm);
     final normalizedTerm = normalizeSearchText(trimmedTerm);
 
     return _referenceSearchRunner.run(
@@ -214,24 +228,12 @@ class SearchRepository {
     );
   }
 
-  String _quickSearchTerm(String term) {
-    final tokens = term
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((token) => token.isNotEmpty)
-        .toList();
-    if (tokens.length <= 2) return tokens.join(' ');
+  /// The last two words of [matchTerm], or its one word as a prefix.
+  /// [ftsMatchTerm] has already collapsed and trimmed its whitespace.
+  String _quickSearchQuery(String matchTerm) {
+    final tokens = matchTerm.split(' ');
+    if (tokens.length == 1) return '${tokens.single}*';
     return tokens.sublist(tokens.length - 2).join(' ');
-  }
-
-  String _quickSearchQuery(String term) {
-    final tokens = term
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((token) => token.isNotEmpty)
-        .toList();
-    if (tokens.length <= 1) return '${tokens.join(' ')}*';
-    return tokens.join(' ');
   }
 
   Future<List<Map<String, dynamic>>> _searchReferenceSpeciesFts(

@@ -127,10 +127,10 @@ void main() {
     }
 
     expectScanFound(scannedFiles, 200, 'Dart files under lib/');
-    expectScanFound(recognisedMentions, 12, 'FTS table names');
+    expectScanFound(recognisedMentions, 14, 'FTS table names');
     expectScanFound(
       recognisedClauses,
-      10,
+      11,
       'reference-DB FTS FROM/JOIN clauses',
     );
 
