@@ -1,5 +1,6 @@
 /// Architecture test (ARCH-14) — every reference-DB FTS lookup keeps the
-/// `IN (SELECT … FROM *_fts WHERE … MATCH ?)` shape.
+/// `IN (SELECT … FROM *_fts WHERE … MATCH ?)` shape, or reads the FTS table
+/// alone as a statement of its own.
 ///
 /// `search_sql.dart` reaches its FTS tables only through an `IN`-subquery,
 /// never by joining the FTS table into the query that selects the entity
@@ -9,6 +10,15 @@
 /// turns a sub-300 ms search into 20–100+ seconds on a low-end device. The
 /// `IN`-subquery forces FTS to be evaluated first, so only the handful of
 /// rowids it returns are ever looked up.
+///
+/// A statement that reads nothing but the FTS table —
+/// `SELECT <columns> FROM <t>_fts WHERE <t>_fts MATCH ?`, optionally with a
+/// `LIMIT` — is FTS-first by construction: there is no entity table for the
+/// planner to start from. That is how a lookup reads a column of the FTS
+/// table itself, such as the synonym it matched, which an `IN`-subquery
+/// cannot return. It counts only as a whole statement — the entire string
+/// literal — so a correlated subquery, evaluating FTS once per outer row, is
+/// still caught.
 ///
 /// Nothing else protects that. The two forms are semantically identical, so
 /// every test stays green either way, and a direct join reads like the
@@ -38,10 +48,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'arch_assertions.dart';
 
 /// An FTS table pulled into a query's `FROM`/`JOIN` list — the clause this
-/// rule inspects. Case-insensitive so a differently-cased `from`/`join`
+/// rule inspects, including a table listed after a comma, which joins it as
+/// much as `JOIN` does. Case-insensitive so a differently-cased `from`/`join`
 /// cannot slip through.
 final _ftsClause = RegExp(
-  r'\b(FROM|JOIN)\s+"?(\w*_fts)\b',
+  r'(\bFROM\s+|\bJOIN\s+|,\s*)"?(\w*_fts)\b',
   caseSensitive: false,
 );
 
@@ -56,6 +67,23 @@ final _ftsMention = RegExp(r'\w*_fts\b');
 /// `FROM`, parenthesis or operator breaks the match.
 final _inSubqueryPrefix = RegExp(
   r'IN\s*\(\s*SELECT\s+[\w.,\s]*$',
+  caseSensitive: false,
+);
+
+/// The other sanctioned shape, around an FTS table that a statement reads
+/// alone: the string literal opens with `SELECT` and a column list right
+/// before the `FROM` …
+final _wholeStatementPrefix = RegExp(
+  r"""('|")\s*SELECT\s+[\w.,\s]*$""",
+  caseSensitive: false,
+);
+
+/// … and closes right after `WHERE <t>_fts MATCH ?` and an optional `LIMIT`
+/// (a number or an interpolated Dart value). [table] is the FTS table the
+/// `FROM` named; nothing else may follow before the literal ends.
+RegExp _wholeStatementSuffix(String table) => RegExp(
+  '^\\s+WHERE\\s+$table\\s+MATCH\\s+\\?'
+  r"""(\s+LIMIT\s+(\d+|\$\w+|\$\{\w+\}))?\s*('|")""",
   caseSensitive: false,
 );
 
@@ -88,36 +116,33 @@ void main() {
       final code = _codeWithLineIndex(entity.readAsLinesSync());
       recognisedMentions += _ftsMention.allMatches(code.text).length;
 
-      for (final match in _ftsClause.allMatches(code.text)) {
-        final table = match.group(2)!;
-        if (_exemptFtsTables.contains(table)) continue;
-        recognisedClauses++;
-
-        final keyword = match.group(1)!.toUpperCase();
-        final where = '$relativePath:${code.lineAt(match.start)}';
-
-        if (keyword == 'JOIN') {
-          violations.add('$where: JOIN $table');
-          continue;
-        }
-        final prefix = code.text.substring(0, match.start);
-        if (!_inSubqueryPrefix.hasMatch(prefix)) {
-          violations.add('$where: FROM $table outside an IN (SELECT …)');
-        }
+      final shape = _ftsShape(code.text);
+      recognisedClauses += shape.clauses;
+      for (final violation in shape.violations) {
+        violations.add(
+          '$relativePath:${code.lineAt(violation.offset)}: '
+          '${violation.description}',
+        );
       }
     }
 
     expectScanFound(scannedFiles, 200, 'Dart files under lib/');
     expectScanFound(recognisedMentions, 12, 'FTS table names');
-    expectScanFound(recognisedClauses, 9, 'reference-DB FTS FROM/JOIN clauses');
+    expectScanFound(
+      recognisedClauses,
+      10,
+      'reference-DB FTS FROM/JOIN clauses',
+    );
 
     expect(
       violations,
       isEmpty,
       reason:
           'ARCH-14: reach an FTS table only through '
-          '`IN (SELECT <id> FROM <t>_fts WHERE <t>_fts MATCH ?)`, as the '
-          'rest of search_sql.dart does.\n'
+          '`IN (SELECT <id> FROM <t>_fts WHERE <t>_fts MATCH ?)`, or read it '
+          'alone in a statement of its own '
+          '(`SELECT <columns> FROM <t>_fts WHERE <t>_fts MATCH ? LIMIT n`), '
+          'as search_sql.dart does.\n'
           "Joining the FTS table in makes SQLite's planner scan the entity "
           'table and probe FTS per row — same results, 20–100+ seconds '
           'instead of under 300 ms. Both forms pass every other test, so '
@@ -126,6 +151,122 @@ void main() {
           'Violations:\n  ${violations.join('\n  ')}',
     );
   });
+
+  group('the shape check', () {
+    List<String> violationsIn(String dart) => _ftsShape(
+      _codeWithLineIndex(dart.split('\n')).text,
+    ).violations.map((violation) => violation.description).toList();
+
+    test('accepts an IN-subquery', () {
+      expect(
+        violationsIn('''
+          final sql = \'\'\'
+            SELECT s.id FROM species s
+            WHERE s.id IN (SELECT id FROM species_fts WHERE species_fts MATCH ?)
+          \'\'\';
+        '''),
+        isEmpty,
+      );
+    });
+
+    test('accepts a statement that reads the FTS table alone', () {
+      expect(
+        violationsIn('''
+          String sql(int limit) => \'\'\'
+            SELECT species_id, name
+            FROM species_synonyms_fts
+            WHERE species_synonyms_fts MATCH ?
+            LIMIT \$limit
+          \'\'\';
+          const other = 'SELECT name FROM genera_fts WHERE genera_fts MATCH ?';
+        '''),
+        isEmpty,
+      );
+    });
+
+    test('rejects a correlated subquery, which evaluates FTS per outer '
+        'row', () {
+      expect(
+        violationsIn('''
+          final sql = \'\'\'
+            SELECT s.id,
+                   (SELECT name FROM species_synonyms_fts
+                    WHERE species_synonyms_fts MATCH ? AND species_id = s.id)
+            FROM species s
+          \'\'\';
+        '''),
+        [startsWith('FROM species_synonyms_fts')],
+      );
+    });
+
+    test('rejects a scalar subquery that otherwise reads the FTS table '
+        'alone', () {
+      expect(
+        violationsIn('''
+          final sql = \'\'\'
+            SELECT s.id FROM species s
+            WHERE s.name = (SELECT name FROM species_synonyms_fts
+                            WHERE species_synonyms_fts MATCH ?)
+          \'\'\';
+        '''),
+        [startsWith('FROM species_synonyms_fts')],
+      );
+    });
+
+    test('rejects an FTS table joined in, with JOIN or a comma', () {
+      expect(
+        violationsIn('''
+          final joined = \'\'\'
+            SELECT s.id FROM species s
+            JOIN species_fts f ON f.id = s.id
+            WHERE species_fts MATCH ?
+          \'\'\';
+          final commaJoined = \'\'\'
+            SELECT s.id FROM species s, species_fts
+            WHERE species_fts MATCH ? AND species_fts.id = s.id
+          \'\'\';
+        '''),
+        [startsWith('JOIN species_fts'), startsWith(', species_fts')],
+      );
+    });
+  });
+}
+
+typedef _Violation = ({int offset, String description});
+
+/// The FTS clauses in [code] this rule checks, and those that break it.
+({int clauses, List<_Violation> violations}) _ftsShape(String code) {
+  var clauses = 0;
+  final violations = <_Violation>[];
+
+  for (final match in _ftsClause.allMatches(code)) {
+    final table = match.group(2)!;
+    if (_exemptFtsTables.contains(table)) continue;
+    clauses++;
+
+    final keyword = match.group(1)!.trim().toUpperCase();
+    if (keyword == 'JOIN') {
+      violations.add((offset: match.start, description: 'JOIN $table'));
+      continue;
+    }
+    if (keyword == ',') {
+      violations.add((offset: match.start, description: ', $table'));
+      continue;
+    }
+    final prefix = code.substring(0, match.start);
+    if (_inSubqueryPrefix.hasMatch(prefix)) continue;
+    if (_wholeStatementPrefix.hasMatch(prefix) &&
+        _wholeStatementSuffix(table).hasMatch(code.substring(match.end))) {
+      continue;
+    }
+    violations.add((
+      offset: match.start,
+      description:
+          'FROM $table outside an IN (SELECT …) or a statement of its own',
+    ));
+  }
+
+  return (clauses: clauses, violations: violations);
 }
 
 /// A file's code (comment lines dropped) as one whitespace-joined string,
