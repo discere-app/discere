@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_view_model.dart';
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,7 @@ void main() {
                 additionalNames: null,
                 localImagePath: null,
                 remoteImageUrl: 'https://images.test/pterois.jpg',
+                matchedSynonym: null,
               ),
             ),
           ),
@@ -47,6 +49,7 @@ void main() {
       additionalNames: null,
       localImagePath: null,
       remoteImageUrl: null,
+      matchedSynonym: null,
     );
 
     testWidgets('shows a footer under the names', (tester) async {
@@ -86,6 +89,47 @@ void main() {
       await tester.tap(find.text('Red lionfish'));
       await tester.pumpAndSettle();
       expect((tapped, longPressed), (1, 1));
+    });
+  });
+
+  group('matched synonym', () {
+    SpeciesListItemViewModel item(String? matchedSynonym) =>
+        SpeciesListItemViewModel(
+          primaryName: 'Indian threadfish',
+          scientificName: 'Scyris indica',
+          additionalNames: null,
+          localImagePath: null,
+          remoteImageUrl: null,
+          matchedSynonym: matchedSynonym,
+        );
+
+    Future<void> pump(WidgetTester tester, SpeciesListItemViewModel item) =>
+        tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SpeciesListItem(item: item)),
+          ),
+        );
+
+    testWidgets('names the synonym a search found the species through, in '
+        'italics', (tester) async {
+      await pump(tester, item('Alectis indica'));
+
+      final line = tester.widget<Text>(
+        find.text('Former name: Alectis indica'),
+      );
+      final synonymSpan = (line.textSpan! as TextSpan).children!
+          .cast<TextSpan>()
+          .singleWhere((span) => span.text == 'Alectis indica');
+      expect(synonymSpan.style?.fontStyle, FontStyle.italic);
+    });
+
+    testWidgets('is not shown for a species found directly', (tester) async {
+      await pump(tester, item(null));
+
+      expect(find.textContaining('Former name'), findsNothing);
     });
   });
 }

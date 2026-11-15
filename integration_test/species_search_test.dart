@@ -1,3 +1,4 @@
+import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'test_utils.dart';
@@ -60,6 +61,32 @@ void main() {
         detailsLoaded,
         isTrue,
         reason: "Species Detail page did not load for '$query' within 10 seconds",
+      );
+    }, timeout: integrationTestTimeout);
+
+    testWidgets('a species found through a synonym names it on its card', (
+      WidgetTester tester,
+    ) async {
+      await startApp(
+        tester,
+        notificationService: createMockNotificationService(),
+      );
+
+      await tester.tap(find.byIcon(Icons.search));
+      await safePumpAndSettle(tester);
+      await tester.enterText(find.byType(TextField), 'Alectis indica');
+
+      final card = find.ancestor(
+        of: find.text('Scyris indica'),
+        matching: find.byType(SpeciesListItem),
+      );
+      await waitForFinder(tester, card);
+      expect(
+        find.descendant(
+          of: card.first,
+          matching: find.textContaining('Alectis indica'),
+        ),
+        findsOneWidget,
       );
     }, timeout: integrationTestTimeout);
   });

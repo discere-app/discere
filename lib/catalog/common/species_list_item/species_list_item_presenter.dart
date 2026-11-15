@@ -19,6 +19,7 @@ class SpeciesListItemPresenter {
       additionalNames: _additionalNames(localizedNames),
       localImagePath: null,
       remoteImageUrl: _remoteImageUrl(species),
+      matchedSynonym: null,
     );
   }
 
@@ -41,6 +42,7 @@ class SpeciesListItemPresenter {
           ? null
           : speciesWithLocalImages.localPictures.first.localPath,
       remoteImageUrl: _remoteImageUrl(speciesWithLocalImages.species),
+      matchedSynonym: null,
     );
   }
 
@@ -61,6 +63,7 @@ class SpeciesListItemPresenter {
       additionalNames: _additionalNames(localizedNames),
       localImagePath: null,
       remoteImageUrl: null,
+      matchedSynonym: searchResult.matchedSynonym,
     );
   }
 

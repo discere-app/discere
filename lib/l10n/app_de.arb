@@ -186,6 +186,12 @@
   "searchDetailContainedOrders": "Ordnungen",
   "searchDetailAttributes": "Merkmale",
   "searchDetailOnlineOnlyHint": "Dieser Eintrag stammt aus der Online-Suche. Für ihn liegen keine Referenzdaten vor, daher bleiben Kennzahlen und Einordnung leer.",
+  "searchFormerScientificName": "Veralteter Name: {name}",
+  "@searchFormerScientificName": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
   "speciesSize": "Größe",
   "speciesDepth": "Tiefe",
   "speciesDetailFactsTitle": "Artenprofil",
