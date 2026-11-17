@@ -60,9 +60,19 @@ android {
             versionNameSuffix = "-dev"
         }
         getByName("profile") {
-            applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
         }
+    }
+}
+
+// The profile build's ".dev" application ID suffix is set per variant rather
+// than in the `profile` build type: Flutter 3.50.0 copies the app's `profile`
+// build type onto plugin libraries, which may not set `applicationIdSuffix`
+// (flutter/flutter#196412). Move it back into the `profile` block once the
+// Flutter pin reaches a version with the fix.
+androidComponents {
+    onVariants(selector().withBuildType("profile")) { variant ->
+        variant.applicationId.set(variant.applicationId.get() + ".dev")
     }
 }
 
