@@ -125,6 +125,11 @@ Future<void> waitForCondition(
 
 /// Polls until [finder] matches at least one widget, or [timeout] elapses.
 /// See [waitForCondition] for why this is needed over a bare `expect`.
+///
+/// It waits for the widget to exist, not for it to be tappable: a widget is
+/// in the tree from the first frame of the animation that brings it on
+/// screen. To tap something that has only just appeared, use
+/// [tapWhenHitTestable].
 Future<void> waitForFinder(
   WidgetTester tester,
   Finder finder, {
@@ -158,6 +163,46 @@ Future<void> waitForAbsence(
   timeout: timeout,
   step: step,
 );
+
+/// Polls until a hit test at the centre of the widget [finder] matches
+/// reaches that widget, then taps it there. Fails like [waitForCondition] if
+/// that does not happen within [timeout].
+///
+/// A widget exists before it can be tapped. A bottom sheet, dialog or
+/// snack bar is in the tree from the first frame of its entrance animation,
+/// when it may still sit below the edge of the screen, and a page is in the
+/// tree while its route transition is still moving it into place. A tap aimed
+/// at such a widget lands on nothing or on something else; `tester.tap` only
+/// prints a warning about it, and the test fails much later, waiting for
+/// whatever the tap should have opened. Every tap on a widget that has only
+/// just appeared therefore goes through here rather than [waitForFinder]
+/// followed by `tester.tap`.
+///
+/// What gets tapped is `finder.hitTestable()` — the widget the wait found
+/// tappable, not one of [finder]'s other matches hidden behind it. As with
+/// `tester.tap`, more than one tappable match is an error. Where several
+/// matches are expected, wait for them with [waitForFinder] and pass the
+/// finder narrowed with `.first` only then: a `.first` finder throws while
+/// nothing matches, so it cannot be polled from before the widget appears.
+Future<void> tapWhenHitTestable(
+  WidgetTester tester,
+  Finder finder, {
+  String? description,
+  Duration timeout = const Duration(seconds: 60),
+  Duration step = const Duration(milliseconds: 200),
+}) async {
+  final hitTestable = finder.hitTestable();
+  await waitForCondition(
+    tester,
+    () => hitTestable.evaluate().isNotEmpty,
+    description:
+        description ??
+        '${finder.describeMatch(Plurality.many)} to become tappable',
+    timeout: timeout,
+    step: step,
+  );
+  await tester.tap(hitTestable);
+}
 
 /// Opens the deck named [deckName] from the decks overview.
 ///
