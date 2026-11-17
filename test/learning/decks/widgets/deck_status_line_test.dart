@@ -1,7 +1,7 @@
 import 'package:discere/learning/decks/widgets/deck_status_line.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _longText =
     'Updated 10 hours ago · names may have changed, and a little more';

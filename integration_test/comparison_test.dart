@@ -1,8 +1,8 @@
 import 'package:discere/catalog/comparison/comparison_page.dart';
 import 'package:discere/catalog/comparison/comparison_species_section.dart';
 import 'package:discere/catalog/search/search_result_list_item.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'test_utils.dart';
 

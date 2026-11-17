@@ -6,12 +6,12 @@ import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/species_detail/species_detail_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -104,12 +104,7 @@ SpeciesWithLocalImages _sampleSpecies() {
 Widget _buildApp(Widget home) {
   return MaterialApp(
     theme: ThemeData(splashFactory: NoSplash.splashFactory),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: home,
   );

@@ -3,8 +3,8 @@ import 'package:discere/catalog/search/search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_hero_header.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 TaxonomyDetailViewModel _viewData({String entityLabel = 'Family'}) =>
     TaxonomyDetailViewModel(
