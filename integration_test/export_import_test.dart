@@ -370,8 +370,6 @@ void main() {
         await tapWhenHitTestable(tester, shareIconFinder);
         await safePumpAndSettle(tester);
 
-        await safePumpAndSettle(tester);
-
         // Use text finder to be safer against multiple icons
         final jsonOptionFinder = find.byKey(
           const Key('share_json_text_option'),
@@ -391,24 +389,10 @@ void main() {
         await tester.tap(jsonOptionFinder);
         await safePumpAndSettle(tester);
 
-        int attempts = 0;
-        while (fakeSharePlatform.lastSharedText == null && attempts < 10) {
-          await tester.pump(const Duration(milliseconds: 200));
-          attempts++;
-        }
-        final success =
-            (SharePlatform.instance as FakeSharePlatform).lastSharedText !=
-            null;
-        debugPrint(
-          '-- TEST LOOP: finished after $attempts attempts, result: ${success ? 'SUCCESS' : 'FAILURE'} --',
-        );
-        await safePumpAndSettle(tester);
-
-        expect(
-          fakeSharePlatform.lastSharedText,
-          isNotNull,
-          reason:
-              'Sharing via JSON should set lastSharedText. Check if scrolling/tapping reached the handler.',
+        await waitForCondition(
+          tester,
+          () => fakeSharePlatform.lastSharedText != null,
+          description: 'the JSON text to be shared',
         );
         final exportedJson = fakeSharePlatform.lastSharedText!;
 

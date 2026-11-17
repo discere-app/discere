@@ -164,9 +164,9 @@ Future<void> waitForAbsence(
   step: step,
 );
 
-/// Polls until a hit test at the centre of the widget [finder] matches
-/// reaches that widget, then taps it there. Fails like [waitForCondition] if
-/// that does not happen within [timeout].
+/// Polls until the widget [finder] matches can be hit at its center, then
+/// taps it there. Fails like [waitForCondition] if that does not happen
+/// within [timeout].
 ///
 /// A widget exists before it can be tapped. A bottom sheet, dialog or
 /// snack bar is in the tree from the first frame of its entrance animation,

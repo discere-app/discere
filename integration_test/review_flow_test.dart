@@ -41,8 +41,8 @@ void main() {
           );
         }
 
-        // 2. + 3. Tap Easy (Correct answer) as soon as the first card is
-        // there (card initialization is DB-only, should be fast)
+        // 2. Grade the first card Easy (correct answer) as soon as its buttons
+        // are there (card initialization is DB-only, so this is fast)
         await tapWhenHitTestable(
           tester,
           find.byIcon(Icons.thumb_up_rounded),
@@ -50,7 +50,7 @@ void main() {
         );
         await safePumpAndSettle(tester);
 
-        // 4. Verify completion dialog or back on home
+        // 3. Verify completion dialog or back on home
         // Since it's a 1-card deck, it should show a completion dialog. Grading
         // triggers an async getDeckStat before the dialog is built, so wait for
         // either the dialog or (if it's fast enough to not need waiting) the
