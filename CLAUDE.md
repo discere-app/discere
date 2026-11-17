@@ -245,6 +245,8 @@ This extends to caught errors: `AppException.message` (`lib/shared/model/app_exc
 
 ARCH-03 scans `lib/` for the common violations of this: hardcoded `Text()` literals, `.toString()` fed into a `context.loc.*(...)` call, a raw error interpolated into `Text(...)`.
 
+Every `MaterialApp` that sets localizations — the app's, the bootstrap shells', and those in tests — takes `appLocalizationsDelegates` (`lib/shared/l10n/app_localizations_delegates.dart`), not the generated `AppLocalizations.localizationsDelegates`: the generated list names the `flutter_localizations` delegates, whose Material localizations the `material_ui` widgets do not find, so their own texts (tooltips, dialog buttons, pickers) would stay English.
+
 ### Testing
 
 - **Unit tests** in `test/`, mirroring the `lib/` slice structure 1:1 (`test/catalog/`, `test/enrichment/`, `test/learning/`, `test/shared/`, `test/diagnostics/`, `test/app/`, `test/external/`) — a file under `lib/learning/decks/foo.dart` has its test at `test/learning/decks/foo_test.dart`. Shared mockito-generated mocks live at top-level `test/mocks.dart` (source) / `test/mocks.mocks.dart` (generated), imported by relative path since `test/` isn't part of the `discere` package.
