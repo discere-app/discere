@@ -1,2 +1,7 @@
 arb-dir: lib/l10n
 template-arb-file: app_en.arb
+# The generated delegate list names the Material and Cupertino delegates of
+# flutter_localizations, deprecated in favour of material_ui/cupertino_ui. The
+# app uses its own list (lib/shared/l10n/app_localizations_delegates.dart);
+# this keeps the generated code from reporting what it cannot avoid.
+header: "// ignore_for_file: deprecated_member_use"

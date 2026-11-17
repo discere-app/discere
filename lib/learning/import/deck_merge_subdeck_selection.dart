@@ -1,7 +1,7 @@
 import 'package:discere/learning/model/subdeck_membership.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The merge dialog's choice of the subdecks the merged deck has on: one
 /// checkbox per subdeck, with its species count. A choice, not a setting

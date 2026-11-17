@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Heading of the edit page's species list: how many species the draft holds,
 /// and the buttons that add one and start selecting several. Without

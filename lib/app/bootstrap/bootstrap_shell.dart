@@ -1,5 +1,5 @@
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Generic loading screen shown while `BootstrapApp` is still assembling
 /// services — before there's anything reference-DB-specific to report.

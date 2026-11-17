@@ -3,7 +3,7 @@ import 'dart:collection';
 
 import 'package:discere/shared/extensions/image_request_headers_extension.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Small asynchronous thumbnail for species search results.
 ///

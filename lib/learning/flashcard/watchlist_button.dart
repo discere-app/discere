@@ -1,6 +1,6 @@
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/learning/flashcard/glass_button_frame.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// Bookmark toggle shown on both faces of a flashcard (front image header,

@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shows a confirmation dialog for optional iNaturalist enrichment.
 ///

@@ -1,7 +1,7 @@
 import 'package:discere/learning/flashcard/flashcard_multiple_choice_front.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'multiple_choice_deck_species.dart';
 import 'test_utils.dart';

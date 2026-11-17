@@ -1,7 +1,7 @@
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/learning/decks/add_to_deck/add_to_deck_sheet.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A species' detail page as the app opens it from every screen: with "add
 /// to deck", and with the species it links to opening the same way.

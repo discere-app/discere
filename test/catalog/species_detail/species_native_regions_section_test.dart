@@ -2,9 +2,9 @@ import 'package:discere/catalog/species_detail/species_native_region_view_model.
 import 'package:discere/catalog/species_detail/species_native_regions_section_view_model.dart';
 import 'package:discere/catalog/species_detail/widgets/species_native_regions_section.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('localizes collapsed region controls', (tester) async {
@@ -127,12 +127,7 @@ Widget _buildApp(Widget child) {
   return MaterialApp(
     locale: const Locale('de'),
     theme: ThemeData(splashFactory: NoSplash.splashFactory),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(body: child),
   );

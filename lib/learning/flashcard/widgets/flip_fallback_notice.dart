@@ -1,6 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Says why a card of a multiple-choice deck is asked by flipping: there were
 /// too few answer options for it (see `DeckSessionPresenter.isFlipFallback`).

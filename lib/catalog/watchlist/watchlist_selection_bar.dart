@@ -1,7 +1,7 @@
 import 'package:discere/catalog/common/species_selection.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown above the watchlist while species are being selected: ends the
 /// selection, says how many are selected, and adds them to a comparison.

@@ -1,6 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The expanding "add" button: tapping it reveals labelled options for
 /// creating and importing a deck. Owns its expanded state, since nothing

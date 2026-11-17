@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Actions that are not about enrichment or logs: forcing a deck-catalog
 /// check, and wiping every stored preference.

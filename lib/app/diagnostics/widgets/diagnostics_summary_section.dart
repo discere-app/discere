@@ -2,7 +2,7 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// At-a-glance dashboard, first thing on the page: the four numbers that
 /// answer "is anything wrong right now" without expanding a section.

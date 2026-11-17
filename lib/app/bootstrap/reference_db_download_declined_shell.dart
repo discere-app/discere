@@ -1,6 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown when the user declines the reference-DB download confirmation
 /// ("Nicht jetzt") — a neutral "come back when ready" screen, not an error.
@@ -13,7 +14,7 @@ class ReferenceDbDownloadDeclinedShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Builder(
         builder: (context) {

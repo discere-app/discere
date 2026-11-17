@@ -10,7 +10,7 @@ import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_hero_header.dar
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The loaded page body. Every section is optional except the header, the
 /// names and the children, so the order here is the page's structure: who

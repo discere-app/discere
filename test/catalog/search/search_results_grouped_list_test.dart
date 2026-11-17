@@ -4,10 +4,10 @@ import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_grouped_list.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   // The thumbnail cache is static and shared across every test in this
@@ -100,12 +100,7 @@ Widget _buildList(
 }) {
   return MaterialApp(
     locale: const Locale('en'),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: SearchResultsGroupedList(

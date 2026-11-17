@@ -2,7 +2,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SearchResultCard extends StatelessWidget {
   final String primaryName;

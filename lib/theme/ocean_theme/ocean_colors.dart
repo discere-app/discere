@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Raw color palette for [oceanTheme] (see `ocean_theme.dart`). Values here
 /// are the palette; how they're wired into [ColorScheme]/[TextTheme] roles —

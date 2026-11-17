@@ -1,7 +1,7 @@
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class StatusLabel extends StatelessWidget {
   final ImportOnlineDeckStatus status;

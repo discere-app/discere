@@ -6,8 +6,8 @@ import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ImageCarousel extends StatefulWidget {
   final List<CarouselImage> pictures;

@@ -10,7 +10,7 @@ import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// Opens the add-species bottom sheet and resolves with the picked species,

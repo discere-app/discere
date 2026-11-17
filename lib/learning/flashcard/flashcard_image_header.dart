@@ -4,8 +4,8 @@ import 'package:discere/learning/flashcard/watchlist_button.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The image carousel + watchlist button shown at the top of a flashcard,
 /// shared between flip mode ([FlashcardFront]) and multiple-choice mode

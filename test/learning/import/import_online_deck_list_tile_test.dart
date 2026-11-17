@@ -5,9 +5,10 @@ import 'package:discere/learning/import/widgets/deck_learning_settings_icons.dar
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   Future<void> pumpTile(
@@ -19,7 +20,7 @@ void main() {
     return tester.pumpWidget(
       MaterialApp(
         locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ImportOnlineDeckListTile(

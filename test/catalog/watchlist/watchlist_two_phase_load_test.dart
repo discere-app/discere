@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'watchlist_tab_harness.dart';
 

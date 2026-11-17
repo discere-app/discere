@@ -1,7 +1,8 @@
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown while the reference database is actively downloading, after the
 /// user has confirmed via `ReferenceDbDownloadConfirmShell`.
@@ -19,7 +20,7 @@ class ReferenceDbDownloadShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Builder(
         builder: (context) {

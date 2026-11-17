@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The round, dark, translucent backdrop of the flashcard's buttons that sit
 /// over an image, so they stay readable on any photo.

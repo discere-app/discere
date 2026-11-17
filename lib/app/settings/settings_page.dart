@@ -10,7 +10,7 @@ import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/app_theme_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

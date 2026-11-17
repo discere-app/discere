@@ -2,7 +2,7 @@ import 'package:discere/app/info/source_license_kind.dart';
 import 'package:discere/app/info/sources_hero_palette.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Explains the licence keys the cards above only abbreviate.
 class SourcesLicensesFooter extends StatelessWidget {

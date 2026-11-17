@@ -2,8 +2,8 @@ import 'package:discere/catalog/common/species_selection.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/edit/species_selection_app_bar.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../catalog/comparison/comparison_test_app.dart';
 

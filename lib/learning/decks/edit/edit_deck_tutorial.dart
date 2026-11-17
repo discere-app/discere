@@ -1,6 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:discere/shared/ui/coach_mark_tour.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 /// Builds and shows the first-run coach marks over EditDeckPage: the
@@ -22,16 +23,11 @@ class EditDeckTutorial {
   const EditDeckTutorial({this.learningSettingsKey, this.subdecksKey});
 
   void show(BuildContext context) {
-    final loc = context.loc;
-    TutorialCoachMark(
-      targets: _targets(loc),
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
-      onSkip: () => true,
+    showCoachMarkTour(
+      context,
+      targets: _targets(context.loc),
       beforeFocus: _scrollIntoView,
-    ).show(context: context);
+    );
   }
 
   /// Both sections sit below the fold on smaller screens.
@@ -54,9 +50,9 @@ class EditDeckTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.bottom,
-            child: _content(
-              loc.tutorialEditDeckLearningSettingsTitle,
-              loc.tutorialEditDeckLearningSettingsDescription,
+            child: CoachMarkContent(
+              title: loc.tutorialEditDeckLearningSettingsTitle,
+              body: loc.tutorialEditDeckLearningSettingsDescription,
             ),
           ),
         ],
@@ -69,34 +65,12 @@ class EditDeckTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.bottom,
-            child: _content(
-              loc.tutorialEditDeckSubdecksTitle,
-              loc.tutorialEditDeckSubdecksDescription,
+            child: CoachMarkContent(
+              title: loc.tutorialEditDeckSubdecksTitle,
+              body: loc.tutorialEditDeckSubdecksDescription,
             ),
           ),
         ],
       ),
   ];
-
-  Widget _content(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
-    );
-  }
 }

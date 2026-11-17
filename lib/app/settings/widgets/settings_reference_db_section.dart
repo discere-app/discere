@@ -14,7 +14,7 @@ import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// The installed species database — version and data releases — and its

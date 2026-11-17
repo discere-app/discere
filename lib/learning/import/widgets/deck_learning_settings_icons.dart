@@ -4,7 +4,7 @@ import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The learning mode, name type and review mode a deck is reviewed with,
 /// one icon each.

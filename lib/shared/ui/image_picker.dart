@@ -5,8 +5,8 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' as pk;
+import 'package:material_ui/material_ui.dart';
 
 class ImagePicker extends StatefulWidget {
   final String? currentImagePath;

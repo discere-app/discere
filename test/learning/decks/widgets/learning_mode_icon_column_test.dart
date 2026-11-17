@@ -4,8 +4,9 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
-import 'package:flutter/material.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   group('LearningModeIconColumn.hasNonDefault', () {
@@ -56,7 +57,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(
           body: LearningModeIconColumn(

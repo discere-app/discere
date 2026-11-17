@@ -1,6 +1,6 @@
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/app_theme_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Bordered, softly-filled placeholder shown in place of a missing image —
 /// an icon over a caption. Sized by whatever the caller wraps it in

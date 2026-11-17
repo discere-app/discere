@@ -8,7 +8,7 @@ import 'package:discere/app/diagnostics/widgets/diagnostics_log_section.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_summary_section.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The page's sections, ordered by how actionable each one is: the
 /// at-a-glance dashboard first, static facts about the install last.

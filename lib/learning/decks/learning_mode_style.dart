@@ -4,7 +4,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Icon/label/description text for [LearningMode], [NameType] and
 /// [ReviewMode], shared between deck_card.dart's badge, edit_deck_page.dart's

@@ -1,9 +1,9 @@
 import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _buildApp({
   required Language language,
@@ -12,12 +12,7 @@ Widget _buildApp({
 }) {
   return MaterialApp(
     locale: const Locale('en'),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: DisplayLanguageSelector(

@@ -2,7 +2,7 @@ import 'package:discere/catalog/common/species_facts/species_fact_view_model.dar
 import 'package:discere/catalog/species_detail/species_facts_section_view_model.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SpeciesFactsSection extends StatelessWidget {
   final SpeciesFactsSectionViewModel section;

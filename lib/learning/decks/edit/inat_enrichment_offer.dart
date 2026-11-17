@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// Offers to fetch iNaturalist photos and common names for species newly

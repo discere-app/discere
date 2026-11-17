@@ -2,7 +2,7 @@ import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The deck's learning progress as a bar with the learned/total count next to
 /// it — the one place the card states it. Both read the stat the deck list

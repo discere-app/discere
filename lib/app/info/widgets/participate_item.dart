@@ -1,5 +1,5 @@
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ParticipateItem extends StatelessWidget {
   const ParticipateItem({

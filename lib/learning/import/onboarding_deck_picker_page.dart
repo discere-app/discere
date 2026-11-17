@@ -3,7 +3,7 @@ import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// First-run entry point shown instead of a blocking "Welcome" dialog: picking

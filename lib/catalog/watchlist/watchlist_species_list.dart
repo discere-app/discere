@@ -4,7 +4,7 @@ import 'package:discere/catalog/common/species_selection.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The watchlist's swipe-to-remove species list. A long press starts selecting
 /// several species; while selecting, a tap toggles a species and swiping is

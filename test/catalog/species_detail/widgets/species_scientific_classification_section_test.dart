@@ -2,9 +2,9 @@ import 'package:discere/catalog/common/taxon_classification/classification_row_v
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Kynaria cynara's chain: SeaLifeBase files it under the family "Not
 /// assigned" of the order Nudibranchia.
@@ -110,12 +110,7 @@ Widget _buildApp(Locale locale, Widget child) {
   return MaterialApp(
     locale: locale,
     theme: ThemeData(splashFactory: NoSplash.splashFactory),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(body: SingleChildScrollView(child: child)),
   );

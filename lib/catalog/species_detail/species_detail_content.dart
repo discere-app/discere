@@ -16,7 +16,7 @@ import 'package:discere/catalog/species_detail/widgets/species_summary_section.d
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SpeciesDetailContent extends StatelessWidget {
   final SpeciesWithLocalImages species;

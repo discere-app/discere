@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks whether to leave the edit page without saving. Resolves to `true`
 /// only when the user chooses to discard the changes.

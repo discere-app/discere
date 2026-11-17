@@ -1,9 +1,9 @@
 import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:discere/shared/util/constants.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 

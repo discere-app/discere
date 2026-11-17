@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks for a comparison list's name, starting from [initialName]. Resolves to
 /// the trimmed name, or null when cancelled. An empty name cannot be

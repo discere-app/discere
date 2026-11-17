@@ -7,7 +7,7 @@
 library;
 
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Title row at the top of a multi-tile card.
 class DiagnosticsSectionHeader extends StatelessWidget {

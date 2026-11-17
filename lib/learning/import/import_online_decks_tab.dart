@@ -14,7 +14,7 @@ import 'package:discere/shared/ui/retryable_error_state.dart';
 import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// The remote decks on offer, and which local decks they stand for or

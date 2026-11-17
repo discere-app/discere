@@ -1,6 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Inline tap-to-explain info icon for a primary name shown next to it,
 /// e.g. as a title suffix — unlike `FlashcardBackContent`'s corner badge,

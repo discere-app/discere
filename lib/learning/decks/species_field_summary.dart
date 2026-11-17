@@ -1,7 +1,7 @@
 import 'package:discere/learning/decks/species_field_presenter.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The verdict on the create-deck species field, one row per outcome: how
 /// many species were found, which lines will be looked up on iNaturalist,

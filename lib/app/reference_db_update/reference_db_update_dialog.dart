@@ -8,7 +8,7 @@ import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks about [update] and acts on the answer: "update now" starts the
 /// download in the background, where the notice below every route shows its

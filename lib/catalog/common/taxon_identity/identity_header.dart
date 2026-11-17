@@ -3,7 +3,7 @@ import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class IdentityHeader extends StatelessWidget {
   final TaxonIdentityViewModel identity;

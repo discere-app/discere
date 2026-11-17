@@ -1,7 +1,7 @@
 import 'package:discere/app/info/sources_hero_palette.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opening statement of the credits page: what the data is and where it
 /// comes from, before any of the individual sources.

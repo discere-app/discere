@@ -7,8 +7,8 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/learning/share/widgets/qr_code_view.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 

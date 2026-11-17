@@ -1,7 +1,7 @@
 import 'package:discere/learning/flashcard/watchlist_button.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown in place of the image whenever a species has no local picture at
 /// all — reached only once a deck's image-enrichment stages are complete

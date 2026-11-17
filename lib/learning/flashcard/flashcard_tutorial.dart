@@ -1,7 +1,8 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:discere/shared/ui/coach_mark_tour.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 /// Builds and shows the first-run coach mark over a flashcard review
@@ -36,19 +37,14 @@ class FlashcardTutorial {
   });
 
   void show(BuildContext context) {
-    final loc = context.loc;
-    TutorialCoachMark(
-      targets: _targets(context, loc),
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
+    showCoachMarkTour(
+      context,
+      targets: _targets(context, context.loc),
       // Every step's content sits in the lower half of the card (rating
       // buttons/options, image caption), so the default bottom-right skip
       // button would sit on top of them — move it to the top instead.
       alignSkip: Alignment.topRight,
-      onSkip: () => true,
-    ).show(context: context);
+    );
   }
 
   /// The intro step notes when the asked-for name is at genus or family
@@ -86,7 +82,10 @@ class FlashcardTutorial {
       contents: [
         TargetContent(
           align: ContentAlign.bottom,
-          child: _content(loc.tutorialIntroTitle, _introDescription(loc)),
+          child: CoachMarkContent(
+            title: loc.tutorialIntroTitle,
+            body: _introDescription(loc),
+          ),
         ),
       ],
     ),
@@ -98,9 +97,9 @@ class FlashcardTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.bottom,
-            child: _content(
-              loc.tutorialFlashcardImageTitle,
-              isMultipleChoice
+            child: CoachMarkContent(
+              title: loc.tutorialFlashcardImageTitle,
+              body: isMultipleChoice
                   ? loc.tutorialFlashcardImageDescriptionMultipleChoice
                   : loc.tutorialFlashcardImageDescription,
             ),
@@ -115,9 +114,9 @@ class FlashcardTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.top,
-            child: _content(
-              loc.tutorialFlashcardOptionsTitle,
-              loc.tutorialFlashcardOptionsDescription,
+            child: CoachMarkContent(
+              title: loc.tutorialFlashcardOptionsTitle,
+              body: loc.tutorialFlashcardOptionsDescription,
             ),
           ),
         ],
@@ -130,9 +129,9 @@ class FlashcardTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.top,
-            child: _content(
-              loc.flashcardButtonAgain,
-              loc.tutorialFlashcardAgainDescription,
+            child: CoachMarkContent(
+              title: loc.flashcardButtonAgain,
+              body: loc.tutorialFlashcardAgainDescription,
             ),
           ),
         ],
@@ -144,9 +143,9 @@ class FlashcardTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.top,
-            child: _content(
-              loc.flashcardButtonHard,
-              loc.tutorialFlashcardHardDescription,
+            child: CoachMarkContent(
+              title: loc.flashcardButtonHard,
+              body: loc.tutorialFlashcardHardDescription,
             ),
           ),
         ],
@@ -158,9 +157,9 @@ class FlashcardTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.top,
-            child: _content(
-              loc.flashcardButtonGood,
-              loc.tutorialFlashcardGoodDescription,
+            child: CoachMarkContent(
+              title: loc.flashcardButtonGood,
+              body: loc.tutorialFlashcardGoodDescription,
             ),
           ),
         ],
@@ -172,9 +171,9 @@ class FlashcardTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.top,
-            child: _content(
-              loc.flashcardButtonEasy,
-              loc.tutorialFlashcardEasyDescription,
+            child: CoachMarkContent(
+              title: loc.flashcardButtonEasy,
+              body: loc.tutorialFlashcardEasyDescription,
             ),
           ),
         ],
@@ -188,34 +187,12 @@ class FlashcardTutorial {
       contents: [
         TargetContent(
           align: ContentAlign.bottom,
-          child: _content(
-            loc.tutorialFlashcardWatchlistTitle,
-            loc.tutorialFlashcardWatchlistDescription,
+          child: CoachMarkContent(
+            title: loc.tutorialFlashcardWatchlistTitle,
+            body: loc.tutorialFlashcardWatchlistDescription,
           ),
         ),
       ],
     ),
   ];
-
-  Widget _content(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
-    );
-  }
 }

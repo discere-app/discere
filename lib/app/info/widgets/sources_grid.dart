@@ -2,7 +2,7 @@ import 'package:discere/app/info/widgets/source_card.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The sources as cards — two columns once there is room for them, one
 /// otherwise. Never scrolls itself; the page owns the scroll.

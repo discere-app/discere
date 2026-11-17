@@ -7,7 +7,7 @@ import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// Shows the species' Wikipedia lead-paragraph summary, fetched directly

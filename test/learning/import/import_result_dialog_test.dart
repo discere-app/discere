@@ -2,9 +2,9 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/import/import_result_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
@@ -45,12 +45,7 @@ void main() {
 Widget _buildApp() {
   return MaterialApp(
     theme: ThemeData(splashFactory: NoSplash.splashFactory),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: const Scaffold(body: SizedBox.shrink()),
   );

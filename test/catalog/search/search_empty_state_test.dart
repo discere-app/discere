@@ -1,10 +1,10 @@
 import 'package:discere/catalog/search/search_empty_state.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/shared/model/app_exception.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Covers the three states the empty search screen can be in — the online
 /// search is still ahead, is running, or is behind us without a result —
@@ -118,12 +118,7 @@ Widget _buildEmptyState({
 }) {
   return MaterialApp(
     locale: const Locale('en'),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: SearchEmptyState(

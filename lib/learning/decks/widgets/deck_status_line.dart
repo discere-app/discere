@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// An icon-plus-text status line on a deck card, shared by the enrichment,
 /// update and replacement hints so all three read as one kind of line.

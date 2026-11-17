@@ -5,7 +5,7 @@ import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Everything enrichment-related — queue, cover jobs, iNaturalist cooldown,
 /// foreground service, and the two enrichment actions — as one section rather

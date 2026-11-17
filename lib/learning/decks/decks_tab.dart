@@ -3,7 +3,7 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 class DecksTab extends StatefulWidget {

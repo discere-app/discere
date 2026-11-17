@@ -2,7 +2,7 @@ import 'package:discere/catalog/comparison/add_to_comparison_sheet.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/flashcard/glass_button_frame.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Adds the card's species to a comparison — on the back of the card, where
 /// the answer is known; never another species, not even one picked wrongly

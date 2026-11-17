@@ -1,7 +1,7 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Chip showing the language a taxon's names are displayed in, opening a
 /// menu to look at them in another one.

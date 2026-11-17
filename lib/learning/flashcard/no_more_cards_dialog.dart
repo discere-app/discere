@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown when a review session reaches its last card and the deck has no
 /// uninitialized cards left to offer — everything due has been reviewed.

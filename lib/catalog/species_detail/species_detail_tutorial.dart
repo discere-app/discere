@@ -1,6 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:discere/shared/ui/coach_mark_tour.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 /// Builds and shows the first-run coach marks over SpeciesDetailPage's
@@ -21,15 +22,7 @@ class SpeciesDetailTutorial {
   const SpeciesDetailTutorial({this.addToDeckKey, this.compareKey});
 
   void show(BuildContext context) {
-    final loc = context.loc;
-    TutorialCoachMark(
-      targets: _targets(loc),
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
-      onSkip: () => true,
-    ).show(context: context);
+    showCoachMarkTour(context, targets: _targets(context.loc));
   }
 
   List<TargetFocus> _targets(AppLocalizations loc) => [
@@ -62,30 +55,11 @@ class SpeciesDetailTutorial {
       shape: ShapeLightFocus.Circle,
       paddingFocus: 4,
       contents: [
-        TargetContent(align: ContentAlign.bottom, child: _content(title, body)),
+        TargetContent(
+          align: ContentAlign.bottom,
+          child: CoachMarkContent(title: title, body: body),
+        ),
       ],
-    );
-  }
-
-  Widget _content(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
     );
   }
 }

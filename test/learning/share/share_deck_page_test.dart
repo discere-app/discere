@@ -6,10 +6,10 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/learning/share/share_deck_page.dart';
 import 'package:discere/learning/share/widgets/qr_code_view.dart';
-import 'package:flutter/material.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 
@@ -65,12 +65,7 @@ void main() {
       ],
       child: MaterialApp(
         theme: ThemeData(splashFactory: NoSplash.splashFactory),
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: ShareDeckPage(deck: BaseDeck(id: deckId, name: 'Test Deck', description: 'desc')),
       ),
