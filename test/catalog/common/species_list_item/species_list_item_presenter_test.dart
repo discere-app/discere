@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/model/language.dart';
@@ -44,6 +45,22 @@ void main() {
 
       expect(viewModel.primaryName, 'Falscher Clownfisch');
       expect(viewModel.additionalNames, 'Anemonenfisch');
+    });
+
+    test('carries the synonym a search result was found through', () {
+      final viewModel = presenter.presentSearchResult(
+        SearchResult(
+          id: 'discere:species:10',
+          name: 'Scyris indica',
+          commonNames: const {},
+          type: SearchEntityType.species,
+          matchedSynonym: 'Alectis indica',
+        ),
+        Language.en,
+      );
+
+      expect(viewModel.scientificName, 'Scyris indica');
+      expect(viewModel.matchedSynonym, 'Alectis indica');
     });
   });
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_view_model.dart';
 import 'package:discere/shared/extensions/image_request_headers_extension.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
@@ -80,6 +81,10 @@ class SpeciesListItem extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (item.matchedSynonym case final synonym?) ...[
+                      AppSpacing.heightS4,
+                      _buildMatchedSynonym(context, theme, synonym),
+                    ],
                     if (item.additionalNames != null &&
                         item.additionalNames!.trim().isNotEmpty) ...[
                       AppSpacing.heightS4,
@@ -110,6 +115,35 @@ class SpeciesListItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  /// The localized line places the synonym itself; the synonym is set in
+  /// italics like every scientific name on the card, the rest of the line
+  /// as quietly as the additional names.
+  Widget _buildMatchedSynonym(
+    BuildContext context,
+    ThemeData theme,
+    String synonym,
+  ) {
+    final line = context.loc.searchFormerScientificName(synonym);
+    final start = line.indexOf(synonym);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: line.substring(0, start)),
+          TextSpan(
+            text: synonym,
+            style: const TextStyle(fontStyle: FontStyle.italic),
+          ),
+          TextSpan(text: line.substring(start + synonym.length)),
+        ],
+      ),
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 

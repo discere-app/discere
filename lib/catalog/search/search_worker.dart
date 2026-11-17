@@ -13,6 +13,7 @@ class SearchWorkerRequest {
   final List<Map<String, dynamic>> fallbackRows;
   final List<Map<String, dynamic>> inatRows;
   final List<Map<String, dynamic>> referenceFallbackRows;
+  final List<Map<String, dynamic>> synonymRows;
 
   const SearchWorkerRequest({
     required this.generation,
@@ -22,6 +23,7 @@ class SearchWorkerRequest {
     this.fallbackRows = const [],
     this.inatRows = const [],
     this.referenceFallbackRows = const [],
+    this.synonymRows = const [],
   });
 
   Map<String, dynamic> toMessage() {
@@ -37,6 +39,7 @@ class SearchWorkerRequest {
       'fallbackRows': cloneRows(fallbackRows),
       'inatRows': cloneRows(inatRows),
       'referenceFallbackRows': cloneRows(referenceFallbackRows),
+      'synonymRows': cloneRows(synonymRows),
     };
   }
 }
@@ -150,6 +153,7 @@ List<Map<String, dynamic>> _processSearchPayload(Map<String, dynamic> payload) {
   final fallbackRows = _messageRows(payload['fallbackRows']);
   final inatRows = _messageRows(payload['inatRows']);
   final referenceFallbackRows = _messageRows(payload['referenceFallbackRows']);
+  final synonymRows = _messageRows(payload['synonymRows']);
 
   final mergedCandidates = mergeCandidates([
     ...referenceRows.map(
@@ -185,6 +189,12 @@ List<Map<String, dynamic>> _processSearchPayload(Map<String, dynamic> payload) {
         sourcePriority: 2,
       ),
     ),
+    ...synonymRows.map(
+      (row) => candidateFromSynonymRow(
+        row,
+        normalizedSearchTerm: normalizedSearchTerm,
+      ),
+    ),
   ]);
 
   mergedCandidates.sort(compareCandidates);
@@ -208,6 +218,7 @@ Map<String, dynamic> _searchResultToMessage(SearchCandidate candidate) {
       for (final entry in candidate.commonNames.entries)
         entry.key.name: List<String>.from(entry.value),
     },
+    'matchedSynonym': candidate.matchedSynonym,
   };
 }
 
@@ -225,6 +236,7 @@ SearchResult _searchResultFromMessage(Map<String, dynamic> message) {
             .whereType<String>()
             .toList(),
     },
+    matchedSynonym: message['matchedSynonym'] as String?,
   );
 }
 

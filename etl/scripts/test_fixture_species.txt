@@ -35,3 +35,13 @@ Stercorarius pomarinus
 # Kynaria cynara under the family "Not assigned" (SeaLifeBase).
 Elimia ornata
 Kynaria cynara
+# Synonym search: Scyris indica has the synonyms Alectis indica and Alectis
+# indicus, and is found directly by its epithet; Conus coronatus is both a
+# valid species and a synonym of Pygmaeconus papalis; Silurus punctatus is a
+# synonym of each of the three catfish below.
+Scyris indica
+Conus coronatus
+Pygmaeconus papalis
+Silurus asotus
+Ictalurus punctatus
+Pterocryptis wynaadensis

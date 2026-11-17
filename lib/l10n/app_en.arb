@@ -190,6 +190,13 @@
   "searchDetailContainedOrders": "orders",
   "searchDetailAttributes": "Attributes",
   "searchDetailOnlineOnlyHint": "This entry comes from the online search. No reference data is available for it, so metrics and classification stay empty.",
+  "searchFormerScientificName": "Former name: {name}",
+  "@searchFormerScientificName": {
+    "description": "Line on a search result for a species found through a synonym — a scientific name it was formerly known by. The name is set in italics.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
   "speciesSize": "Size",
   "speciesDepth": "Depth",
   "speciesDetailFactsTitle": "Quick facts",

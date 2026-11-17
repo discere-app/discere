@@ -491,7 +491,9 @@ Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ─�
 
 Plus one FTS4 virtual table per searchable table (`species_fts`, `common_names_fts`,
 `genera_fts`, `families_fts`, `orders_fts`, `classes_fts`), rebuilt after every
-plugin import.
+plugin import, and `species_synonyms_fts` with the synonyms of active species,
+under which the full search also finds them (`SpeciesSynonymSearch`) — missing
+from older releases, which then find species under their current names only.
 
 Entity IDs carry no source: `discere:<type>:<nr>` with type `species`,
 `genus`, `family`, `order` or `class`. The user DB stores them as plain
