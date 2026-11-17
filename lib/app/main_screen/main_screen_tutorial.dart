@@ -1,6 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:discere/shared/ui/coach_mark_tour.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 /// Builds and shows the first-run coach-mark tour over MainScreenPage's
@@ -28,15 +29,7 @@ class MainScreenTutorial {
   });
 
   void show(BuildContext context) {
-    final loc = context.loc;
-    TutorialCoachMark(
-      targets: _targets(context, loc),
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
-      onSkip: () => true,
-    ).show(context: context);
+    showCoachMarkTour(context, targets: _targets(context, context.loc));
   }
 
   List<TargetFocus> _targets(BuildContext context, AppLocalizations loc) => [
@@ -61,9 +54,9 @@ class MainScreenTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.bottom,
-            child: _content(
-              loc.tutorialIntroTitle,
-              loc.tutorialIntroDescription,
+            child: CoachMarkContent(
+              title: loc.tutorialIntroTitle,
+              body: loc.tutorialIntroDescription,
             ),
           ),
         ],
@@ -77,9 +70,9 @@ class MainScreenTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.bottom,
-            child: _content(
-              loc.tutorialDeckFavTitle,
-              loc.tutorialDeckFavDescription,
+            child: CoachMarkContent(
+              title: loc.tutorialDeckFavTitle,
+              body: loc.tutorialDeckFavDescription,
             ),
           ),
         ],
@@ -92,9 +85,9 @@ class MainScreenTutorial {
       contents: [
         TargetContent(
           align: ContentAlign.bottom,
-          child: _content(
-            loc.tutorialDeckEditTitle,
-            loc.tutorialDeckEditDescription,
+          child: CoachMarkContent(
+            title: loc.tutorialDeckEditTitle,
+            body: loc.tutorialDeckEditDescription,
           ),
         ),
       ],
@@ -112,34 +105,12 @@ class MainScreenTutorial {
         contents: [
           TargetContent(
             align: ContentAlign.top,
-            child: _content(
-              loc.tutorialWatchlistTitle,
-              loc.tutorialWatchlistDescription,
+            child: CoachMarkContent(
+              title: loc.tutorialWatchlistTitle,
+              body: loc.tutorialWatchlistDescription,
             ),
           ),
         ],
       ),
   ];
-
-  Widget _content(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
-    );
-  }
 }
