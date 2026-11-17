@@ -144,7 +144,7 @@ void main() {
           'Amphiprion ocellaris',
         );
 
-        await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+        await tapWhenHitTestable(tester, find.byIcon(Icons.thumb_up_rounded));
         await safePumpAndSettle(tester);
         await waitForFinder(
           tester,
@@ -201,13 +201,10 @@ void main() {
         await tester.ensureVisible(whaleSharkRow);
         await safePumpAndSettle(tester);
         await tester.longPress(whaleSharkRow);
-        await waitForFinder(
+        await tapWhenHitTestable(
           tester,
           find.byKey(const Key('edit_deck_selection_assign_button')),
           description: 'the selection app bar',
-        );
-        await tester.tap(
-          find.byKey(const Key('edit_deck_selection_assign_button')),
         );
         await safePumpAndSettle(tester);
         await tester.tap(
@@ -256,7 +253,7 @@ void main() {
                 .species
                 .getBinomialName(),
           );
-          await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+          await tapWhenHitTestable(tester, find.byIcon(Icons.thumb_up_rounded));
           await safePumpAndSettle(tester);
         }
         expect(seen, {'Amphiprion ocellaris', 'Carcharodon carcharias'});

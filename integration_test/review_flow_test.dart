@@ -41,15 +41,13 @@ void main() {
           );
         }
 
-        // 2. Wait for first card (card initialization is DB-only, should be fast)
-        await waitForFinder(
+        // 2. + 3. Tap Easy (Correct answer) as soon as the first card is
+        // there (card initialization is DB-only, should be fast)
+        await tapWhenHitTestable(
           tester,
           find.byIcon(Icons.thumb_up_rounded),
           description: 'the flashcard grading buttons to render',
         );
-
-        // 3. Tap Easy (Correct answer)
-        await tester.tap(find.byIcon(Icons.thumb_up_rounded));
         await safePumpAndSettle(tester);
 
         // 4. Verify completion dialog or back on home
@@ -66,7 +64,7 @@ void main() {
           description: 'the session to end or its completion dialog to appear',
         );
         if (okButton.evaluate().isNotEmpty) {
-          await tester.tap(okButton);
+          await tapWhenHitTestable(tester, okButton);
           await safePumpAndSettle(tester);
         }
 

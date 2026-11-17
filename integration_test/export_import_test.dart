@@ -74,7 +74,7 @@ void main() {
           findsOneWidget,
           reason: 'Expected a share button on the deck card',
         );
-        await tester.tap(shareButton);
+        await tapWhenHitTestable(tester, shareButton);
         await safePumpAndSettle(tester);
 
         // 3. Verify we are on Share Deck Page
@@ -106,7 +106,7 @@ void main() {
 
         // Close share page
         debugPrint('-- TEST: tapping CloseButton --');
-        await tester.tap(find.byType(CloseButton));
+        await tapWhenHitTestable(tester, find.byType(CloseButton));
         debugPrint('-- TEST: pumpAndSettle after CloseButton --');
         await safePumpAndSettle(tester);
         debugPrint('-- TEST: Close share page complete --');
@@ -139,7 +139,7 @@ void main() {
           findsOneWidget,
           reason: 'Delete confirmation dialog should be visible',
         );
-        await tester.tap(confirmButton);
+        await tapWhenHitTestable(tester, confirmButton);
 
         debugPrint('-- TEST: pumpAndSettle after delete confirmation --');
         await safePumpAndSettle(tester);
@@ -155,7 +155,7 @@ void main() {
 
         // 7. Import via Create Deck FAB
         final fab = find.byKey(const ValueKey('main_fab'));
-        await tester.tap(fab);
+        await tapWhenHitTestable(tester, fab);
         await safePumpAndSettle(tester);
 
         final createOption = find.byIcon(Icons.create_new_folder_outlined);
@@ -229,7 +229,7 @@ void main() {
           of: deckCard,
           matching: find.byIcon(Icons.share),
         );
-        await tester.tap(shareButton);
+        await tapWhenHitTestable(tester, shareButton);
         await safePumpAndSettle(tester);
 
         // 2. Produce the exact gzip+base64 payload the QR code on this page
@@ -260,7 +260,10 @@ void main() {
         expect(deletedDeckFinder, findsNothing);
 
         // 4. Open Import Deck -> Scanner tab
-        await tester.tap(find.byKey(const ValueKey('main_fab')));
+        await tapWhenHitTestable(
+          tester,
+          find.byKey(const ValueKey('main_fab')),
+        );
         await safePumpAndSettle(tester);
         await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
         // Use pump() because the Online tab shows a loading spinner
@@ -295,7 +298,8 @@ void main() {
         final nameField = tester.widget<TextField>(nameFieldFinder);
         expect(nameField.controller?.text, deckName);
 
-        await tester.tap(
+        await tapWhenHitTestable(
+          tester,
           find.byKey(const ValueKey('create_deck_submit_button')),
         );
 
@@ -325,7 +329,7 @@ void main() {
         await waitForFinder(tester, shareButtonFinder);
         expect(shareButtonFinder, findsWidgets);
 
-        await tester.tap(shareButtonFinder.first);
+        await tapWhenHitTestable(tester, shareButtonFinder.first);
         await safePumpAndSettle(tester);
 
         final qrFinder = find.byType(QrCodeView);
@@ -363,7 +367,7 @@ void main() {
           of: deckCard,
           matching: find.byIcon(Icons.share),
         );
-        await tester.tap(shareIconFinder);
+        await tapWhenHitTestable(tester, shareIconFinder);
         await safePumpAndSettle(tester);
 
         await safePumpAndSettle(tester);
@@ -427,7 +431,10 @@ void main() {
         expect(deletedOriginalDeckFinder, findsNothing);
 
         // 5. Open JSON Import Dialog
-        await tester.tap(find.byKey(const ValueKey('main_fab')));
+        await tapWhenHitTestable(
+          tester,
+          find.byKey(const ValueKey('main_fab')),
+        );
         await safePumpAndSettle(tester);
 
         // Tap the "Import" option in the FAB menu
@@ -458,7 +465,8 @@ void main() {
         final nameField = tester.widget<TextField>(nameFieldFinder);
         expect(nameField.controller?.text, originalDeckName);
 
-        await tester.tap(
+        await tapWhenHitTestable(
+          tester,
           find.byKey(const ValueKey('create_deck_submit_button')),
         );
 
@@ -515,7 +523,10 @@ void main() {
         await decksService.deleteDeck(originalId);
         await waitForAbsence(tester, find.text('Genus Deck'));
 
-        await tester.tap(find.byKey(const ValueKey('main_fab')));
+        await tapWhenHitTestable(
+          tester,
+          find.byKey(const ValueKey('main_fab')),
+        );
         await safePumpAndSettle(tester);
         await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
         // Use pump() because the Online tab shows a loading spinner

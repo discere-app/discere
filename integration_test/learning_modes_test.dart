@@ -172,7 +172,7 @@ void main() {
         // immediately (a single pump, before the 600ms auto-flip timer fires);
         // safePumpAndSettle would ride straight through that timer and the
         // flip animation to the back content, missing this transient state.
-        await tester.tap(optionTiles.first);
+        await tapWhenHitTestable(tester, optionTiles.first);
         await tester.pump();
 
         expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -187,7 +187,7 @@ void main() {
         // Flip back to the front to look at the image again — tapping
         // anywhere on the revealed back (away from its own interactive
         // widgets) flips it, same as flip mode's card.
-        await tester.tapAt(tester.getCenter(find.byType(FlashcardWidget)));
+        await tapWhenHitTestable(tester, find.byType(FlashcardWidget));
         await safePumpAndSettle(tester);
 
         expect(find.byType(FlashcardMultipleChoiceFront), findsOneWidget);

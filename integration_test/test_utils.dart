@@ -251,7 +251,7 @@ Future<void> openEditDeck(WidgetTester tester) async {
     editButton,
     description: 'the edit button of a deck card',
   );
-  await tester.tap(editButton.first);
+  await tapWhenHitTestable(tester, editButton.first);
   await waitForFinder(
     tester,
     find.byKey(const Key('learning_mode_segmented_button'), skipOffstage: false),

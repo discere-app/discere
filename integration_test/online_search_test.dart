@@ -111,7 +111,7 @@ void main() {
         );
 
         iNatKnowsSpecies = true;
-        await tester.tap(onlineButton);
+        await tapWhenHitTestable(tester, onlineButton);
         await tester.pump();
 
         await waitForCondition(
