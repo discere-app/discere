@@ -94,7 +94,10 @@ void main() {
         );
         expect(find.text(loc.referenceDbDownloadConfirmNotNow), findsOneWidget);
 
-        await tester.tap(find.text(loc.referenceDbDownloadConfirmNotNow));
+        await tapWhenHitTestable(
+          tester,
+          find.text(loc.referenceDbDownloadConfirmNotNow),
+        );
         await safePumpAndSettle(tester);
 
         expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
@@ -127,7 +130,10 @@ void main() {
           description: 'the reference-DB update dialog',
         );
 
-        await tester.tap(find.text(loc.referenceDbUpdateConfirmUpdateNow));
+        await tapWhenHitTestable(
+          tester,
+          find.text(loc.referenceDbUpdateConfirmUpdateNow),
+        );
         await safePumpAndSettle(tester);
 
         expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
@@ -165,7 +171,10 @@ void main() {
           find.text(loc.referenceDbUpdateConfirmTitle),
           description: 'the reference-DB update dialog',
         );
-        await tester.tap(find.text(loc.referenceDbDownloadConfirmNotNow));
+        await tapWhenHitTestable(
+          tester,
+          find.text(loc.referenceDbDownloadConfirmNotNow),
+        );
         await safePumpAndSettle(tester);
 
         await tester.tap(find.byIcon(Icons.settings).last);
@@ -184,7 +193,10 @@ void main() {
           find.text(loc.referenceDbUpdateConfirmTitle),
           description: 'the same confirmation as at start',
         );
-        await tester.tap(find.text(loc.referenceDbUpdateConfirmUpdateNow));
+        await tapWhenHitTestable(
+          tester,
+          find.text(loc.referenceDbUpdateConfirmUpdateNow),
+        );
 
         await waitForFinder(
           tester,

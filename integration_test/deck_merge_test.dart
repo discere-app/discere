@@ -235,12 +235,11 @@ void main() {
       final mergeButton = find.byKey(
         const ValueKey('import-online-merge-$_reefName'),
       );
-      await waitForFinder(
+      await tapWhenHitTestable(
         tester,
         mergeButton,
         description: 'the merge offer on the joined entry',
       );
-      await tester.tap(mergeButton);
       await safePumpAndSettle(tester);
       final confirm = find.byKey(const Key('deck_merge_confirm_button'));
       await waitForFinder(tester, confirm, description: 'the merge dialog');

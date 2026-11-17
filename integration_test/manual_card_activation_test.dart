@@ -48,17 +48,13 @@ void main() {
           await safePumpAndSettle(tester);
         }
 
-        // 3. Review the first card
-        debugPrint('-- TEST: waiting for thumb_up_rounded button --');
-        await waitForFinder(
+        // 3. Review the first card: answer "Good" (Thumb up)
+        debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
+        await tapWhenHitTestable(
           tester,
           find.byIcon(Icons.thumb_up_rounded),
           description: 'the card and its grading buttons to render',
         );
-
-        // Answer "Good" (Thumb up)
-        debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
-        await tester.tap(find.byIcon(Icons.thumb_up_rounded));
         await safePumpAndSettle(tester);
 
         // Since there are 2 cards in the batch, it should show the 2nd one.
@@ -84,7 +80,7 @@ void main() {
         // Click OK and go back
         debugPrint('-- TEST: tapping no_more_cards_ok_button --');
         final okButton = find.byKey(const Key('no_more_cards_ok_button'));
-        await tester.tap(okButton);
+        await tapWhenHitTestable(tester, okButton);
         await safePumpAndSettle(tester);
 
         // Back on home. Now re-open the deck.
@@ -174,7 +170,10 @@ void main() {
         // instead of asserting right after pumpAndSettle.
         await waitForFinder(tester, activationTitleFinder);
         expect(activationTitleFinder, findsOneWidget);
-        await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
+        await tapWhenHitTestable(
+          tester,
+          find.byKey(const Key('activation_dialog_yes_button')),
+        );
         // The dialog stays up until the batch has actually been written, so its
         // disappearance — not pumpAndSettle — is the signal that the new cards
         // exist. Tapping before that graded whatever was still on screen.
@@ -196,7 +195,10 @@ void main() {
         expect(noMoreTitleFinder, findsOneWidget);
 
         debugPrint('-- TEST: tapping no_more_cards_ok_button --');
-        await tester.tap(find.byKey(const Key('no_more_cards_ok_button')));
+        await tapWhenHitTestable(
+          tester,
+          find.byKey(const Key('no_more_cards_ok_button')),
+        );
         await safePumpAndSettle(tester);
 
         debugPrint('-- TEST: verifying back on home screen --');
@@ -250,14 +252,12 @@ Future<void> _reviewCardsWithEasy(
       find.byKey(ValueKey('flashcard_$cardIndex')),
       description: 'card ${cardIndex + 1} of $count to be on screen',
     );
-    await waitForFinder(
+    await tapWhenHitTestable(
       tester,
       easyButton,
       description:
           'the grading buttons of card ${cardIndex + 1} of $count to render',
     );
-
-    await tester.tap(easyButton);
     await safePumpAndSettle(tester);
   }
 }

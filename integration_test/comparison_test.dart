@@ -40,28 +40,27 @@ void main() {
           result,
           description: 'a search result for Carcharodon carcharias',
         );
-        await tester.tap(result.first);
+        await tapWhenHitTestable(tester, result.first);
         final compareButton = find.byKey(
           const Key('species_detail_compare_button'),
         );
-        await waitForFinder(
+
+        // 2. Add it to a new comparison, under the name suggested for it.
+        await tapWhenHitTestable(
           tester,
           compareButton,
           description: 'the species detail page with its compare action',
         );
-
-        // 2. Add it to a new comparison, under the name suggested for it.
-        await tester.tap(compareButton);
         final createNew = find.byKey(const Key('comparison_sheet_create_new'));
-        await waitForFinder(tester, createNew);
-        await tester.tap(createNew);
+        await tapWhenHitTestable(tester, createNew);
         final nameField = find.byKey(const Key('comparison_name_field'));
         await waitForFinder(tester, nameField);
         expect(
           tester.widget<TextField>(nameField).controller!.text,
           'Carcharodon carcharias',
         );
-        await tester.tap(
+        await tapWhenHitTestable(
+          tester,
           find.byKey(const Key('comparison_name_confirm_button')),
         );
         await waitForAbsence(
@@ -73,8 +72,11 @@ void main() {
         // 3. The confirmation opens the new comparison, with the species in
         // it; back from there onto the detail page.
         final show = find.byKey(const Key('comparison_added_show_action'));
-        await waitForFinder(tester, show, description: 'the "Show" action');
-        await tester.tap(show);
+        await tapWhenHitTestable(
+          tester,
+          show,
+          description: 'the "Show" action',
+        );
         final speciesInComparison = find.descendant(
           of: find.byType(ComparisonSpeciesSection),
           matching: find.text('Carcharodon carcharias'),
@@ -84,7 +86,8 @@ void main() {
           speciesInComparison,
           description: 'the comparison opened from the confirmation',
         );
-        await tester.tap(
+        await tapWhenHitTestable(
+          tester,
           find.descendant(
             of: find.byType(ComparisonPage),
             matching: find.byType(BackButton),
@@ -103,19 +106,17 @@ void main() {
         await safePumpAndSettle(tester);
         await tester.tap(find.byIcon(Icons.arrow_back));
         final watchlistTab = find.byKey(const ValueKey('nav_watchlist'));
-        await waitForFinder(tester, watchlistTab);
 
         // 5. The same comparison, opened from the watchlist tab.
-        await tester.tap(watchlistTab);
+        await tapWhenHitTestable(tester, watchlistTab);
         await safePumpAndSettle(tester);
         await tester.tap(find.byKey(const Key('watchlist_view_comparisons')));
         final comparison = find.text('Carcharodon carcharias');
-        await waitForFinder(
+        await tapWhenHitTestable(
           tester,
           comparison,
           description: 'the new comparison in the list of comparisons',
         );
-        await tester.tap(comparison);
 
         await waitForFinder(
           tester,

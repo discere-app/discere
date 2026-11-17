@@ -124,7 +124,10 @@ void main() {
               'the real SpeciesMediaService/INatPhotoCacheRepository stack '
               'should have classified the seeded species as a photo gap',
         );
-        await tester.tap(find.byKey(const Key('no_photo_gaps_confirm_button')));
+        await tapWhenHitTestable(
+          tester,
+          find.byKey(const Key('no_photo_gaps_confirm_button')),
+        );
         await safePumpAndSettle(tester);
         expect(find.byKey(const Key('no_photo_gaps_dialog')), findsNothing);
 

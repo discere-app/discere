@@ -180,7 +180,7 @@ Future<void> _leaveDeck(WidgetTester tester) async {
 Future<void> _dismissNoDataDialogIfPresent(WidgetTester tester) async {
   final laterButton = find.byKey(const Key('no_data_downloaded_later_button'));
   if (laterButton.evaluate().isEmpty) return;
-  await tester.tap(laterButton);
+  await tapWhenHitTestable(tester, laterButton);
   await waitForAbsence(
     tester,
     find.byKey(const Key('no_data_downloaded_dialog')),
