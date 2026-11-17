@@ -3,7 +3,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/color_contrast_extension.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Renders a species' IUCN Red List category as a segmented status bar,
 /// matching the standard IUCN/Wikipedia badge design — recreated natively

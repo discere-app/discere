@@ -4,7 +4,7 @@ import 'package:discere/catalog/model/region_option.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/continent_section.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Picks regions, grouped by continent, with a search field over their names.
 ///

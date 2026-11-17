@@ -6,7 +6,7 @@ import 'package:discere/learning/import/import_result_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 final _log = Logger.scoped('DeckImportFlow');

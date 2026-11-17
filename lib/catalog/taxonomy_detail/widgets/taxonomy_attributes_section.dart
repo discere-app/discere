@@ -2,7 +2,7 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart'
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Rank-specific key/value facts — what the reference DB knows about this
 /// taxon beyond its names and its place in the tree.

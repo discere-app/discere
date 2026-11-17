@@ -1,6 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The watchlist's taxonomic-class filter: one tab per class present in the
 /// list, preceded by an "all species" tab.

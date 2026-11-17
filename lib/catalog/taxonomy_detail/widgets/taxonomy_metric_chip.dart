@@ -1,5 +1,5 @@
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One count from the hero header — number above, label below, tinted in the
 /// rank's accent colour.

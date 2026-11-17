@@ -2,7 +2,7 @@ import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The existing decks in the "add to deck" sheet, each a target to add the
 /// species to; locked while [isAdding].

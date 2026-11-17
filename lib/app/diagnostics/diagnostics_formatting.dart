@@ -7,7 +7,7 @@ import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Work-state counts grouped by label, each group in lifecycle order
 /// (`pending` → `running` → … → `permanentFailure`) rather than

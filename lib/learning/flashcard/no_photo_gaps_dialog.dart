@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A species with no findable photo, as shown in [showNoPhotoGapsDialog].
 class NoPhotoGapSpecies {

@@ -1,6 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/shared/extensions/image_request_headers_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class DeckPreviewImage extends StatelessWidget {
   final String? imageUrl;

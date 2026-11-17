@@ -14,7 +14,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
   static final _log = Logger.forType(SearchSpeciesDelegate);

@@ -1,6 +1,6 @@
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class DetailBulletRow extends StatelessWidget {
   final String label;

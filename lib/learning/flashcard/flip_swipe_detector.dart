@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Bundles the callbacks [FlipSwipeDetector] needs to drive a live,
 /// finger-following flip into one object — so [FlashcardFront] only has to

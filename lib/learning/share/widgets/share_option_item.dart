@@ -1,6 +1,6 @@
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One tappable share option: icon, title, one line of explanation.
 class ShareOptionItem extends StatelessWidget {

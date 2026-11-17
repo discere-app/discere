@@ -3,7 +3,7 @@ import 'package:discere/catalog/model/source.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final _log = Logger.forType(SourceCard);

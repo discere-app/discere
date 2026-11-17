@@ -1,6 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Full-area stand-in for content that failed to load: [icon], an error
 /// title, [message] and a retry button. [message] is already localized —

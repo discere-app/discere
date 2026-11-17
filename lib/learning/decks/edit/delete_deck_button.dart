@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Full-width button on the edit page that deletes the deck, after
 /// confirmation (`showDeleteDeckDialog`). Disabled while [onPressed] is null.

@@ -2,7 +2,7 @@ import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/decks/edit/subdeck_name_dialog.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Where the user wants the selected species to go. No choice at all is a null
 /// from the sheet, which is why "no subdeck" needs a value of its own.

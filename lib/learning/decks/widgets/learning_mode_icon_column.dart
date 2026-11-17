@@ -4,7 +4,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Icons for whichever of learning mode / name type / review mode deviate
 /// from the deck defaults (species / common name / flip), stacked vertically

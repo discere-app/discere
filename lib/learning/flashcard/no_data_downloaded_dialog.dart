@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown when opening a deck for review whose enrichment state is
 /// `DeckEnrichmentState.hidden` — no base or iNaturalist data was ever

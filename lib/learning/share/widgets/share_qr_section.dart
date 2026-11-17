@@ -3,7 +3,7 @@ import 'package:discere/learning/share/widgets/qr_code_view.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:qr/qr.dart';
 
 /// The scannable form of the deck. Three outcomes, in order of how much the

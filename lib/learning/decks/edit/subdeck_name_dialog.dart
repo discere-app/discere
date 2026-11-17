@@ -1,7 +1,7 @@
 import 'package:discere/learning/decks/edit/subdeck_draft.dart';
 import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
 /// Asks for the name of a subdeck to add to [draft] and resolves to it with a

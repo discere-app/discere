@@ -4,7 +4,7 @@ import 'package:discere/catalog/species_detail/species_native_regions_section_vi
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SpeciesNativeRegionsSection extends StatefulWidget {
   final SpeciesNativeRegionsSectionViewModel section;

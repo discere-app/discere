@@ -13,7 +13,7 @@ import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Delay between an answer tap in multiple-choice mode and automatically
 /// flipping to the back content, so the user sees the correct/incorrect

@@ -1,5 +1,5 @@
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Lays out an action button's icon + label + trailing mode-icon column in
 /// one row, so the mode icons render as part of the button's own content

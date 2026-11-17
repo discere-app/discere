@@ -1,7 +1,7 @@
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The species-data download choice for a deck — shared by the post-import
 /// result dialog and the Edit Deck "download data" trigger, since both let

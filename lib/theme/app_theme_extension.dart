@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Theme-swappable design tokens that don't fit [ColorScheme]'s roles.
 /// Add fields here (and set them per-theme) instead of hardcoding a color

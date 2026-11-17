@@ -16,7 +16,7 @@ import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class FlashcardBackContent extends StatefulWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;

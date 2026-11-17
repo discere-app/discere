@@ -3,7 +3,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:discere/shared/ui/image_placeholder.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SpeciesMediaCarousel extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;

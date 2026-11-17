@@ -1,5 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown while a confirmed merge runs: it can take a while for a large
 /// entry, and neither a tap outside nor the back gesture may dismiss it —

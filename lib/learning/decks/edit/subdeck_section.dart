@@ -5,7 +5,7 @@ import 'package:discere/learning/model/subdeck_structure.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum _SubdeckAction { rename, delete }
 

@@ -3,7 +3,7 @@ import 'package:discere/learning/decks/widgets/button_content.dart';
 import 'package:discere/learning/decks/widgets/deck_action_presenter.dart';
 import 'package:discere/learning/decks/widgets/learning_mode_icon_column.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Start-review button shown at the bottom of the card. Names in one line
 /// what the session begins with — due reviews before new cards — and is

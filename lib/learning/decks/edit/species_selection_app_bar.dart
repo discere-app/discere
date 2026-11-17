@@ -2,7 +2,7 @@ import 'package:discere/catalog/common/species_selection.dart';
 import 'package:discere/catalog/comparison/add_to_comparison_sheet.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// App bar of EditDeckPage while species are being selected: ends the
 /// selection, says how many are selected, selects all or none, and offers what

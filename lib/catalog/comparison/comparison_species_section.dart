@@ -5,7 +5,7 @@ import 'package:discere/catalog/species_detail/widgets/species_media_carousel.da
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One species of a comparison: its names, which open its detail page, its
 /// pictures to swipe through, a few facts, and a button that takes it out of

@@ -1,7 +1,7 @@
 import 'package:discere/learning/import/deck_merge_subdeck_selection.dart';
 import 'package:discere/learning/service/deck_merge_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks whether to carry out [plan]: names the target and the decks it
 /// takes progress from, which of them go and which stay, and the species

@@ -2,7 +2,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared form fields for the create- and edit-deck pages. Both pages
 /// edit the same deck fields, so they render them through these widgets —

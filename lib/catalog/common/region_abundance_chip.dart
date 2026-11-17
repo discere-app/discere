@@ -3,7 +3,7 @@ import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/shared/extensions/color_contrast_extension.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Color-coded pill showing how commonly a species is sighted, from
 /// [RegionAbundance.abundant] (green) down to [RegionAbundance.scarce]

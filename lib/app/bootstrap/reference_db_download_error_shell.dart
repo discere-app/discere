@@ -1,7 +1,8 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shown when downloading/installing the reference database itself fails
 /// (network error, checksum mismatch, unsupported schema, ...).
@@ -19,7 +20,7 @@ class ReferenceDbDownloadErrorShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Builder(
         builder: (context) {

@@ -4,7 +4,7 @@
 library;
 
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<bool> showCloseAllEnrichmentConfirmation(BuildContext context) async {
   final confirmed = await showDialog<bool>(

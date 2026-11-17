@@ -1,5 +1,5 @@
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Tinted, bordered banner used to draw attention to a single concern (a
 /// warning, an error, or a hint) instead of letting it blend into

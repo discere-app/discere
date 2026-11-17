@@ -1,7 +1,7 @@
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Icon, color, label, and description per [DeckEnrichmentState] — the
 /// single place that decides how each enrichment state looks, shared by the

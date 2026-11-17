@@ -5,7 +5,7 @@ import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One row of the search result list, and the choice of which row it is.
 ///

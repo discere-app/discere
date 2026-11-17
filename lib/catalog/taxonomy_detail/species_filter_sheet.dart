@@ -9,7 +9,7 @@ import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The combined outcome of [showSpeciesFilterSheet]: the chosen region keys
 /// (empty means "no region filter") and abundance tiers (all tiers means "no

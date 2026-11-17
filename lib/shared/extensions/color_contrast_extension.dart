@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 extension ColorContrastExtension on Color {
   /// Black or white, whichever reads more clearly on top of this color.

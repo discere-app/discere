@@ -1,6 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// App bar of EditDeckPage: back, title and the save button, which shows a
 /// spinner while [isSaving] and is disabled without [onSave].

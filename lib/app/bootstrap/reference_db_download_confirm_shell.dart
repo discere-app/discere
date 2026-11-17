@@ -1,7 +1,8 @@
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks the user to confirm the (multi-hundred-MB) reference-DB download
 /// before it starts — always shown, on Wi-Fi or cellular; the cellular
@@ -24,7 +25,7 @@ class ReferenceDbDownloadConfirmShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Builder(
         builder: (context) {

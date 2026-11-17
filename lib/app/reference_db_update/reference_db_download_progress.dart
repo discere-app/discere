@@ -1,7 +1,7 @@
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// How far a running reference-DB download is: "40 of 90 MB" over a bar,
 /// shown by the notice below every route and by the settings entry.

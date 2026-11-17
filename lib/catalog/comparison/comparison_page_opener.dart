@@ -1,7 +1,7 @@
 import 'package:discere/catalog/common/resolve_species_with_images.dart';
 import 'package:discere/catalog/comparison/comparison_page.dart';
 import 'package:discere/catalog/comparison/model/comparison_list.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The one way to a [ComparisonPage]: holds what the page needs besides its
 /// list, so that a screen opening a comparison — the overview, the

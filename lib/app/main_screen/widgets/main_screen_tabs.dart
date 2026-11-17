@@ -3,7 +3,7 @@ import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/learning/decks/decks_tab.dart';
 import 'package:discere/learning/favorites/favorites_tab.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 /// The three bottom-navigation tabs.

@@ -1,5 +1,5 @@
 import 'package:discere/theme/app_theme_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Bordered content container used to group a labeled section of a page
 /// (detail views, edit-deck settings, settings page, ...). Framed with the

@@ -6,7 +6,7 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart'
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_metric_chip.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Identity block at the top of the page: rank badge, common and scientific
 /// name, and the counts underneath, on a gradient tinted by the rank's

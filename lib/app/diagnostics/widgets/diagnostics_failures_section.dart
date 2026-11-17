@@ -2,7 +2,7 @@ import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Failures by host and the raw recent-failures list as one section — both
 /// are views over the same network-failure data the summary card's
