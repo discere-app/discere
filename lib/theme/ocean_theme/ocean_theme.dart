@@ -7,8 +7,17 @@ import 'package:material_ui/material_ui.dart';
 /// privacy concern of sending the device's IP to Google's font CDN.
 const String _lexendFontFamily = 'Lexend';
 
+// The font is set in three places, each reaching styles the others miss:
+// [ThemeData.fontFamily] the styles Material derives from its own typography
+// (primaryTextTheme, components without a text style of their own), `apply`
+// in [_oceanTextTheme] the roles taken over from ThemeData.dark(), which name
+// the platform font explicitly, and `fontFamily` on each component text style
+// below — AppBar and buttons use such a style instead of the inherited one
+// rather than merging the two, so without the family it renders in the
+// platform font.
 final ThemeData oceanTheme = ThemeData(
   brightness: Brightness.dark,
+  fontFamily: _lexendFontFamily,
   primaryColor: OceanColors.primaryBlue,
   scaffoldBackgroundColor: OceanColors.backgroundDark,
   // Every role below is set explicitly rather than left to ColorScheme.dark's
@@ -90,6 +99,7 @@ final ThemeData oceanTheme = ThemeData(
     centerTitle: false,
     iconTheme: IconThemeData(color: OceanColors.primaryTextDark),
     titleTextStyle: TextStyle(
+      fontFamily: _lexendFontFamily,
       color: OceanColors.primaryTextDark,
       fontSize: 20,
       fontWeight: FontWeight.bold,
@@ -127,7 +137,10 @@ final ThemeData oceanTheme = ThemeData(
       backgroundColor: OceanColors.primaryBlue,
       foregroundColor: OceanColors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      textStyle: const TextStyle(
+        fontFamily: _lexendFontFamily,
+        fontWeight: FontWeight.w600,
+      ),
     ),
   ),
 
