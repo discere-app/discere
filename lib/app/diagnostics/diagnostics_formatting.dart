@@ -73,9 +73,22 @@ String formatDiagnosticsDate(BuildContext context, DateTime value) =>
 /// Date over time on two lines — the failure lists put this in a trailing
 /// column, where a single line would push the subtitle out of the row.
 String formatDiagnosticsDateTime(BuildContext context, DateTime value) {
+  final (date, time) = _dateAndTime(context, value);
+  return '$date\n$time';
+}
+
+/// Date and time on one line, for a moment named inside running text such
+/// as "last on …", where a line break would split the sentence.
+String formatDiagnosticsDateTimeInline(BuildContext context, DateTime value) {
+  final (date, time) = _dateAndTime(context, value);
+  return '$date $time';
+}
+
+(String, String) _dateAndTime(BuildContext context, DateTime value) {
   final local = value.toLocal();
   final localizations = MaterialLocalizations.of(context);
-  final date = localizations.formatShortDate(local);
-  final time = localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local));
-  return '$date\n$time';
+  return (
+    localizations.formatShortDate(local),
+    localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local)),
+  );
 }

@@ -171,7 +171,7 @@ Wichtige Details dazu:
   mindestens eine `enrichment_species_deck_membership`-Zeile für sie
   existiert. Wurde das letzte Deck, das eine Species referenziert hat,
   gelöscht (`releaseDeck`), bleibt ihre `enrichment_species_capability_state`-
-  Zeile zwar als permanenter Dedup-Cache liegen (siehe unten), wird aber nie
+  Zeile zwar als Dedup-Cache liegen (siehe unten), wird aber nie
   wieder geclaimt — kein verschwendeter Download/iNat-Request für ein Deck,
   das nicht mehr existiert.
 - **Reaktive Folge-Arbeit statt Batch-weiter Gates:** `BaseWorker` seedet bei
@@ -236,7 +236,9 @@ Wichtige Details dazu:
   Start (`EnrichmentStartupMaintenance.pruneOrphanedWork`). `enrichment_species_capability_state` bleibt
   darüber hinaus als prozessübergreifender Dedup-Cache bestehen (auch für
   Species in keinem Deck), damit erneutes Hinzufügen dieselbe Enrichment nicht
-  wiederholt.
+  wiederholt — bis der Bildspeicher-Sweep beim nächsten Start eine Art
+  loslässt, die nirgends mehr gebraucht wird (siehe "Herkunft der iNat-Daten",
+  "Bilddateien").
 
 ### Referenzbilder (`base`)
 
@@ -341,10 +343,13 @@ angefragt wird:
   `scheduleDeckEnrichment`-Aufruf mit niedrigerer Priorität einbezogen — nur
   um ihre Species-Zuordnung zu schützen, ohne ihnen selbst neuen Consent zu
   gewähren (siehe Consent-Modell oben).
-- `enrichment_species_capability_state` ist der **permanente** Dedup-Cache:
-  wird eine Species aus jedem Deck entfernt (`releaseDeck`), bleibt diese
-  Zeile bestehen — kommt die Species später in einem neuen Deck wieder vor,
-  muss nichts doppelt geholt werden.
+- `enrichment_species_capability_state` ist der Dedup-Cache: wird eine
+  Species aus jedem Deck entfernt (`releaseDeck`), bleibt diese Zeile
+  bestehen — kommt die Species später in einem neuen Deck wieder vor, muss
+  nichts doppelt geholt werden. Steht sie auch auf keiner Merkliste und in
+  keiner Vergleichsliste, löscht der Bildspeicher-Sweep beim nächsten Start
+  ihre Bildzeilen (`base`, `inatPrimary`, `inatBackfill`) mitsamt Fotos und
+  Dateien; kommt sie danach wieder, wird sie neu angereichert.
 - Löscht das Deck, das gerade `owner_deck_id` einer geteilten Species ist,
   wird die Ownership auf ein verbleibendes Deck übertragen statt die
   Species-Zeile (und damit die Arbeit anderer Decks) einfach zu verwerfen.
@@ -563,20 +568,53 @@ liest einmal je Tabelle und schreibt alles in einer Transaktion. Scheitert
 er, startet die App trotzdem, merkt sich die Version nicht und versucht es
 beim nächsten Start erneut.
 
-**Bilddateien.** Ein iNat-Foto liegt als Datei unter `external_images/`
-(Host-Ordner, `md5(URL)`, `CachedImageStore`), gefunden nur über die URL
-seiner Zeile in `inat_photo_cache`. Verwirft der Abgleich die Zeile — oder
-die Alias-Umschreibung, wenn sie kollidiert —, verweist nichts mehr auf die
-Datei. Deshalb räumt `INatImageFilePruner` das Verzeichnis einmal je
-Referenz-DB-Version auf (`inat_image_files_pruned_version`), im Bootstrap
-direkt nach dem Abgleich und nur, wenn der Abgleich für diese Version
-gelaufen ist: Er löscht jede Datei, deren URL keine Zeile mehr nennt, samt
-liegengebliebener `*.part`-Teildownloads und leer gewordener Host-Ordner.
-`reference_images/` (auch dort liegende alte iNat-Bilder) und
-`deck_covers/` bleiben unberührt, ebenso Links. Scheitert das Lesen der
-URLs, löscht er nichts und versucht es beim nächsten Start erneut. Holt eine
-Art zwischen zwei Referenz-DB-Versionen ihre Fotos neu, bleiben die alten
-Dateien bis zum nächsten Versionswechsel liegen.
+**Bilddateien.** Ein iNat-Foto liegt als Datei unter `external_images/`,
+ein Bild der Referenz-DB (Tabelle `pictures`) unter `reference_images/`
+(Host-Ordner, `md5(URL)`, `CachedImageStore`). Gefunden wird eine Datei nur
+über ihre URL: ein iNat-Foto über seine Zeile in `inat_photo_cache`, ein
+Referenzbild über die Art. Verwirft der Abgleich die Zeile — oder die
+Alias-Umschreibung, wenn sie kollidiert —, verweist nichts mehr auf die
+Datei; ebenso, wenn eine Art nicht mehr gebraucht wird.
+
+Gebraucht werden die Arten, deren Bilder die App herunterlädt: die Arten
+aller Decks (`flashcard_stats` und `enrichment_species_deck_membership`),
+der Merkliste und aller Vergleichslisten. Eine Art, die nur auf der Artseite
+angesehen wurde, zählt nicht — die Artseite lädt keine Dateien, schreibt
+aber Fotozeilen; ein erneuter Besuch holt sie live nach.
+
+`SpeciesImageStorageSweeper` räumt im Bootstrap direkt nach dem Abgleich
+auf, nur wenn der Abgleich für die installierte Version gelaufen ist, und
+nur, wenn sich seit dem letzten Lauf etwas geändert hat: Ein Fingerabdruck
+aus der Version und der sortierten Menge der gebrauchten Arten
+(`species_image_storage_fingerprint`) entscheidet; ein Start ohne Änderung
+liest nur die Menge. Ein gelöschtes Deck ist so beim nächsten Start
+aufgeräumt. Die Diagnoseseite kann einen Lauf beim nächsten Start
+erzwingen (`species_image_storage_sweep_requested`, dann App-Neustart). Ein
+Lauf
+
+1. lässt jede nicht gebrauchte Art los, in einer Transaktion: Ihre
+   Fotozeilen gehen mit Wikipedia-Link und IUCN-Status, ihre Arbeitszeilen
+   `base`, `inatPrimary` und `inatBackfill` werden gelöscht. Gelöscht, nicht
+   auf `pending` gesetzt: Kommt die Art wieder in ein Deck, wird sie wie
+   eine nie angereicherte geplant — `base` vom Deck, die iNat-Arbeit von
+   `BaseWorker` unter der Einwilligung des neuen Decks. Laufzeitnamen und
+   `speciesCommonNames` bleiben;
+2. kürzt `external_images/` auf die Fotos, die noch in `inat_photo_cache`
+   stehen;
+3. kürzt `reference_images/` auf die Referenzbilder der gebrauchten Arten
+   (alle URLs, auch nicht nutzbare) und die verbleibenden iNat-Fotos — alte
+   App-Versionen legten iNat-Bilder dort ab, und sie werden dort noch
+   gelesen;
+4. speichert Ergebnis (Zeitpunkt, Auslöser, gelöschte Dateien und Bytes je
+   Verzeichnis, losgelassene und gebrauchte Arten, Dauer) und Fingerabdruck.
+   Die Diagnoseseite und ihr Bericht zeigen das Ergebnis.
+
+Mit den Dateien gehen liegengebliebene `*.part`-Teildownloads und leer
+gewordene Host-Ordner; `deck_covers/` bleibt unberührt, ebenso Links.
+Scheitert das Lesen einer der Mengen, verwirft und löscht der Lauf nichts
+und versucht es beim nächsten Start erneut — eine unlesbare Menge gilt nie
+als leere. Holt eine Art ihre Fotos neu, ohne dass sich Version oder Menge
+ändern, bleiben die alten Dateien bis zum nächsten Lauf liegen.
 
 **Erster Abgleich.** Daten aus App-Versionen ohne Stempel tragen `NULL`.
 Ist noch keine Version abgeglichen, nimmt der Abgleich an, dass sie mit der
@@ -697,7 +735,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `INatTaxonResolver` | `pipeline/service/` | iNat-Taxon-ID einer Art: Referenz-DB → Cache → Ablehnungen → Namenssuche mit Stammprüfung (siehe "Die iNat-Taxon-ID") |
 | `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Ablehnungen → Vorfahrenketten der Arten → exakte Suche mit Stamm- und Klassenprüfung (siehe "Die iNat-Taxon-ID") |
 | `INatProvenanceReconciler` | `pipeline/service/` | Gleicht beim Start die gestempelten iNat-Daten mit der installierten Referenz-DB ab, einmal je Version (siehe "Herkunft der iNat-Daten") |
-| `INatImageFilePruner` | `media/service/` | Löscht nach dem Abgleich die Dateien unter `external_images/`, deren URL keine Zeile in `inat_photo_cache` mehr nennt, einmal je Version (siehe "Herkunft der iNat-Daten") |
+| `SpeciesImageStorageSweeper` | `media/service/` | Lässt nach dem Abgleich nicht mehr gebrauchte Arten los (`SpeciesImageRetentionRepository`) und kürzt `external_images/` und `reference_images/` auf die Bilder der gebrauchten Arten, sobald sich Version oder gebrauchte Arten ändern (siehe "Herkunft der iNat-Daten") |
 | `INatProvenancePlanner` | `pipeline/repository/` | Entscheidet je Entität: Fotos bzw. Namen behalten, stempeln oder verwerfen, Cache-ID löschen — ohne Datenbank prüfbar |
 | `INatProvenanceRepository` | `pipeline/repository/` | Liest Stempel und Cache-IDs und wendet den Plan in einer Transaktion über Fotos, Namen, Suchdokumente, Cache und Arbeitszeilen an |
 | `ExternalIdRejectionRepository` / `INatAllowedAncestorRepository` | `catalog/repository/` | Lesen die Ablehnungen und die erlaubten iNat-Stämme und -Klassen je Klasse aus der Referenz-DB; ohne die Tabellen (ältere Referenz-DB) keine Ablehnung bzw. keine Prüfung |

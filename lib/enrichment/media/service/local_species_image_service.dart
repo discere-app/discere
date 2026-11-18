@@ -19,7 +19,8 @@ typedef SpeciesPictures = ({Species species, List<Picture> pictures});
 /// limits. Both directories it writes to are filled by enrichment's own
 /// workers — `BaseWorker` for reference images, `INatWorker` for the rest.
 class LocalSpeciesImageService {
-  static const _referenceImagesDirectory = 'reference_images';
+  /// The storage directory of the reference database's pictures.
+  static const referenceImagesDirectory = 'reference_images';
 
   /// The storage directory of iNaturalist images, kept apart from the
   /// reference images (see the class doc).
@@ -103,7 +104,7 @@ class LocalSpeciesImageService {
 
     final storageDirectory = _isExternalPicture(firstDownloadablePicture)
         ? externalImagesDirectory
-        : _referenceImagesDirectory;
+        : referenceImagesDirectory;
     final downloaded = await _imageService.downloadAndSaveUrlMap(
       {url},
       storageDirectory: storageDirectory,
@@ -125,7 +126,7 @@ class LocalSpeciesImageService {
 
     final referencePaths = await _imageService.downloadAndSaveUrlMap(
       referenceUrls,
-      storageDirectory: _referenceImagesDirectory,
+      storageDirectory: referenceImagesDirectory,
     );
     final externalPaths = await _imageService.downloadAndSaveUrlMap(
       externalUrls,
@@ -150,12 +151,12 @@ class LocalSpeciesImageService {
 
     final referencePaths = await _imageService.resolveSavedUrlMap(
       referenceUrls,
-      storageDirectory: _referenceImagesDirectory,
+      storageDirectory: referenceImagesDirectory,
     );
     final externalPaths = await _imageService.resolveSavedUrlMap(
       externalUrls,
       storageDirectory: externalImagesDirectory,
-      legacyDirectories: const {_referenceImagesDirectory},
+      legacyDirectories: const {referenceImagesDirectory},
     );
 
     return {...referencePaths, ...externalPaths};

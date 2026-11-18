@@ -42,6 +42,23 @@ void main() {
     },
   );
 
+  test('answers the species of every list, each once', () async {
+    await repository.createList(
+      id: 'l1',
+      name: 'Anemonefish',
+      speciesIds: {'sp-a', 'sp-b'},
+      at: _monday,
+    );
+    await repository.createList(
+      id: 'l2',
+      name: 'Gobies',
+      speciesIds: {'sp-b', 'sp-c'},
+      at: _tuesday,
+    );
+
+    expect(await repository.getAllSpeciesIds(), {'sp-a', 'sp-b', 'sp-c'});
+  });
+
   test('lists the newest list first', () async {
     await repository.createList(
       id: 'old',

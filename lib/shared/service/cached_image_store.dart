@@ -70,24 +70,42 @@ class CachedImageStore {
 
   /// Deletes every file in [storageDirectory] that is not the cached copy of
   /// one of [keepUrls] — a download left half-written included — and then
-  /// the folders that leaves empty. Returns how many files it deleted; a
-  /// storage directory that does not exist has none.
+  /// the folders that leaves empty. Answers how many files it deleted and
+  /// how many bytes they held; a storage directory that does not exist has
+  /// none.
   ///
-  /// Every path to keep is derived before the first file goes, so a URL the
-  /// naming rule cannot parse throws with nothing deleted rather than
-  /// halfway through. Links are neither followed nor deleted: this store
+  /// Every path to keep is derived before the first file goes. A URL the
+  /// naming rule cannot parse is skipped and keeps nothing: saving and
+  /// finding a copy go through the same rule and fail on it the same way, so
+  /// no file under its name can exist. Failing the whole prune for it instead
+  /// would stop every later one, since the URL stays in the data it came
+  /// from. Links are neither followed nor deleted: this store
   /// never writes one, so whatever a link points at is not its to clear. A
   /// file or folder that will not go is logged and left; the rest are still
   /// cleared.
-  Future<int> prune(
+  Future<({int deletedFiles, int freedBytes})> prune(
     String storageDirectory, {
     required Set<String> keepUrls,
   }) async {
-    final keptPaths = {for (final url in keepUrls) _relativePathFor(url)};
+    final keptPaths = <String>{};
+    var unnamedUrls = 0;
+    for (final url in keepUrls) {
+      try {
+        keptPaths.add(_relativePathFor(url));
+      } on FormatException {
+        unnamedUrls++;
+      }
+    }
+    if (unnamedUrls > 0) {
+      _log.warn(
+        '$unnamedUrls URLs to keep in $storageDirectory cannot be named; '
+        'they keep no file',
+      );
+    }
     final root = Directory(
       p.join((await documentsDirectory()).path, storageDirectory),
     );
-    if (!await root.exists()) return 0;
+    if (!await root.exists()) return (deletedFiles: 0, freedBytes: 0);
 
     final orphans = <File>[];
     final folders = <Directory>[];
@@ -101,9 +119,15 @@ class CachedImageStore {
       }
     }
 
-    var deleted = 0;
+    var deletedFiles = 0;
+    var freedBytes = 0;
     for (final orphan in orphans) {
-      if (await _tryDelete(orphan)) deleted++;
+      // Measured before it goes; a file that will not go frees nothing.
+      final size = (await orphan.stat()).size;
+      if (await _tryDelete(orphan)) {
+        deletedFiles++;
+        freedBytes += size;
+      }
     }
     // Deepest first, so a folder whose only content was a folder emptied
     // here goes too.
@@ -111,7 +135,7 @@ class CachedImageStore {
     for (final folder in folders) {
       if (await folder.list().isEmpty) await _tryDelete(folder);
     }
-    return deleted;
+    return (deletedFiles: deletedFiles, freedBytes: freedBytes);
   }
 
   Future<bool> _tryDelete(FileSystemEntity entity) async {

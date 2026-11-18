@@ -4,6 +4,8 @@ import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
+import 'package:discere/enrichment/media/model/species_image_storage_sweep.dart';
+import 'package:discere/enrichment/media/service/species_image_storage_sweeper.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -39,6 +41,9 @@ class DiagnosticsPageData {
   /// succeeded yet.
   final int? referenceIdsAppliedVersion;
   final ReferenceIdMigrationRun? lastReferenceIdMigrationRun;
+
+  /// The last sweep of the species image storage; null before the first.
+  final SpeciesImageStorageSweep? lastImageStorageSweep;
   final bool foregroundServiceRunning;
   final PackageInfo packageInfo;
   final bool persistErrorLogs;
@@ -52,6 +57,7 @@ class DiagnosticsPageData {
     required this.referenceDbUpdateState,
     required this.referenceIdsAppliedVersion,
     required this.lastReferenceIdMigrationRun,
+    required this.lastImageStorageSweep,
     required this.foregroundServiceRunning,
     required this.packageInfo,
     required this.persistErrorLogs,
@@ -93,6 +99,7 @@ class DiagnosticsPageData {
         ReferenceIdMigration.prefKeyAppliedVersion,
       ),
       lastReferenceIdMigrationRun: ReferenceIdMigrationRun.read(preferences),
+      lastImageStorageSweep: SpeciesImageStorageSweeper.lastSweep(preferences),
       foregroundServiceRunning: results[3] as bool,
       packageInfo: packageInfo,
       persistErrorLogs: logPersistence.isEnabled,

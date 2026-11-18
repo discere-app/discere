@@ -156,6 +156,16 @@ class FlashcardStatRepository {
     return result.first['count'] as int? ?? 0;
   }
 
+  /// The species of every deck: a deck's species each have a stat row, for
+  /// at least one learning mode.
+  Future<Set<String>> getAllDeckSpeciesIds() async {
+    final db = await _database;
+    final rows = await db.rawQuery(
+      'SELECT DISTINCT species_id FROM flashcard_stats',
+    );
+    return {for (final row in rows) row['species_id'] as String};
+  }
+
   Future<FlashcardStat?> getFlashcardStat(
     String speciesId,
     String deckId, [

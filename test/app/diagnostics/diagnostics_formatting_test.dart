@@ -11,7 +11,10 @@ import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 EnrichmentWorkStateCount _count(
   String label,
@@ -119,6 +122,49 @@ void main() {
       expect(
         formatDiagnosticsDuration(const Duration(minutes: 2, seconds: 5)),
         '2m 5s',
+      );
+    });
+  });
+
+  group('date and time', () {
+    final moment = DateTime(2026, 11, 18, 9, 30);
+
+    Future<String> formatted(
+      WidgetTester tester,
+      String Function(BuildContext, DateTime) format,
+    ) async {
+      late String result;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              result = format(context, moment);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      return result;
+    }
+
+    testWidgets('formatDiagnosticsDateTime puts the time below the date', (
+      tester,
+    ) async {
+      expect(
+        await formatted(tester, formatDiagnosticsDateTime),
+        '18. Nov. 2026\n09:30',
+      );
+    });
+
+    testWidgets('formatDiagnosticsDateTimeInline keeps both on one line', (
+      tester,
+    ) async {
+      expect(
+        await formatted(tester, formatDiagnosticsDateTimeInline),
+        '18. Nov. 2026 09:30',
       );
     });
   });

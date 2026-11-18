@@ -71,6 +71,22 @@ void main() {
     expect(await flashcardStatRepository.getTotalDistinctSpeciesCount(), 3);
   });
 
+  test('getAllDeckSpeciesIds answers the species of every deck, each '
+      'once', () async {
+    await decksService.createDeck(
+      CreateDeck(name: 'Deck A', description: '', speciesIds: {'sp1', 'sp2'}),
+    );
+    await decksService.createDeck(
+      CreateDeck(name: 'Deck B', description: '', speciesIds: {'sp2', 'sp3'}),
+    );
+
+    expect(await flashcardStatRepository.getAllDeckSpeciesIds(), {
+      'sp1',
+      'sp2',
+      'sp3',
+    });
+  });
+
   test('getSpeciesIdsGroupedByDeckId answers each requested deck with its own '
       'species', () async {
     final deckA = await decksService.createDeck(

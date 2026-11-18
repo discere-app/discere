@@ -148,12 +148,13 @@ void main() {
       Future<File> cachedCopy(
         String url, {
         String storageDirectory = 'external_images',
+        int size = 1,
       }) async {
         final file = File(
           await store.pathFor(url, storageDirectory: storageDirectory),
         );
         await file.parent.create(recursive: true);
-        await file.writeAsBytes([1]);
+        await file.writeAsBytes(List.filled(size, 1));
         return file;
       }
 
@@ -166,18 +167,18 @@ void main() {
 
       test('keeps the copies of the given URLs and clears everything else, '
           'emptied host folders included', () async {
-        final keptFile = await cachedCopy(kept);
-        final orphanedFile = await cachedCopy(orphaned);
+        final keptFile = await cachedCopy(kept, size: 1000);
+        final orphanedFile = await cachedCopy(orphaned, size: 100);
         final partFile = File('${keptFile.path}.part');
-        await partFile.writeAsBytes([1]);
-        final otherHostFile = await cachedCopy(otherHost);
+        await partFile.writeAsBytes(List.filled(20, 1));
+        final otherHostFile = await cachedCopy(otherHost, size: 3);
 
-        final deleted = await store.prune(
+        final pruned = await store.prune(
           'external_images',
           keepUrls: {kept, 'https://static.inaturalist.org/photos/3/x.jpg'},
         );
 
-        expect(deleted, 3);
+        expect(pruned, (deletedFiles: 3, freedBytes: 123));
         expect(await keptFile.exists(), isTrue);
         expect(await orphanedFile.exists(), isFalse);
         expect(await partFile.exists(), isFalse);
@@ -217,17 +218,25 @@ void main() {
 
       test('has nothing to clear in a storage directory that does not '
           'exist', () async {
-        expect(await store.prune('external_images', keepUrls: {kept}), 0);
+        expect(
+          await store.prune('external_images', keepUrls: {kept}),
+          (deletedFiles: 0, freedBytes: 0),
+        );
       });
 
-      test('deletes nothing when a URL to keep cannot be named', () async {
+      test('a URL to keep that cannot be named keeps nothing and does not '
+          'hold up the rest', () async {
+        final keptFile = await cachedCopy(kept);
         final orphanedFile = await cachedCopy(orphaned);
 
-        await expectLater(
-          store.prune('external_images', keepUrls: {kept, 'https://[::1'}),
-          throwsFormatException,
+        final pruned = await store.prune(
+          'external_images',
+          keepUrls: {kept, 'https://[::1'},
         );
-        expect(await orphanedFile.exists(), isTrue);
+
+        expect(pruned.deletedFiles, 1);
+        expect(await keptFile.exists(), isTrue);
+        expect(await orphanedFile.exists(), isFalse);
       });
 
       test('neither follows nor deletes a link', () async {
@@ -243,18 +252,19 @@ void main() {
       });
 
       test('clears what it can when a file will not go', () async {
-        final stuck = await cachedCopy(orphaned);
-        final clearable = await cachedCopy(otherHost);
+        final stuck = await cachedCopy(orphaned, size: 50);
+        final clearable = await cachedCopy(otherHost, size: 7);
         // A folder without write permission keeps its files.
         await Process.run('chmod', ['555', stuck.parent.path]);
         addTearDown(() => Process.run('chmod', ['755', stuck.parent.path]));
 
-        final deleted = await store.prune(
+        final pruned = await store.prune(
           'external_images',
           keepUrls: const {},
         );
 
-        expect(deleted, 1);
+        // The file that stayed frees nothing.
+        expect(pruned, (deletedFiles: 1, freedBytes: 7));
         expect(await stuck.exists(), isTrue);
         expect(await clearable.exists(), isFalse);
       }, skip: Platform.isWindows ? 'needs POSIX permissions' : false);

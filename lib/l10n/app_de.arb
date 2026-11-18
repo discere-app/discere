@@ -1143,6 +1143,32 @@
   "diagnosticsForegroundServiceTitle": "Foreground-Service",
   "diagnosticsForegroundServiceRunning": "Aktiv",
   "diagnosticsForegroundServiceNotRunning": "Nicht aktiv",
+  "diagnosticsImageStorageTitle": "Bildspeicher",
+  "diagnosticsImageStorageNotSwept": "Noch nicht aufgeräumt.",
+  "diagnosticsImageStorageLastSweep": "Zuletzt am {time} ({trigger}, {durationMs} ms):\n{needed} Arten benötigt, {released} verworfen",
+  "@diagnosticsImageStorageLastSweep": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "trigger": { "type": "String" },
+      "durationMs": { "type": "int" },
+      "needed": { "type": "int" },
+      "released": { "type": "int" }
+    }
+  },
+  "diagnosticsImageStorageTriggerAutomatic": "automatisch",
+  "diagnosticsImageStorageTriggerManual": "manuell",
+  "diagnosticsImageStorageDirectory": "{directory}: {files} Dateien gelöscht, {size} freigegeben",
+  "@diagnosticsImageStorageDirectory": {
+    "placeholders": {
+      "directory": { "type": "String" },
+      "files": { "type": "int" },
+      "size": { "type": "String" }
+    }
+  },
+  "diagnosticsImageStorageSweepOnRestart": "Bildspeicher beim Neustart aufräumen",
+  "diagnosticsImageStorageSweepConfirmTitle": "Bildspeicher aufräumen?",
+  "diagnosticsImageStorageSweepConfirmBody": "Die App startet neu. Dabei werden die Bilder und iNaturalist-Fotos aller Arten gelöscht, die in keinem Deck, auf keiner Merkliste und in keiner Vergleichsliste mehr vorkommen.",
+  "diagnosticsImageStorageSweepRestart": "Neu starten",
   "diagnosticsReferenceDbTitle": "Referenzdatenbank",
   "diagnosticsReferenceDbNotInstalled": "Nicht installiert.",
   "diagnosticsReferenceDbVersion": "Version {version}",

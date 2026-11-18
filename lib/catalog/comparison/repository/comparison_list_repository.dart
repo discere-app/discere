@@ -46,6 +46,17 @@ class ComparisonListRepository {
     ];
   }
 
+  /// The species of every list, each once.
+  Future<Set<String>> getAllSpeciesIds() async {
+    final db = await _database;
+    final rows = await db.query(
+      _speciesTable,
+      columns: ['species_id'],
+      distinct: true,
+    );
+    return {for (final row in rows) row['species_id'] as String};
+  }
+
   /// Creates the list [id] holding [speciesIds] in their iteration order, in
   /// one transaction.
   Future<void> createList({

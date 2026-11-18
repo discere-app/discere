@@ -27,13 +27,6 @@ class INatProvenanceRepository {
   static const _searchFts = RuntimeCommonNameSearchRepository.ftsTable;
   static const _cache = ExternalIdCacheRepository.tableName;
 
-  /// Wikipedia link and IUCN status come with the photos, from the same iNat
-  /// taxon (`INatPhotoApi.fetchPhotos`), and go with them.
-  static final _photoTaxonProviders = [
-    ExternalIdProvider.wikipedia.name,
-    ExternalIdProvider.iucnStatus.name,
-  ];
-
   final Database? _injectedDb;
 
   INatProvenanceRepository({Database? database}) : _injectedDb = database;
@@ -116,14 +109,7 @@ class INatProvenanceRepository {
         );
       }
       for (final speciesId in plan.photosToDiscard) {
-        batch.delete(_photos, where: 'species_id = ?', whereArgs: [speciesId]);
-        batch.delete(
-          _cache,
-          where:
-              'entity_id = ? AND provider IN '
-              '(${List.filled(_photoTaxonProviders.length, '?').join(', ')})',
-          whereArgs: [speciesId, ..._photoTaxonProviders],
-        );
+        INatPhotoCacheRepository.discardPhotos(batch, speciesId);
         batch.update(
           EnrichmentWorkTables.capabilityState,
           {'state': pendingState, ...pending},

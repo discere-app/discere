@@ -27,8 +27,8 @@ class EnrichmentWorkClaimRepository {
   ///
   /// Requires an existing [EnrichmentWorkTables.deckMembership] row — a species can be
   /// seeded here and then have every deck referencing it deleted before this
-  /// ever gets claimed (`releaseDeck` deliberately leaves this permanent
-  /// dedup-cache row behind); without this check that claim would still go
+  /// ever gets claimed (`releaseDeck` deliberately leaves this dedup-cache
+  /// row behind); without this check that claim would still go
   /// ahead and burn a real reference-image download for a species nobody
   /// wants anymore.
   Future<List<String>> claimBaseWorkBatch({required int limit}) async {
@@ -83,8 +83,8 @@ class EnrichmentWorkClaimRepository {
   ///
   /// The species query requires an existing [EnrichmentWorkTables.deckMembership] row for
   /// the same reason [claimBaseWorkBatch] does — a species can outlive every
-  /// deck that referenced it (its permanent dedup-cache row is deliberately
-  /// left behind by `releaseDeck`) before a reactively-seeded item like
+  /// deck that referenced it (its dedup-cache row is deliberately left
+  /// behind by `releaseDeck`) before a reactively-seeded item like
   /// `inatBackfill` ever gets claimed; without this check, that claim would
   /// still burn a real, rate-limited iNaturalist request for nothing.
   Future<INatWorkItem?> claimNextINatWorkItem() async {

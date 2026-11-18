@@ -1164,6 +1164,32 @@
   "diagnosticsForegroundServiceTitle": "Foreground service",
   "diagnosticsForegroundServiceRunning": "Running",
   "diagnosticsForegroundServiceNotRunning": "Not running",
+  "diagnosticsImageStorageTitle": "Image storage",
+  "diagnosticsImageStorageNotSwept": "Not swept yet.",
+  "diagnosticsImageStorageLastSweep": "Last on {time} ({trigger}, {durationMs} ms):\n{needed} species needed, {released} discarded",
+  "@diagnosticsImageStorageLastSweep": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "trigger": { "type": "String" },
+      "durationMs": { "type": "int" },
+      "needed": { "type": "int" },
+      "released": { "type": "int" }
+    }
+  },
+  "diagnosticsImageStorageTriggerAutomatic": "automatic",
+  "diagnosticsImageStorageTriggerManual": "manual",
+  "diagnosticsImageStorageDirectory": "{directory}: {files} files deleted, {size} freed",
+  "@diagnosticsImageStorageDirectory": {
+    "placeholders": {
+      "directory": { "type": "String" },
+      "files": { "type": "int" },
+      "size": { "type": "String" }
+    }
+  },
+  "diagnosticsImageStorageSweepOnRestart": "Sweep image storage on restart",
+  "diagnosticsImageStorageSweepConfirmTitle": "Sweep image storage?",
+  "diagnosticsImageStorageSweepConfirmBody": "The app restarts. On the way, the images and iNaturalist photos of every species that is no longer in any deck, on the watchlist or in a comparison list are deleted.",
+  "diagnosticsImageStorageSweepRestart": "Restart",
   "diagnosticsReferenceDbTitle": "Reference database",
   "diagnosticsReferenceDbNotInstalled": "Not installed.",
   "diagnosticsReferenceDbVersion": "Version {version}",

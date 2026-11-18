@@ -117,7 +117,7 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
     final run = data.lastReferenceIdMigrationRun;
     final time = run == null
         ? ''
-        : formatDiagnosticsDateTime(context, run.ranAt).replaceAll('\n', ' ');
+        : formatDiagnosticsDateTimeInline(context, run.ranAt);
     final runLine = switch (run) {
       null => context.loc.diagnosticsReferenceIdsLastRunNone,
       ReferenceIdMigrationSucceeded() =>
