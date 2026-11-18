@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/pipeline/model/base_image_download_result.dart';
 import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
 import 'package:discere/shared/service/image_download_outcome.dart';
@@ -9,8 +10,6 @@ import 'package:discere/shared/service/image_service.dart';
 /// enrichment pipeline, driven by `BaseWorker` — and folds how each URL
 /// ended into one [BaseImageDownloadResult] for the species.
 class BaseImageEnrichmentService {
-  static const _referenceImagesDirectory = 'reference_images';
-
   final ImageService _imageService;
 
   const BaseImageEnrichmentService(this._imageService);
@@ -23,7 +22,7 @@ class BaseImageEnrichmentService {
   ) async {
     final outcomes = await _imageService.downloadAndSaveUrls(
       {for (final picture in species.pictures) ?picture.url},
-      storageDirectory: _referenceImagesDirectory,
+      storageDirectory: LocalSpeciesImageService.referenceImagesDirectory,
       skipIfHostCoolingDown: true,
     );
     return _resultOf(outcomes.values);
