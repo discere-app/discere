@@ -290,7 +290,6 @@ void main() {
     Future<void> expectNothingChanged(Object? error) async {
       // An unreadable set must never pass for an empty one, which would
       // delete every image.
-      expect(error, isA<DatabaseException>());
       expect(await capabilitiesOf(_unneeded), hasLength(4));
       expect(await cachedProvidersOf(_unneeded), hasLength(3));
       expect(await photo.exists(), isTrue);
@@ -304,6 +303,7 @@ void main() {
         isTrue,
       );
       expect(SpeciesImageStorageSweeper.lastSweep(preferences), isNull);
+      expect(error, isA<DatabaseException>());
     }
 
     Future<Object?> sweepCatching() async {
