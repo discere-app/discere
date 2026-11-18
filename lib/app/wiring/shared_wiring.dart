@@ -1,4 +1,5 @@
 import 'package:discere/shared/persistence/user_data_writes.dart';
+import 'package:discere/shared/service/cached_image_store.dart';
 import 'package:discere/shared/service/diagnostics_sink.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -60,6 +61,7 @@ SharedServices buildSharedServices({
   final imageService = ImageService(
     client: sharedHttpClient,
     hostCooldownTracker: hostCooldownTracker,
+    store: CachedImageStore(),
   );
   final languageService = LanguageService(sharedPreferences);
   final navigationTabService = NavigationTabService();

@@ -112,6 +112,22 @@ void main() {
     );
   });
 
+  test('lists every cached photo URL once, without the sentinel', () async {
+    await repository.cachePhotos('sp1', [
+      _photo('https://inat/a.jpg'),
+      _photo('https://inat/b.jpg'),
+    ], taxonId: 7);
+    await repository.cachePhotos('sp2', [
+      _photo('https://inat/a.jpg'),
+    ], taxonId: 7);
+    await repository.cachePhotos('looked-up-empty', [], taxonId: 8);
+
+    expect(await repository.photoUrls(), {
+      'https://inat/a.jpg',
+      'https://inat/b.jpg',
+    });
+  });
+
   test('an empty request reads nothing', () async {
     expect(await repository.getCachedPhotosForSpecies({}), isEmpty);
   });

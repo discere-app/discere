@@ -119,7 +119,7 @@ The app is split into feature modules with explicit dependency rules.
 ### `shared/`
 Dependency-free foundation. Generic infrastructure and cross-cutting helpers only — nothing domain-specific belongs here.
 - `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `ReferenceDbUpdateService` beside them, where a session stands with a newer reference DB (§5.3); `ReferenceIdMigration` (`persistence/reference_id/`), which rewrites the reference IDs in the user data through the installed reference DB's `entity_aliases` (see §5.3); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
-- `ImageService`, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
+- `ImageService` with `CachedImageStore`, the on-disk layout of images cached by URL, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
 - `LoggingHttpClient`, `Logger` (`util/`) — `Logger.warn`/`error` take an optional error and stack trace, written with the entry (stack cut to its first frames)
 - `FailureLogging.warnOnFailure` (`util/failure_logging.dart`) — for an error the UI *shows* rather than awaits. A `FutureBuilder` that renders an error, or a `catch` that turns it into a snack bar, has handled it, so it never reaches the uncaught-error log. The rule: log where the error is caught, never in `build`. A future a `FutureBuilder` consumes is wrapped with `warnOnFailure(_log, '<what>')` where it is created (`initState`, a reload), which logs `<what> failed` with error and stack trace once and passes the error on unchanged; a `catch` logs with `_log.warn('<what> failed', error: e, stackTrace: stackTrace)`. Logged from `build`, one failure would add an entry per rebuild. An error already logged where it arose (a service, a fallback) is not logged again at the widget that shows it
 - Generic UI primitives and utilities
@@ -236,7 +236,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
 - `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
-- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `alignUserDataWithReferenceDb`, which runs `applyReferenceIdAliases` (`ReferenceIdMigration`) and then `reconcileINatProvenance` (`INatProvenanceReconciler`) between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `alignUserDataWithReferenceDb`, which runs `applyReferenceIdAliases` (`ReferenceIdMigration`), `reconcileINatProvenance` (`INatProvenanceReconciler`) and then `pruneOrphanedINatImages` (`INatImageFilePruner`) between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
 
 ### Module Dependency Rules
 
@@ -543,9 +543,17 @@ The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
    entity no longer maps to are discarded and their work reset to pending
    ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
    Failure handling as in step 2, without a run record.
-4. **Build the services** — only now does anything read user data.
+4. **Prune iNat image files** — `pruneOrphanedINatImages` runs
+   `INatImageFilePruner` once the iNat data is reconciled for the installed
+   version, unless the version recorded under
+   `inat_image_files_pruned_version` is that one. It deletes every file under
+   `external_images/` whose URL no `inat_photo_cache` row names — the files
+   of the photos step 3 or a colliding alias discarded
+   ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
+   Failure handling as in step 3.
+5. **Build the services** — only now does anything read user data.
 
-Steps 2 and 3 run as one call, `alignUserDataWithReferenceDb`. Running them
+Steps 2 to 4 run as one call, `alignUserDataWithReferenceDb`. Running them
 on every start rather than right after an install is what covers a crash
 between installing a database and rewriting the user data.
 

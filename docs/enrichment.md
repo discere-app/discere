@@ -563,6 +563,21 @@ liest einmal je Tabelle und schreibt alles in einer Transaktion. Scheitert
 er, startet die App trotzdem, merkt sich die Version nicht und versucht es
 beim nächsten Start erneut.
 
+**Bilddateien.** Ein iNat-Foto liegt als Datei unter `external_images/`
+(Host-Ordner, `md5(URL)`, `CachedImageStore`), gefunden nur über die URL
+seiner Zeile in `inat_photo_cache`. Verwirft der Abgleich die Zeile — oder
+die Alias-Umschreibung, wenn sie kollidiert —, verweist nichts mehr auf die
+Datei. Deshalb räumt `INatImageFilePruner` das Verzeichnis einmal je
+Referenz-DB-Version auf (`inat_image_files_pruned_version`), im Bootstrap
+direkt nach dem Abgleich und nur, wenn der Abgleich für diese Version
+gelaufen ist: Er löscht jede Datei, deren URL keine Zeile mehr nennt, samt
+liegengebliebener `*.part`-Teildownloads und leer gewordener Host-Ordner.
+`reference_images/` (auch dort liegende alte iNat-Bilder) und
+`deck_covers/` bleiben unberührt, ebenso Links. Scheitert das Lesen der
+URLs, löscht er nichts und versucht es beim nächsten Start erneut. Holt eine
+Art zwischen zwei Referenz-DB-Versionen ihre Fotos neu, bleiben die alten
+Dateien bis zum nächsten Versionswechsel liegen.
+
 **Erster Abgleich.** Daten aus App-Versionen ohne Stempel tragen `NULL`.
 Ist noch keine Version abgeglichen, nimmt der Abgleich an, dass sie mit der
 jetzt installierten Referenz-DB geholt wurden: In aller Regel ist sie das,
@@ -579,8 +594,7 @@ Cache-ID dieser Zeit: Alle fallen, und die geprüfte Suche entscheidet neu.
 ersten Abgleich Daten mit einer älteren Referenz-DB geholt und seither eine
 neuere installiert hat, dessen Daten bekommen beim ersten Abgleich die ID der
 installierten Referenz-DB als Stempel, auch wenn sie unter einer anderen ID
-geholt wurden. Die Fotodateien verworfener Fotos bleiben unter
-`external_images/` liegen, ohne dass etwas auf sie verweist.
+geholt wurden.
 
 ## Referenz-DB-Version & Basisbild-Refresh
 
@@ -615,9 +629,10 @@ Insert) — ein manuelles "nochmal versuchen" braucht also den expliziten Reset,
 sonst claimt `BaseWorker` nichts.
 
 **Ein Reset heißt nicht automatisch ein echter Download:**
-`BaseImageEnrichmentService` delegiert an `ImageService`, das den lokalen
-Dateipfad rein aus `md5(Bild-URL)` ableitet und den HTTP-Request überspringt,
-sobald diese Datei schon existiert (`ImageService._resolveExistingImagePath`).
+`BaseImageEnrichmentService` delegiert an `ImageService`, dessen Ablage
+(`CachedImageStore`) den lokalen Dateipfad rein aus `md5(Bild-URL)` ableitet;
+`ImageService` überspringt den HTTP-Request, sobald diese Datei schon
+existiert (`CachedImageStore.existingPathFor`).
 Solange sich die Bild-URL einer Art nicht geändert hat — der Normalfall auch
 bei einem Referenz-DB-Versionssprung — ist ein Reset also nur eine billige
 Datei-Existenz-Prüfung, kein erneuter Download. `ImageService` loggt beide
@@ -682,6 +697,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `INatTaxonResolver` | `pipeline/service/` | iNat-Taxon-ID einer Art: Referenz-DB → Cache → Ablehnungen → Namenssuche mit Stammprüfung (siehe "Die iNat-Taxon-ID") |
 | `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Ablehnungen → Vorfahrenketten der Arten → exakte Suche mit Stamm- und Klassenprüfung (siehe "Die iNat-Taxon-ID") |
 | `INatProvenanceReconciler` | `pipeline/service/` | Gleicht beim Start die gestempelten iNat-Daten mit der installierten Referenz-DB ab, einmal je Version (siehe "Herkunft der iNat-Daten") |
+| `INatImageFilePruner` | `media/service/` | Löscht nach dem Abgleich die Dateien unter `external_images/`, deren URL keine Zeile in `inat_photo_cache` mehr nennt, einmal je Version (siehe "Herkunft der iNat-Daten") |
 | `INatProvenancePlanner` | `pipeline/repository/` | Entscheidet je Entität: Fotos bzw. Namen behalten, stempeln oder verwerfen, Cache-ID löschen — ohne Datenbank prüfbar |
 | `INatProvenanceRepository` | `pipeline/repository/` | Liest Stempel und Cache-IDs und wendet den Plan in einer Transaktion über Fotos, Namen, Suchdokumente, Cache und Arbeitszeilen an |
 | `ExternalIdRejectionRepository` / `INatAllowedAncestorRepository` | `catalog/repository/` | Lesen die Ablehnungen und die erlaubten iNat-Stämme und -Klassen je Klasse aus der Referenz-DB; ohne die Tabellen (ältere Referenz-DB) keine Ablehnung bzw. keine Prüfung |
@@ -689,6 +705,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Cooldown je Host: `LoggingHttpClient` wartet ihn vor jedem Request ab; speist außerdem die Cooldown-Anzeige und das Keepalive-Signal |
 | `ImageService` / `imageHostFallbacks` | `shared/service/` | Lädt Bilder und meldet je URL ein `ImageDownloadOutcome`; versucht bei einem Host-Problem den Ersatz-Host |
+| `CachedImageStore` | `shared/service/` | Die Ablage der per URL gecachten Bilder: Namensregel (Host-Ordner, `md5(URL)` mit Endung), Auflösen vorhandener Dateien, Aufräumen eines Speicherverzeichnisses |
 | `ReferenceDatabaseProvisioner` | `shared/persistence/` | Download/Installation der Referenz-DB; `currentVersion()` wird von `BaseWorker` beim Terminal-Markieren von `base` gestempelt und für die Staleness-Erkennung oben gelesen |
 
 ## Wo die UI das liest

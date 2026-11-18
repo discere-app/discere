@@ -3,6 +3,7 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/pipeline/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
@@ -22,7 +23,6 @@ import 'package:discere/shared/util/logger.dart';
 class INatPhotoEnrichmentService {
   static final _log = Logger.forType(INatPhotoEnrichmentService);
   static const _maxConcurrentFetches = 3;
-  static const _externalImagesDirectory = 'external_images';
   // iNaturalist image downloads are intentionally serialized. The API/host is
   // comparatively rate-limit sensitive, and parallel image fetches there did
   // not produce meaningful throughput gains in practice. Keeping external
@@ -113,7 +113,8 @@ class INatPhotoEnrichmentService {
             imageCount += _picturesByUrl(outcome.pictures).length;
             final downloaded = await _imageService.downloadAndSaveUrlMap(
               _picturesByUrl(outcome.pictures).keys.toSet(),
-              storageDirectory: _externalImagesDirectory,
+              storageDirectory:
+                  LocalSpeciesImageService.externalImagesDirectory,
               // Reference images may stay parallel, but iNaturalist-hosted
               // media is deliberately fetched one-by-one to stay friendly to
               // iNaturalist's rate limits and avoid local resource spikes.
@@ -200,7 +201,8 @@ class INatPhotoEnrichmentService {
             imageCount += _picturesByUrl(outcome.pictures).length;
             final downloaded = await _imageService.downloadAndSaveUrlMap(
               _picturesByUrl(outcome.pictures).keys.toSet(),
-              storageDirectory: _externalImagesDirectory,
+              storageDirectory:
+                  LocalSpeciesImageService.externalImagesDirectory,
               // Backfill uses the same serialized iNaturalist image policy as
               // primary enrichment. The deck can take longer, but it avoids
               // parallel bursts against iNaturalist with little real benefit.
