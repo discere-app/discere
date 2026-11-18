@@ -173,6 +173,7 @@ Future<void> _openSearch(
     _StubLanguageService(),
     (_) async => const [],
     (_) async => null,
+    (_) async => null,
     (_) => const SizedBox.shrink(),
   );
 

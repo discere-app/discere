@@ -283,7 +283,7 @@ class _TaxonomySpeciesSelectionPageState
                             onChanged: (_) => _toggleSelection(species.id),
                           ),
                           SearchResultThumbnail(
-                            speciesId: species.id,
+                            thumbnailKey: species.id,
                             resolveThumbnailUrl: resolveThumbnailUrl,
                             size: 48,
                             accentColor: Theme.of(context).colorScheme.tertiary,

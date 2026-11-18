@@ -76,6 +76,29 @@ void main() {
 
     expect(tapped, ['genus-1', 'species-1']);
   });
+
+  testWidgets('looks a species picture up by its id and a genus picture by '
+      'its name key, each through its own resolver', (tester) async {
+    final speciesKeys = <String>[];
+    final higherTaxonKeys = <String>[];
+    await tester.pumpWidget(
+      _buildList(
+        [octopus, genus],
+        resolveThumbnailUrl: (key) async {
+          speciesKeys.add(key);
+          return null;
+        },
+        resolveHigherTaxonThumbnailUrl: (key) async {
+          higherTaxonKeys.add(key);
+          return null;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(speciesKeys, ['species-1']);
+    expect(higherTaxonKeys, ['genus:enteroctopus']);
+  });
 }
 
 SearchResult _result({
@@ -97,6 +120,8 @@ SearchResult _result({
 Widget _buildList(
   List<SearchResult> results, {
   void Function(SearchResult result)? onResultTap,
+  Future<String?> Function(String speciesId)? resolveThumbnailUrl,
+  Future<String?> Function(String entityKey)? resolveHigherTaxonThumbnailUrl,
 }) {
   return MaterialApp(
     locale: const Locale('en'),
@@ -106,7 +131,9 @@ Widget _buildList(
       body: SearchResultsGroupedList(
         results: results,
         selectedLanguage: Language.en,
-        resolveThumbnailUrl: (_) async => null,
+        resolveThumbnailUrl: resolveThumbnailUrl ?? (_) async => null,
+        resolveHigherTaxonThumbnailUrl:
+            resolveHigherTaxonThumbnailUrl ?? (_) async => null,
         onResultTap: onResultTap ?? (_) {},
       ),
     ),

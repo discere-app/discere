@@ -30,7 +30,7 @@ void main() {
           children: [
             for (final speciesId in speciesIds)
               SearchResultThumbnail(
-                speciesId: speciesId,
+                thumbnailKey: speciesId,
                 resolveThumbnailUrl: resolveThumbnailUrl,
                 size: 48,
                 accentColor: Colors.teal,

@@ -5,6 +5,8 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:material_ui/material_ui.dart';
 
 class SearchResultCard extends StatelessWidget {
+  /// Shown left of the names, centred on them.
+  final Widget leading;
   final String primaryName;
 
   /// Left out when empty, as for a rank placeholder, which has none.
@@ -16,6 +18,7 @@ class SearchResultCard extends StatelessWidget {
 
   const SearchResultCard({
     super.key,
+    required this.leading,
     required this.primaryName,
     required this.scientificName,
     required this.additionalNames,
@@ -28,8 +31,11 @@ class SearchResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final accent = _accentColor(colorScheme, entityType);
-    final accentContainer = _accentContainerColor(colorScheme, entityType);
+    final accent = SearchTaxonomyStyle.accentFor(colorScheme, entityType);
+    final accentContainer = SearchTaxonomyStyle.accentContainerFor(
+      colorScheme,
+      entityType,
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
@@ -42,13 +48,8 @@ class SearchResultCard extends StatelessWidget {
             vertical: AppSpacing.s12,
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SearchResultLeadingMarker(
-                accentColor: accent,
-                accentContainerColor: accentContainer,
-                icon: SearchTaxonomyStyle.iconFor(entityType),
-              ),
+              leading,
               const SizedBox(width: AppSpacing.s12),
               Expanded(
                 child: Column(
@@ -109,39 +110,6 @@ class SearchResultCard extends StatelessWidget {
       ),
     );
   }
-
-  Color _accentColor(ColorScheme colorScheme, SearchEntityType entityType) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return colorScheme.tertiary;
-      case SearchEntityType.genus:
-        return colorScheme.primary;
-      case SearchEntityType.family:
-        return colorScheme.secondary;
-      case SearchEntityType.order:
-        return colorScheme.onSurfaceVariant;
-      case SearchEntityType.classType:
-        return colorScheme.onSurface;
-    }
-  }
-
-  Color _accentContainerColor(
-    ColorScheme colorScheme,
-    SearchEntityType entityType,
-  ) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return colorScheme.tertiaryContainer.withValues(alpha: 0.7);
-      case SearchEntityType.genus:
-        return colorScheme.primaryContainer.withValues(alpha: 0.7);
-      case SearchEntityType.family:
-        return colorScheme.secondaryContainer.withValues(alpha: 0.75);
-      case SearchEntityType.order:
-        return colorScheme.surfaceContainerHighest;
-      case SearchEntityType.classType:
-        return colorScheme.surfaceContainerHigh;
-    }
-  }
 }
 
 class SearchEntityTypeBadge extends StatelessWidget {
@@ -188,41 +156,6 @@ class SearchEntityTypeBadge extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SearchResultLeadingMarker extends StatelessWidget {
-  final Color accentColor;
-  final Color accentContainerColor;
-  final IconData icon;
-
-  const _SearchResultLeadingMarker({
-    required this.accentColor,
-    required this.accentContainerColor,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: accentContainerColor,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: accentColor, size: 20),
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
-        ),
-      ],
     );
   }
 }

@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
+import 'package:discere/catalog/search/higher_taxon_thumbnail_port.dart';
+import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_children_section.dart';
@@ -29,6 +31,11 @@ final _pomacentridae = SearchResult(
   type: SearchEntityType.family,
 );
 
+class _NoThumbnails implements HigherTaxonThumbnailPort {
+  @override
+  Future<String?> thumbnailUrl(String entityKey) async => null;
+}
+
 Finder _inClassification(String text) => find.descendant(
   of: find.byType(TaxonomyClassificationSection),
   matching: find.text(text),
@@ -51,6 +58,9 @@ void main() {
   late LanguageService languageService;
 
   setUp(() async {
+    // The thumbnail cache is static and shared across every test in this
+    // shard, so a picture resolved here must not leak into the next test.
+    SearchResultThumbnail.resetCacheForTesting();
     tempDir = await Directory.systemTemp.createTemp('taxonomy_page_');
     final referenceDbPath = join(tempDir.path, 'reference.db');
     await File('test/fixtures/discere_reference_test.db').copy(referenceDbPath);
@@ -103,6 +113,7 @@ void main() {
         providers: [
           Provider<TaxonomyService>.value(value: TaxonomyService(repository)),
           ChangeNotifierProvider<LanguageService>.value(value: languageService),
+          Provider<HigherTaxonThumbnailPort>.value(value: _NoThumbnails()),
         ],
         child: MaterialApp(
           locale: const Locale('en'),

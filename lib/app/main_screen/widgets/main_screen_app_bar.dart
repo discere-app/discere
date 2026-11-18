@@ -1,3 +1,4 @@
+import 'package:discere/catalog/search/higher_taxon_thumbnail_port.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/catalog/search/species_thumbnail_port.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
@@ -45,6 +46,8 @@ class MainScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
         Provider.of<LanguageService>(context, listen: false),
         searchService.searchOnline,
         Provider.of<SpeciesThumbnailPort>(context, listen: false)
+            .thumbnailUrl,
+        Provider.of<HigherTaxonThumbnailPort>(context, listen: false)
             .thumbnailUrl,
         buildSpeciesDetailPage,
         onAddToDeck,
