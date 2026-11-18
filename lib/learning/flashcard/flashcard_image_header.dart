@@ -43,7 +43,6 @@ class FlashcardImageHeader extends StatelessWidget {
     if (pictures.isEmpty) {
       return NoPhotoPlaceholder(
         speciesId: species.id,
-        speciesName: species.scientificName,
         watchlistKey: watchlistKey,
         onRemoveSpecies: onRemoveSpecies,
       );

@@ -8,17 +8,15 @@ import 'package:material_ui/material_ui.dart';
 /// (see [DeckSessionPresenter.filterReviewableCards]), so this always means
 /// no photo could be found, not just "not downloaded yet". Shared between
 /// flip mode ([FlashcardFront]) and multiple-choice mode
-/// ([FlashcardImageHeader]), which previously duplicated this block
-/// identically.
+/// ([FlashcardImageHeader]). Both are the question side of a card, where the
+/// name is the answer — so the removal confirmation does not name the species.
 class NoPhotoPlaceholder extends StatelessWidget {
   final String speciesId;
-  final String speciesName;
   final GlobalKey? watchlistKey;
   final Future<void> Function(String speciesId)? onRemoveSpecies;
 
   const NoPhotoPlaceholder({
     required this.speciesId,
-    required this.speciesName,
     this.watchlistKey,
     this.onRemoveSpecies,
     super.key,
@@ -31,7 +29,7 @@ class NoPhotoPlaceholder extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         key: const Key('remove_species_confirm_dialog'),
         title: Text(loc.flashcardRemoveSpeciesConfirmTitle),
-        content: Text(loc.flashcardRemoveSpeciesConfirmMessage(speciesName)),
+        content: Text(loc.flashcardRemoveSpeciesConfirmMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
