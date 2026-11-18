@@ -27,7 +27,7 @@ class DiagnosticsImageStorageTile extends StatelessWidget {
     final loc = context.loc;
     return [
       loc.diagnosticsImageStorageLastSweep(
-        formatDiagnosticsDateTime(context, sweep.sweptAt).replaceAll('\n', ' '),
+        formatDiagnosticsDateTimeInline(context, sweep.sweptAt),
         switch (sweep.trigger) {
           SpeciesImageSweepTrigger.automatic =>
             loc.diagnosticsImageStorageTriggerAutomatic,
