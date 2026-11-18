@@ -20,7 +20,10 @@ typedef SpeciesPictures = ({Species species, List<Picture> pictures});
 /// workers — `BaseWorker` for reference images, `INatWorker` for the rest.
 class LocalSpeciesImageService {
   static const _referenceImagesDirectory = 'reference_images';
-  static const _externalImagesDirectory = 'external_images';
+
+  /// The storage directory of iNaturalist images, kept apart from the
+  /// reference images (see the class doc).
+  static const externalImagesDirectory = 'external_images';
 
   final ImageService _imageService;
 
@@ -99,7 +102,7 @@ class LocalSpeciesImageService {
     }
 
     final storageDirectory = _isExternalPicture(firstDownloadablePicture)
-        ? _externalImagesDirectory
+        ? externalImagesDirectory
         : _referenceImagesDirectory;
     final downloaded = await _imageService.downloadAndSaveUrlMap(
       {url},
@@ -126,7 +129,7 @@ class LocalSpeciesImageService {
     );
     final externalPaths = await _imageService.downloadAndSaveUrlMap(
       externalUrls,
-      storageDirectory: _externalImagesDirectory,
+      storageDirectory: externalImagesDirectory,
       // External pictures are dominated by iNaturalist-hosted media. Keep
       // those downloads serial to respect iNaturalist rate limits; reference
       // images still use the default parallel path.
@@ -151,7 +154,7 @@ class LocalSpeciesImageService {
     );
     final externalPaths = await _imageService.resolveSavedUrlMap(
       externalUrls,
-      storageDirectory: _externalImagesDirectory,
+      storageDirectory: externalImagesDirectory,
       legacyDirectories: const {_referenceImagesDirectory},
     );
 

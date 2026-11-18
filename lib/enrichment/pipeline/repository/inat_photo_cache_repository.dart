@@ -65,6 +65,16 @@ class INatPhotoCacheRepository {
     };
   }
 
+  /// The URL of every cached photo, across all species — the sentinel left
+  /// out, since it names no photo.
+  Future<Set<String>> photoUrls() async {
+    final rows = await (await _database).rawQuery(
+      'SELECT DISTINCT photo_url FROM $tableName WHERE photo_url != ?',
+      [_emptySentinel],
+    );
+    return {for (final row in rows) row['photo_url'] as String};
+  }
+
   List<Picture> _picturesFromRows(
     String speciesId,
     List<Map<String, Object?>> rows,
