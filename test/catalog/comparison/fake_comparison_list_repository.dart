@@ -15,6 +15,11 @@ class FakeComparisonListRepository implements ComparisonListRepository {
   Future<List<ComparisonList>> getLists() async => List.unmodifiable(_lists);
 
   @override
+  Future<Set<String>> getAllSpeciesIds() async => {
+    for (final list in _lists) ...list.speciesIds,
+  };
+
+  @override
   Future<void> createList({
     required String id,
     required String name,

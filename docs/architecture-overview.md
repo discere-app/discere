@@ -543,14 +543,20 @@ The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
    entity no longer maps to are discarded and their work reset to pending
    ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
    Failure handling as in step 2, without a run record.
-4. **Prune iNat image files** — `sweepSpeciesImageStorage` runs
-   `SpeciesImageStorageSweeper` once the iNat data is reconciled for the installed
-   version, unless the version recorded under
-   `inat_image_files_pruned_version` is that one. It deletes every file under
-   `external_images/` whose URL no `inat_photo_cache` row names — the files
-   of the photos step 3 or a colliding alias discarded
+4. **Sweep the species image storage** — `sweepSpeciesImageStorage`
+   gathers the species whose images the app downloads (every deck's, the
+   watchlist's, every comparison list's) and runs
+   `SpeciesImageStorageSweeper` once the iNat data is reconciled for the
+   installed version, unless the fingerprint of version and species recorded
+   under `species_image_storage_fingerprint` is unchanged and no sweep was
+   asked for on the diagnostics page. It lets every other species go — its
+   iNat photos and image work rows — and deletes every file under
+   `external_images/` and `reference_images/` that no remaining photo or
+   needed species' reference picture names, among them the files of the
+   photos step 3 or a colliding alias discarded
    ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
-   Failure handling as in step 3.
+   Failure handling as in step 3. The last sweep is kept for the
+   diagnostics page and its report.
 5. **Build the services** — only now does anything read user data.
 
 Steps 2 to 4 run as one call, `alignUserDataWithReferenceDb`. Running them
