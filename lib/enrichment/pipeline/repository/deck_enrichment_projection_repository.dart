@@ -23,6 +23,17 @@ class DeckEnrichmentProjectionRepository {
 
   Future<Database> get _db async => _injectedDb ?? DatabaseHelper.userDb;
 
+  /// Every species that is a member of at least one deck.
+  Future<Set<String>> loadDeckMemberSpeciesIds() async {
+    final db = await _db;
+    final rows = await db.query(
+      EnrichmentWorkTables.deckMembership,
+      columns: const ['species_id'],
+      distinct: true,
+    );
+    return {for (final row in rows) row['species_id'] as String};
+  }
+
   /// Builds the [DeckEnrichmentProjection] for [deckId] from every species
   /// currently in the deck's membership (regardless of which deck "owns" a
   /// given shared species), the taxonomy items its species reference, and

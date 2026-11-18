@@ -34,6 +34,21 @@ void main() {
     await database.close();
   });
 
+  test('loadDeckMemberSpeciesIds answers the species of every deck, each '
+      'once, and none whose last deck was released', () async {
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a', 'sp-b'},
+        'deck-2': {'sp-b'},
+        'deck-3': {'sp-c'},
+      },
+      prioritizedDeckIds: ['deck-1', 'deck-2', 'deck-3'],
+    );
+    await repository.releaseDeck('deck-3');
+
+    expect(await projections.loadDeckMemberSpeciesIds(), {'sp-a', 'sp-b'});
+  });
+
   group('loadDeckProjection', () {
     test('computes image completeness correctly under reactive seeding, '
         'including a species owned by another deck via membership', () async {
