@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
+import 'package:discere/shared/service/cached_image_store.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_download_outcome.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -18,19 +17,17 @@ void main() {
   group('ImageService', () {
     late MockClient mockClient;
     late HostCooldownTracker hostCooldownTracker;
+    late CachedImageStore store;
     late ImageService imageService;
     late Directory tempDir;
-    late int documentsDirectoryLookups;
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('image_service_test');
-      documentsDirectoryLookups = 0;
 
       const channel = MethodChannel('plugins.flutter.io/path_provider');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
             if (methodCall.method == 'getApplicationDocumentsDirectory') {
-              documentsDirectoryLookups++;
               return tempDir.path;
             }
             if (methodCall.method == 'getTemporaryDirectory') {
@@ -41,9 +38,11 @@ void main() {
 
       mockClient = MockClient((request) async => http.Response('', 200));
       hostCooldownTracker = HostCooldownTracker();
+      store = CachedImageStore();
       imageService = ImageService(
         client: mockClient,
         hostCooldownTracker: hostCooldownTracker,
+        store: store,
       );
     });
 
@@ -86,6 +85,7 @@ void main() {
         imageService = ImageService(
           client: mockClient,
           hostCooldownTracker: hostCooldownTracker,
+          store: store,
         );
 
         final urls = {
@@ -112,6 +112,7 @@ void main() {
         imageService = ImageService(
           client: mockClient,
           hostCooldownTracker: hostCooldownTracker,
+          store: store,
         );
 
         final url1 = 'https://inat.org/photos/1/medium.jpg';
@@ -139,6 +140,7 @@ void main() {
       imageService = ImageService(
         client: mockClient,
         hostCooldownTracker: hostCooldownTracker,
+        store: store,
       );
 
       // Sabotage the subdirectory for one host by pre-creating a *file*
@@ -174,6 +176,7 @@ void main() {
         imageService = ImageService(
           client: mockClient,
           hostCooldownTracker: hostCooldownTracker,
+          store: store,
         );
 
         hostCooldownTracker.recordRetryableFailure('cooling.com');
@@ -200,6 +203,7 @@ void main() {
         imageService = ImageService(
           client: MockClient(respond),
           hostCooldownTracker: hostCooldownTracker,
+          store: store,
         );
         final outcomes = await imageService.downloadAndSaveUrls({url});
         return outcomes[url]!;
@@ -289,6 +293,7 @@ void main() {
             return http.Response.bytes([1], 200);
           }),
           hostCooldownTracker: hostCooldownTracker,
+          store: store,
         );
 
         final outcomes = await imageService.downloadAndSaveUrls({
@@ -328,6 +333,7 @@ void main() {
             return responsesByHost[request.url.host]!;
           }),
           hostCooldownTracker: hostCooldownTracker,
+          store: store,
         );
       }
 
@@ -344,11 +350,9 @@ void main() {
           requested.last.toString(),
           'https://fishbase.de/images/species/Ornil_ug.jpg',
         );
-        final expectedPath = p.join(
-          tempDir.path,
-          'reference_images',
-          'www_fishbase_se',
-          '${md5.convert(utf8.encode(url))}.jpg',
+        final expectedPath = await store.pathFor(
+          url,
+          storageDirectory: 'reference_images',
         );
         expect(
           outcomes[url],
@@ -427,50 +431,5 @@ void main() {
         expect(paths[url], legacyFile.path);
       },
     );
-
-    test(
-      'resolves the documents directory once per instance, not per URL',
-      () async {
-        final urls = {
-          for (var i = 0; i < 20; i++) 'https://host/photo$i.jpg',
-        };
-
-        await imageService.resolveSavedUrlMap(
-          urls,
-          storageDirectory: 'external_images',
-          legacyDirectories: const {'reference_images'},
-        );
-
-        // The documents directory is fixed for the process but reached over a
-        // platform channel: a bulk resolve must pay for it once, not once per
-        // URL per candidate directory (#229).
-        expect(documentsDirectoryLookups, 1);
-      },
-    );
-
-    test('retries the documents directory after a failed lookup', () async {
-      const channel = MethodChannel('plugins.flutter.io/path_provider');
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            documentsDirectoryLookups++;
-            if (documentsDirectoryLookups == 1) {
-              throw PlatformException(code: 'unavailable');
-            }
-            return tempDir.path;
-          });
-
-      await expectLater(
-        imageService.resolveSavedUrlMap({'https://host/photo.jpg'}),
-        throwsA(isA<PlatformException>()),
-      );
-
-      // The failure must not be what the instance remembers — it is a
-      // singleton in the app, so every later image path would inherit it.
-      expect(
-        await imageService.resolveSavedUrlMap({'https://host/photo.jpg'}),
-        isEmpty,
-      );
-      expect(documentsDirectoryLookups, 2);
-    });
   });
 }

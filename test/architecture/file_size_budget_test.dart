@@ -117,8 +117,7 @@ const _permanentlyOversized = <String, String>{
           'responsibility to lift out.',
   'lib/shared/service/image_service.dart':
       'Deck covers and batched species images are two entry-point families '
-          'over one download-save-resolve core, which a split would '
-          'duplicate.',
+          'over one download-and-save core, which a split would duplicate.',
   'lib/enrichment/pipeline/repository/runtime_common_name_repository.dart':
       'One table family, plus the shape of the search document it writes '
           'into it. Marginally over budget and cohesive.',

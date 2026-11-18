@@ -615,9 +615,10 @@ Insert) — ein manuelles "nochmal versuchen" braucht also den expliziten Reset,
 sonst claimt `BaseWorker` nichts.
 
 **Ein Reset heißt nicht automatisch ein echter Download:**
-`BaseImageEnrichmentService` delegiert an `ImageService`, das den lokalen
-Dateipfad rein aus `md5(Bild-URL)` ableitet und den HTTP-Request überspringt,
-sobald diese Datei schon existiert (`ImageService._resolveExistingImagePath`).
+`BaseImageEnrichmentService` delegiert an `ImageService`, dessen Ablage
+(`CachedImageStore`) den lokalen Dateipfad rein aus `md5(Bild-URL)` ableitet;
+`ImageService` überspringt den HTTP-Request, sobald diese Datei schon
+existiert (`CachedImageStore.existingPathFor`).
 Solange sich die Bild-URL einer Art nicht geändert hat — der Normalfall auch
 bei einem Referenz-DB-Versionssprung — ist ein Reset also nur eine billige
 Datei-Existenz-Prüfung, kein erneuter Download. `ImageService` loggt beide
@@ -689,6 +690,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Cooldown je Host: `LoggingHttpClient` wartet ihn vor jedem Request ab; speist außerdem die Cooldown-Anzeige und das Keepalive-Signal |
 | `ImageService` / `imageHostFallbacks` | `shared/service/` | Lädt Bilder und meldet je URL ein `ImageDownloadOutcome`; versucht bei einem Host-Problem den Ersatz-Host |
+| `CachedImageStore` | `shared/service/` | Die Ablage der per URL gecachten Bilder: Namensregel (Host-Ordner, `md5(URL)` mit Endung), Auflösen vorhandener Dateien |
 | `ReferenceDatabaseProvisioner` | `shared/persistence/` | Download/Installation der Referenz-DB; `currentVersion()` wird von `BaseWorker` beim Terminal-Markieren von `base` gestempelt und für die Staleness-Erkennung oben gelesen |
 
 ## Wo die UI das liest

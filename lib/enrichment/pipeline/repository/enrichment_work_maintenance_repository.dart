@@ -32,9 +32,9 @@ class EnrichmentWorkMaintenanceRepository {
   ///
   /// This does not itself cause a real re-download for most reprocessed
   /// species: `BaseImageEnrichmentService` delegates to `ImageService`,
-  /// which derives the local file path purely from `md5(pictureUrl)` and
-  /// skips the HTTP request whenever that path already exists on disk (see
-  /// `ImageService._resolveExistingImagePath`). So resetting a species back
+  /// whose `CachedImageStore` derives the local file path purely from
+  /// `md5(pictureUrl)`, and which skips the HTTP request whenever that path
+  /// already exists on disk (see `CachedImageStore.existingPathFor`). So resetting a species back
   /// to `pending` only triggers actual network traffic when its reference
   /// picture URL genuinely changed since the last successful download — the
   /// common case (URL unchanged) is a cheap disk-existence check.
