@@ -236,7 +236,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
 - `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
-- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `alignUserDataWithReferenceDb`, which runs `applyReferenceIdAliases` (`ReferenceIdMigration`) and then `reconcileINatProvenance` (`INatProvenanceReconciler`) between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `alignUserDataWithReferenceDb`, which runs `applyReferenceIdAliases` (`ReferenceIdMigration`), `reconcileINatProvenance` (`INatProvenanceReconciler`) and then `pruneOrphanedINatImages` (`INatImageFilePruner`) between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
 
 ### Module Dependency Rules
 
@@ -543,9 +543,17 @@ The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
    entity no longer maps to are discarded and their work reset to pending
    ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
    Failure handling as in step 2, without a run record.
-4. **Build the services** — only now does anything read user data.
+4. **Prune iNat image files** — `pruneOrphanedINatImages` runs
+   `INatImageFilePruner` once the iNat data is reconciled for the installed
+   version, unless the version recorded under
+   `inat_image_files_pruned_version` is that one. It deletes every file under
+   `external_images/` whose URL no `inat_photo_cache` row names — the files
+   of the photos step 3 or a colliding alias discarded
+   ([`docs/enrichment.md`](./enrichment.md), "Herkunft der iNat-Daten").
+   Failure handling as in step 3.
+5. **Build the services** — only now does anything read user data.
 
-Steps 2 and 3 run as one call, `alignUserDataWithReferenceDb`. Running them
+Steps 2 to 4 run as one call, `alignUserDataWithReferenceDb`. Running them
 on every start rather than right after an install is what covers a crash
 between installing a database and rewriting the user data.
 
