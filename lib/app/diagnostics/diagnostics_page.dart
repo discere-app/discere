@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:discere/app/diagnostics/diagnostics_actions.dart';
 import 'package:discere/app/diagnostics/diagnostics_log_viewer_page.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
-import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_confirm_dialogs.dart';
+import 'package:discere/app/diagnostics/widgets/diagnostics_report_actions.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_list.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
@@ -17,18 +17,16 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Developer/support view over what the app has recorded about itself.
 ///
-/// The sections live in `widgets/` — this class keeps only what a widget
-/// cannot: the provider lookups, the one-shot load, and the actions, all of
-/// which are async work bound to `setState`/`mounted`.
+/// The sections and the report buttons live in `widgets/` — this class keeps
+/// only what a widget cannot: the provider lookups, the one-shot load, and
+/// the actions, all of which are async work bound to `setState`/`mounted`.
 class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({super.key});
 
@@ -130,18 +128,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.loc.diagnosticsTitle),
-        actions: [
-          IconButton(
-            tooltip: context.loc.diagnosticsShareReport,
-            onPressed: _shareReport,
-            icon: const Icon(Icons.ios_share_outlined),
-          ),
-          IconButton(
-            tooltip: context.loc.diagnosticsCopyReport,
-            onPressed: _copyReport,
-            icon: const Icon(Icons.copy_all_outlined),
-          ),
-        ],
+        actions: [DiagnosticsReportActions(data: _future)],
       ),
       body: SafeArea(
         child: FutureBuilder<DiagnosticsPageData>(
@@ -279,23 +266,5 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     if (!mounted) return;
     _showSnackBar(context.loc.diagnosticsResetAllSettingsDone);
     await _refresh();
-  }
-
-  Future<void> _shareReport() async {
-    final data = await _future;
-    if (data == null) return;
-    await SharePlus.instance.share(
-      ShareParams(text: buildDiagnosticsReportText(data)),
-    );
-  }
-
-  Future<void> _copyReport() async {
-    final data = await _future;
-    if (data == null || !mounted) return;
-    await Clipboard.setData(
-      ClipboardData(text: buildDiagnosticsReportText(data)),
-    );
-    if (!mounted) return;
-    _showSnackBar(context.loc.diagnosticsReportCopied);
   }
 }
