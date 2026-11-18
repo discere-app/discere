@@ -1,4 +1,4 @@
-import 'package:discere/app/bootstrap/inat_image_pruning_step.dart';
+import 'package:discere/app/bootstrap/species_image_storage_step.dart';
 import 'package:discere/app/bootstrap/inat_provenance_step.dart';
 import 'package:discere/app/bootstrap/reference_id_alias_step.dart';
 
@@ -9,5 +9,5 @@ import 'package:discere/app/bootstrap/reference_id_alias_step.dart';
 Future<void> alignUserDataWithReferenceDb() async {
   await applyReferenceIdAliases();
   await reconcileINatProvenance();
-  await pruneOrphanedINatImages();
+  await sweepSpeciesImageStorage();
 }

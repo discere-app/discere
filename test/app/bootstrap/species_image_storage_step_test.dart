@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:discere/app/bootstrap/inat_image_pruning_step.dart';
-import 'package:discere/enrichment/media/service/inat_image_file_pruner.dart';
+import 'package:discere/app/bootstrap/species_image_storage_step.dart';
+import 'package:discere/enrichment/media/service/species_image_storage_sweeper.dart';
 import 'package:discere/enrichment/pipeline/service/inat_provenance_reconciler.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
@@ -36,7 +36,7 @@ void main() {
   }
 
   Future<int?> prunedVersion() async => (await SharedPreferences.getInstance())
-      .getInt(INatImageFilePruner.prefKeyPrunedVersion);
+      .getInt(SpeciesImageStorageSweeper.prefKeyPrunedVersion);
 
   setUp(() async {
     supportDir = await Directory.systemTemp.createTemp('image_pruning_step');
@@ -68,7 +68,7 @@ void main() {
   });
 
   test('deletes the image files no cached photo names', () async {
-    await pruneOrphanedINatImages();
+    await sweepSpeciesImageStorage();
 
     expect(await cachedFile.exists(), isTrue);
     expect(await orphanedFile.exists(), isFalse);
@@ -82,7 +82,7 @@ void main() {
       1,
     );
 
-    await pruneOrphanedINatImages();
+    await sweepSpeciesImageStorage();
 
     expect(await orphanedFile.exists(), isTrue);
     expect(await prunedVersion(), isNull);
@@ -92,7 +92,7 @@ void main() {
       'start', () async {
     await (await DatabaseHelper.userDb).execute('DROP TABLE inat_photo_cache');
 
-    await pruneOrphanedINatImages();
+    await sweepSpeciesImageStorage();
 
     expect(await cachedFile.exists(), isTrue);
     expect(await orphanedFile.exists(), isTrue);

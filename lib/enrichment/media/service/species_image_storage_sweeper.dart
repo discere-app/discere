@@ -25,8 +25,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Safe to repeat and to interrupt: it only deletes files no row names, and
 /// the reference-database version is recorded under [prefKeyPrunedVersion]
 /// only after the sweep. Until then the next start sweeps again.
-class INatImageFilePruner {
-  static final _log = Logger.forType(INatImageFilePruner);
+class SpeciesImageStorageSweeper {
+  static final _log = Logger.forType(SpeciesImageStorageSweeper);
 
   /// The reference-database version the iNat image files were last pruned
   /// for.
@@ -36,7 +36,7 @@ class INatImageFilePruner {
   final CachedImageStore _store;
   final SharedPreferences _preferences;
 
-  const INatImageFilePruner({
+  const SpeciesImageStorageSweeper({
     required INatPhotoCacheRepository photoCache,
     required CachedImageStore store,
     required SharedPreferences preferences,

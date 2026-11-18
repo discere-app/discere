@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:discere/enrichment/media/service/inat_image_file_pruner.dart';
+import 'package:discere/enrichment/media/service/species_image_storage_sweeper.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/service/cached_image_store.dart';
@@ -22,7 +22,7 @@ void main() {
   late Database database;
   late CachedImageStore store;
   late SharedPreferences preferences;
-  late INatImageFilePruner pruner;
+  late SpeciesImageStorageSweeper pruner;
 
   Future<File> downloaded(String url) async {
     final file = File(
@@ -50,7 +50,7 @@ void main() {
     store = CachedImageStore();
     SharedPreferences.setMockInitialValues({});
     preferences = await SharedPreferences.getInstance();
-    pruner = INatImageFilePruner(
+    pruner = SpeciesImageStorageSweeper(
       photoCache: INatPhotoCacheRepository(database: database),
       store: store,
       preferences: preferences,
@@ -73,11 +73,11 @@ void main() {
 
     expect(await cached.exists(), isTrue);
     expect(await orphaned.exists(), isFalse);
-    expect(preferences.getInt(INatImageFilePruner.prefKeyPrunedVersion), 3);
+    expect(preferences.getInt(SpeciesImageStorageSweeper.prefKeyPrunedVersion), 3);
   });
 
   test('prunes once per installed reference database', () async {
-    await preferences.setInt(INatImageFilePruner.prefKeyPrunedVersion, 3);
+    await preferences.setInt(SpeciesImageStorageSweeper.prefKeyPrunedVersion, 3);
     final orphaned = await downloaded(_orphanedUrl);
     // Nothing is read for a version already pruned: without the table, a
     // read would throw.
@@ -104,7 +104,7 @@ void main() {
     // delete every image.
     expect(await cached.exists(), isTrue);
     expect(
-      preferences.getInt(INatImageFilePruner.prefKeyPrunedVersion),
+      preferences.getInt(SpeciesImageStorageSweeper.prefKeyPrunedVersion),
       isNull,
     );
     expect(error, isA<DatabaseException>());

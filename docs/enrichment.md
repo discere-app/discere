@@ -567,7 +567,7 @@ beim nächsten Start erneut.
 (Host-Ordner, `md5(URL)`, `CachedImageStore`), gefunden nur über die URL
 seiner Zeile in `inat_photo_cache`. Verwirft der Abgleich die Zeile — oder
 die Alias-Umschreibung, wenn sie kollidiert —, verweist nichts mehr auf die
-Datei. Deshalb räumt `INatImageFilePruner` das Verzeichnis einmal je
+Datei. Deshalb räumt `SpeciesImageStorageSweeper` das Verzeichnis einmal je
 Referenz-DB-Version auf (`inat_image_files_pruned_version`), im Bootstrap
 direkt nach dem Abgleich und nur, wenn der Abgleich für diese Version
 gelaufen ist: Er löscht jede Datei, deren URL keine Zeile mehr nennt, samt
@@ -697,7 +697,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `INatTaxonResolver` | `pipeline/service/` | iNat-Taxon-ID einer Art: Referenz-DB → Cache → Ablehnungen → Namenssuche mit Stammprüfung (siehe "Die iNat-Taxon-ID") |
 | `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Ablehnungen → Vorfahrenketten der Arten → exakte Suche mit Stamm- und Klassenprüfung (siehe "Die iNat-Taxon-ID") |
 | `INatProvenanceReconciler` | `pipeline/service/` | Gleicht beim Start die gestempelten iNat-Daten mit der installierten Referenz-DB ab, einmal je Version (siehe "Herkunft der iNat-Daten") |
-| `INatImageFilePruner` | `media/service/` | Löscht nach dem Abgleich die Dateien unter `external_images/`, deren URL keine Zeile in `inat_photo_cache` mehr nennt, einmal je Version (siehe "Herkunft der iNat-Daten") |
+| `SpeciesImageStorageSweeper` | `media/service/` | Löscht nach dem Abgleich die Dateien unter `external_images/`, deren URL keine Zeile in `inat_photo_cache` mehr nennt, einmal je Version (siehe "Herkunft der iNat-Daten") |
 | `INatProvenancePlanner` | `pipeline/repository/` | Entscheidet je Entität: Fotos bzw. Namen behalten, stempeln oder verwerfen, Cache-ID löschen — ohne Datenbank prüfbar |
 | `INatProvenanceRepository` | `pipeline/repository/` | Liest Stempel und Cache-IDs und wendet den Plan in einer Transaktion über Fotos, Namen, Suchdokumente, Cache und Arbeitszeilen an |
 | `ExternalIdRejectionRepository` / `INatAllowedAncestorRepository` | `catalog/repository/` | Lesen die Ablehnungen und die erlaubten iNat-Stämme und -Klassen je Klasse aus der Referenz-DB; ohne die Tabellen (ältere Referenz-DB) keine Ablehnung bzw. keine Prüfung |

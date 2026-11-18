@@ -1,4 +1,4 @@
-import 'package:discere/enrichment/media/service/inat_image_file_pruner.dart';
+import 'package:discere/enrichment/media/service/species_image_storage_sweeper.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_provenance_reconciler.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _log = ScopedLogger('bootstrap');
 
-/// The bootstrap step that runs [INatImageFilePruner] for the installed
+/// The bootstrap step that runs [SpeciesImageStorageSweeper] for the installed
 /// reference database — after the iNat data is reconciled with it, and
 /// before any service that downloads or shows iNat images is built.
 ///
@@ -21,7 +21,7 @@ const _log = ScopedLogger('bootstrap');
 ///
 /// A failure does not stop the start. The pruner has not recorded the
 /// version, so the next start tries again; until then the files stay.
-Future<void> pruneOrphanedINatImages() async {
+Future<void> sweepSpeciesImageStorage() async {
   try {
     final installedVersion =
         await ReferenceDatabaseProvisioner.currentVersion();
@@ -40,7 +40,7 @@ Future<void> pruneOrphanedINatImages() async {
       );
       return;
     }
-    await INatImageFilePruner(
+    await SpeciesImageStorageSweeper(
       photoCache: INatPhotoCacheRepository(
         database: await DatabaseHelper.userDb,
       ),
