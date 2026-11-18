@@ -7,8 +7,21 @@ import 'package:material_ui/material_ui.dart';
 /// privacy concern of sending the device's IP to Google's font CDN.
 const String _lexendFontFamily = 'Lexend';
 
+// The font is set in three places, because each reaches styles the other two
+// do not:
+// - [ThemeData.fontFamily] sets it on the styles Material derives from its own
+//   typography: primaryTextTheme and the defaults of components that bring no
+//   text style of their own. It leaves an explicitly given family untouched.
+// - `apply` in [_oceanTextTheme] sets it on the roles taken over from
+//   ThemeData.dark(), which name the platform font explicitly and so keep it
+//   through the merge with [ThemeData.fontFamily].
+// - `fontFamily` on each component text style below sets it where AppBar and
+//   buttons replace the inherited text style with their own instead of merging
+//   the two; neither of the other places reaches such a style, which without
+//   the family renders in the platform font.
 final ThemeData oceanTheme = ThemeData(
   brightness: Brightness.dark,
+  fontFamily: _lexendFontFamily,
   primaryColor: OceanColors.primaryBlue,
   scaffoldBackgroundColor: OceanColors.backgroundDark,
   // Every role below is set explicitly rather than left to ColorScheme.dark's
@@ -90,6 +103,7 @@ final ThemeData oceanTheme = ThemeData(
     centerTitle: false,
     iconTheme: IconThemeData(color: OceanColors.primaryTextDark),
     titleTextStyle: TextStyle(
+      fontFamily: _lexendFontFamily,
       color: OceanColors.primaryTextDark,
       fontSize: 20,
       fontWeight: FontWeight.bold,
@@ -127,7 +141,10 @@ final ThemeData oceanTheme = ThemeData(
       backgroundColor: OceanColors.primaryBlue,
       foregroundColor: OceanColors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      textStyle: const TextStyle(
+        fontFamily: _lexendFontFamily,
+        fontWeight: FontWeight.w600,
+      ),
     ),
   ),
 

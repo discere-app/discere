@@ -11,6 +11,8 @@ import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/l10n/app_localizations_delegates.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/theme/ocean_theme/ocean_theme.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
@@ -49,12 +51,17 @@ const _options = [
   MultipleChoiceOption(label: 'Wrong C', isCorrect: false),
 ];
 
-Widget _buildApp(Widget home, WatchlistService watchlistService) {
+Widget _buildApp(
+  Widget home,
+  WatchlistService watchlistService, {
+  ThemeData? theme,
+}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
     ],
     child: MaterialApp(
+      theme: theme,
       localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: home),
@@ -151,6 +158,39 @@ void main() {
       expect(reportedAnswers, [false]);
     },
   );
+
+  testWidgets("the Continue button is set in the theme's button font", (
+    tester,
+  ) async {
+    final themeFontFamily = oceanTheme.textTheme.labelLarge!.fontFamily;
+    expect(themeFontFamily, isNotNull);
+
+    await tester.pumpWidget(
+      _buildApp(
+        FlashcardWidget(
+          speciesWithLocalImage: _speciesWithImages('sp1'),
+          language: Language.en,
+          reviewMode: ReviewMode.multipleChoice,
+          multipleChoiceOptions: _options,
+          onMultipleChoiceAnswered: (isCorrect) async {},
+          onContinue: () {},
+        ),
+        watchlistService,
+        theme: oceanTheme,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Correct Name'));
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    final continueStyle = tester
+        .renderObject<RenderParagraph>(find.text('Continue'))
+        .text
+        .style!;
+    expect(continueStyle.fontFamily, themeFontFamily);
+  });
 
   testWidgets(
     'Continue waits for a still-pending grading call before firing onContinue',

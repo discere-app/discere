@@ -359,7 +359,10 @@ class FlashcardWidgetState extends State<FlashcardWidget>
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
-            textStyle: const TextStyle(
+            // Only the font is the theme's button text: its labelLarge
+            // geometry (line height, letter spacing) would resize the button.
+            textStyle: TextStyle(
+              fontFamily: Theme.of(context).textTheme.labelLarge?.fontFamily,
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
