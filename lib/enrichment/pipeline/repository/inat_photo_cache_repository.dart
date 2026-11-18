@@ -1,4 +1,6 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -16,6 +18,13 @@ class INatPhotoCacheRepository {
 
   /// Species ids bound per batched lookup, below SQLite's 999-variable limit.
   static const _maxIdsPerQuery = 900;
+
+  /// Wikipedia link and IUCN status come with the photos, from the same iNat
+  /// taxon (`INatPhotoApi.fetchPhotos`), and go with them.
+  static final _photoTaxonProviders = [
+    ExternalIdProvider.wikipedia.name,
+    ExternalIdProvider.iucnStatus.name,
+  ];
 
   final Database? _injectedDb;
 
@@ -83,6 +92,22 @@ class INatPhotoCacheRepository {
       return const [];
     }
     return rows.map((row) => Picture.fromINatCacheRow(row, speciesId)).toList();
+  }
+
+  /// Adds to [batch] what discards [speciesId]'s cached photos — the
+  /// sentinel included, so the species counts as never fetched — together
+  /// with what came with them. A batch rather than a call of its own: the
+  /// callers discard photos along with rows of other tables, in one
+  /// transaction.
+  static void discardPhotos(Batch batch, String speciesId) {
+    batch.delete(tableName, where: 'species_id = ?', whereArgs: [speciesId]);
+    batch.delete(
+      ExternalIdCacheRepository.tableName,
+      where:
+          'entity_id = ? AND provider IN '
+          '(${List.filled(_photoTaxonProviders.length, '?').join(', ')})',
+      whereArgs: [speciesId, ..._photoTaxonProviders],
+    );
   }
 
   /// Stores fetched iNat photos for a species.
