@@ -25,8 +25,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Sweeps when the needed species or the installed reference database
 /// changed since the last sweep — told by a fingerprint of both — or when
-/// one was asked for ([requestSweep]). A start with nothing changed reads the
-/// needed species and nothing else.
+/// one was asked for ([requestSweep]). With nothing changed it reads
+/// nothing, so a start costs no more than gathering the needed species.
 ///
 /// Must run after `INatProvenanceReconciler` has reconciled the installed
 /// version — the bootstrap checks that — so that the photos it discards no
@@ -34,9 +34,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// that no download lands while the directories are swept.
 ///
 /// Safe to repeat and to interrupt: the rows go in one transaction before
-/// any file, every set of URLs to keep is read in full before anything is
-/// deleted, and the fingerprint is recorded only after the sweep. Until then
-/// the next start sweeps again.
+/// any file, every set of URLs to keep is read in full before the first file
+/// goes, and the fingerprint is recorded only after the sweep. Until then the
+/// next start sweeps again.
 class SpeciesImageStorageSweeper {
   static final _log = Logger.forType(SpeciesImageStorageSweeper);
 
