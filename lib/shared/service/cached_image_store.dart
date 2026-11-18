@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -11,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 /// whatever saves, finds or clears a cached copy goes through it, so they
 /// cannot disagree about which file belongs to which URL.
 class CachedImageStore {
+  static final _log = Logger.forType(CachedImageStore);
+
   /// The app documents directory, resolved at most once per instance. It is
   /// fixed for the process lifetime but reached over a platform channel, and
   /// a bulk resolve asks for hundreds of paths in a row — one round trip for
@@ -63,6 +66,62 @@ class CachedImageStore {
     }
 
     return null;
+  }
+
+  /// Deletes every file in [storageDirectory] that is not the cached copy of
+  /// one of [keepUrls] — a download left half-written included — and then
+  /// the folders that leaves empty. Returns how many files it deleted; a
+  /// storage directory that does not exist has none.
+  ///
+  /// Every path to keep is derived before the first file goes, so a URL the
+  /// naming rule cannot parse throws with nothing deleted rather than
+  /// halfway through. Links are neither followed nor deleted: this store
+  /// never writes one, so whatever a link points at is not its to clear. A
+  /// file or folder that will not go is logged and left; the rest are still
+  /// cleared.
+  Future<int> prune(
+    String storageDirectory, {
+    required Set<String> keepUrls,
+  }) async {
+    final keptPaths = {for (final url in keepUrls) _relativePathFor(url)};
+    final root = Directory(
+      p.join((await documentsDirectory()).path, storageDirectory),
+    );
+    if (!await root.exists()) return 0;
+
+    final orphans = <File>[];
+    final folders = <Directory>[];
+    await for (final entity in root.list(recursive: true, followLinks: false)) {
+      switch (entity) {
+        case File()
+            when !keptPaths.contains(p.relative(entity.path, from: root.path)):
+          orphans.add(entity);
+        case Directory():
+          folders.add(entity);
+      }
+    }
+
+    var deleted = 0;
+    for (final orphan in orphans) {
+      if (await _tryDelete(orphan)) deleted++;
+    }
+    // Deepest first, so a folder whose only content was a folder emptied
+    // here goes too.
+    folders.sort((a, b) => b.path.length.compareTo(a.path.length));
+    for (final folder in folders) {
+      if (await folder.list().isEmpty) await _tryDelete(folder);
+    }
+    return deleted;
+  }
+
+  Future<bool> _tryDelete(FileSystemEntity entity) async {
+    try {
+      await entity.delete();
+      return true;
+    } on FileSystemException catch (error) {
+      _log.warn('Could not delete ${entity.path}', error: error);
+      return false;
+    }
   }
 
   /// A URL's cached copy relative to its storage directory: a collision-safe

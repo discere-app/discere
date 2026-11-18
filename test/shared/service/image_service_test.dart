@@ -407,6 +407,31 @@ void main() {
       });
     });
 
+    group('a saved copy and the store prune by the same name', () {
+      for (final url in [
+        'https://static.inaturalist.org/photos/1/medium.jpeg',
+        'https://static.inaturalist.org/photos/1/medium',
+      ]) {
+        test(url, () async {
+          imageService = ImageService(
+            client: MockClient((_) async => http.Response.bytes([1], 200)),
+            hostCooldownTracker: hostCooldownTracker,
+            store: store,
+          );
+          final outcomes = await imageService.downloadAndSaveUrls({
+            url,
+          }, storageDirectory: 'external_images');
+          final saved = File((outcomes[url]! as ImageSaved).localPath);
+
+          await store.prune('external_images', keepUrls: {url});
+          expect(await saved.exists(), isTrue);
+
+          await store.prune('external_images', keepUrls: const {});
+          expect(await saved.exists(), isFalse);
+        });
+      }
+    });
+
     test(
       'resolveSavedUrlMap finds legacy external files saved as reference images',
       () async {

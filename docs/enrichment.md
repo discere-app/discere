@@ -690,7 +690,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Cooldown je Host: `LoggingHttpClient` wartet ihn vor jedem Request ab; speist außerdem die Cooldown-Anzeige und das Keepalive-Signal |
 | `ImageService` / `imageHostFallbacks` | `shared/service/` | Lädt Bilder und meldet je URL ein `ImageDownloadOutcome`; versucht bei einem Host-Problem den Ersatz-Host |
-| `CachedImageStore` | `shared/service/` | Die Ablage der per URL gecachten Bilder: Namensregel (Host-Ordner, `md5(URL)` mit Endung), Auflösen vorhandener Dateien |
+| `CachedImageStore` | `shared/service/` | Die Ablage der per URL gecachten Bilder: Namensregel (Host-Ordner, `md5(URL)` mit Endung), Auflösen vorhandener Dateien, Aufräumen eines Speicherverzeichnisses |
 | `ReferenceDatabaseProvisioner` | `shared/persistence/` | Download/Installation der Referenz-DB; `currentVersion()` wird von `BaseWorker` beim Terminal-Markieren von `base` gestempelt und für die Staleness-Erkennung oben gelesen |
 
 ## Wo die UI das liest

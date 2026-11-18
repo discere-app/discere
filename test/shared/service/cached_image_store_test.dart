@@ -139,5 +139,125 @@ void main() {
       expect((await store.documentsDirectory()).path, tempDir.path);
       expect(documentsDirectoryLookups, 2);
     });
+
+    group('prune', () {
+      const kept = 'https://static.inaturalist.org/photos/1/medium.jpg';
+      const orphaned = 'https://static.inaturalist.org/photos/2/medium.jpg';
+      const otherHost = 'https://inaturalist-open-data.s3.amazonaws.com/a.jpg';
+
+      Future<File> cachedCopy(
+        String url, {
+        String storageDirectory = 'external_images',
+      }) async {
+        final file = File(
+          await store.pathFor(url, storageDirectory: storageDirectory),
+        );
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes([1]);
+        return file;
+      }
+
+      Future<File> fileAt(List<String> segments) async {
+        final file = File(p.joinAll([tempDir.path, ...segments]));
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes([1]);
+        return file;
+      }
+
+      test('keeps the copies of the given URLs and clears everything else, '
+          'emptied host folders included', () async {
+        final keptFile = await cachedCopy(kept);
+        final orphanedFile = await cachedCopy(orphaned);
+        final partFile = File('${keptFile.path}.part');
+        await partFile.writeAsBytes([1]);
+        final otherHostFile = await cachedCopy(otherHost);
+
+        final deleted = await store.prune(
+          'external_images',
+          keepUrls: {kept, 'https://static.inaturalist.org/photos/3/x.jpg'},
+        );
+
+        expect(deleted, 3);
+        expect(await keptFile.exists(), isTrue);
+        expect(await orphanedFile.exists(), isFalse);
+        expect(await partFile.exists(), isFalse);
+        expect(await otherHostFile.parent.exists(), isFalse);
+        expect(
+          await Directory(p.join(tempDir.path, 'external_images')).exists(),
+          isTrue,
+        );
+      });
+
+      test('clears a folder emptied below a host folder', () async {
+        await fileAt(['external_images', 'host_org', 'nested', 'stray.jpg']);
+
+        await store.prune('external_images', keepUrls: const {});
+
+        expect(
+          await Directory(
+            p.join(tempDir.path, 'external_images'),
+          ).list().isEmpty,
+          isTrue,
+        );
+      });
+
+      test('leaves every other storage directory alone', () async {
+        final reference = await cachedCopy(
+          orphaned,
+          storageDirectory: 'reference_images',
+        );
+        final cover = await fileAt(['deck_covers', 'cover_1.jpg']);
+        await cachedCopy(orphaned);
+
+        await store.prune('external_images', keepUrls: const {});
+
+        expect(await reference.exists(), isTrue);
+        expect(await cover.exists(), isTrue);
+      });
+
+      test('has nothing to clear in a storage directory that does not '
+          'exist', () async {
+        expect(await store.prune('external_images', keepUrls: {kept}), 0);
+      });
+
+      test('deletes nothing when a URL to keep cannot be named', () async {
+        final orphanedFile = await cachedCopy(orphaned);
+
+        await expectLater(
+          store.prune('external_images', keepUrls: {kept, 'https://[::1'}),
+          throwsFormatException,
+        );
+        expect(await orphanedFile.exists(), isTrue);
+      });
+
+      test('neither follows nor deletes a link', () async {
+        final outside = await fileAt(['elsewhere', 'precious.jpg']);
+        final link = Link(p.join(tempDir.path, 'external_images', 'linked'));
+        await link.parent.create(recursive: true);
+        await link.create(outside.parent.path);
+
+        await store.prune('external_images', keepUrls: const {});
+
+        expect(await outside.exists(), isTrue);
+        expect(await link.exists(), isTrue);
+      });
+
+      test('clears what it can when a file will not go', () async {
+        final stuck = await cachedCopy(orphaned);
+        final clearable = await cachedCopy(otherHost);
+        // A folder without write permission keeps its files.
+        await Process.run('chmod', ['555', stuck.parent.path]);
+        addTearDown(() => Process.run('chmod', ['755', stuck.parent.path]));
+
+        final deleted = await store.prune(
+          'external_images',
+          keepUrls: const {},
+        );
+
+        expect(deleted, 1);
+        expect(await stuck.exists(), isTrue);
+        expect(await clearable.exists(), isFalse);
+      }, skip: Platform.isWindows ? 'needs POSIX permissions' : false);
+    });
   });
 }
