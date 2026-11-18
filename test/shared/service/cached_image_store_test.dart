@@ -224,14 +224,19 @@ void main() {
         );
       });
 
-      test('deletes nothing when a URL to keep cannot be named', () async {
+      test('a URL to keep that cannot be named keeps nothing and does not '
+          'hold up the rest', () async {
+        final keptFile = await cachedCopy(kept);
         final orphanedFile = await cachedCopy(orphaned);
 
-        await expectLater(
-          store.prune('external_images', keepUrls: {kept, 'https://[::1'}),
-          throwsFormatException,
+        final pruned = await store.prune(
+          'external_images',
+          keepUrls: {kept, 'https://[::1'},
         );
-        expect(await orphanedFile.exists(), isTrue);
+
+        expect(pruned.deletedFiles, 1);
+        expect(await keptFile.exists(), isTrue);
+        expect(await orphanedFile.exists(), isFalse);
       });
 
       test('neither follows nor deletes a link', () async {

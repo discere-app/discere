@@ -74,9 +74,12 @@ class CachedImageStore {
   /// how many bytes they held; a storage directory that does not exist has
   /// none.
   ///
-  /// Every path to keep is derived before the first file goes, so a URL the
-  /// naming rule cannot parse throws with nothing deleted rather than
-  /// halfway through. Links are neither followed nor deleted: this store
+  /// Every path to keep is derived before the first file goes. A URL the
+  /// naming rule cannot parse is skipped and keeps nothing: saving and
+  /// finding a copy go through the same rule and fail on it the same way, so
+  /// no file under its name can exist. Failing the whole prune for it instead
+  /// would stop every later one, since the URL stays in the data it came
+  /// from. Links are neither followed nor deleted: this store
   /// never writes one, so whatever a link points at is not its to clear. A
   /// file or folder that will not go is logged and left; the rest are still
   /// cleared.
@@ -84,7 +87,21 @@ class CachedImageStore {
     String storageDirectory, {
     required Set<String> keepUrls,
   }) async {
-    final keptPaths = {for (final url in keepUrls) _relativePathFor(url)};
+    final keptPaths = <String>{};
+    var unnamedUrls = 0;
+    for (final url in keepUrls) {
+      try {
+        keptPaths.add(_relativePathFor(url));
+      } on FormatException {
+        unnamedUrls++;
+      }
+    }
+    if (unnamedUrls > 0) {
+      _log.warn(
+        '$unnamedUrls URLs to keep in $storageDirectory cannot be named; '
+        'they keep no file',
+      );
+    }
     final root = Directory(
       p.join((await documentsDirectory()).path, storageDirectory),
     );
