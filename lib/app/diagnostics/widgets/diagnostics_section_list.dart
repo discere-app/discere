@@ -47,6 +47,7 @@ class DiagnosticsSectionList extends StatelessWidget {
         cooldown: cooldown,
         onResetStuckJobs: actions.resetStuckJobs,
         onCloseAllEnrichment: actions.closeAllEnrichment,
+        onSweepImageStorage: actions.sweepImageStorageOnRestart,
       ),
       DiagnosticsGeneralActionsSection(
         isCheckingDeckUpdates: isCheckingDeckUpdates,

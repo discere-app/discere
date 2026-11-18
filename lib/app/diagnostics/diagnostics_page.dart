@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/app/diagnostics/diagnostics_actions.dart';
+import 'package:discere/app/diagnostics/diagnostics_image_storage_sweep_request.dart';
 import 'package:discere/app/diagnostics/diagnostics_log_viewer_page.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_confirm_dialogs.dart';
@@ -153,6 +154,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   clearLog: _clearLog,
                   resetStuckJobs: _resetStuckJobs,
                   closeAllEnrichment: _closeAllEnrichment,
+                  sweepImageStorageOnRestart: () =>
+                      requestImageStorageSweepOnRestart(context),
                   checkDeckUpdates: _checkDeckCatalogUpdatesNow,
                   resetAllSettings: _resetAllSettings,
                 ),

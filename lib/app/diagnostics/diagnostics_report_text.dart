@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
+import 'package:discere/enrichment/media/model/species_image_storage_sweep.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 
@@ -37,6 +38,7 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     )
     ..writeln('reference ids applied: ${data.referenceIdsAppliedVersion}');
   _writeLastReferenceIdMigrationRun(buffer, data.lastReferenceIdMigrationRun);
+  _writeLastImageStorageSweep(buffer, data.lastImageStorageSweep);
   buffer
     ..writeln('foreground service running: ${data.foregroundServiceRunning}')
     ..writeln()
@@ -143,5 +145,30 @@ void _writeLastReferenceIdMigrationRun(
           '- $target: ${count.rewritten} rewritten, ${count.dropped} dropped',
         );
       }
+  }
+}
+
+void _writeLastImageStorageSweep(
+  StringBuffer buffer,
+  SpeciesImageStorageSweep? sweep,
+) {
+  final prefix = 'image storage last sweep:';
+  if (sweep == null) {
+    buffer.writeln('$prefix none');
+    return;
+  }
+  buffer.writeln(
+    '$prefix ${sweep.trigger.wireName} '
+    'at ${sweep.sweptAt.toIso8601String()} '
+    'duration=${sweep.duration.inMilliseconds}ms '
+    'needed=${sweep.neededSpeciesCount} '
+    'released=${sweep.releasedSpeciesCount}',
+  );
+  for (final MapEntry(key: directory, value: swept)
+      in sweep.directories.entries) {
+    buffer.writeln(
+      '- $directory: ${swept.deletedFiles} deleted, '
+      '${swept.freedBytes} bytes freed',
+    );
   }
 }

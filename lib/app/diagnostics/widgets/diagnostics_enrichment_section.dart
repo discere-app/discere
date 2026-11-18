@@ -1,5 +1,6 @@
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
+import 'package:discere/app/diagnostics/widgets/diagnostics_image_storage_tile.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
@@ -8,19 +9,22 @@ import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Everything enrichment-related — queue, cover jobs, iNaturalist cooldown,
-/// foreground service, and the two enrichment actions — as one section rather
-/// than five separate cards a reader has to mentally group themselves.
+/// foreground service, the image storage, and the enrichment actions — as
+/// one section rather than six separate cards a reader has to mentally group
+/// themselves.
 class DiagnosticsEnrichmentSection extends StatelessWidget {
   final DiagnosticsPageData data;
   final HostCooldownSnapshot? cooldown;
   final VoidCallback onResetStuckJobs;
   final VoidCallback onCloseAllEnrichment;
+  final VoidCallback onSweepImageStorage;
 
   const DiagnosticsEnrichmentSection({
     required this.data,
     required this.cooldown,
     required this.onResetStuckJobs,
     required this.onCloseAllEnrichment,
+    required this.onSweepImageStorage,
     super.key,
   });
 
@@ -147,6 +151,8 @@ class DiagnosticsEnrichmentSection extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
+          DiagnosticsImageStorageTile(sweep: data.lastImageStorageSweep),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.restart_alt),
             title: Text(context.loc.diagnosticsResetStuckJobs),
@@ -157,6 +163,12 @@ class DiagnosticsEnrichmentSection extends StatelessWidget {
             leading: const Icon(Icons.playlist_remove),
             title: Text(context.loc.diagnosticsCloseAllEnrichment),
             onTap: onCloseAllEnrichment,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services_outlined),
+            title: Text(context.loc.diagnosticsImageStorageSweepOnRestart),
+            onTap: onSweepImageStorage,
           ),
         ],
       ),

@@ -1,4 +1,6 @@
 import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
+import 'package:discere/enrichment/media/model/species_image_storage_sweep.dart';
+import 'package:discere/enrichment/media/model/species_image_sweep_trigger.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/base_image_fallback_count.dart';
 import 'package:discere/enrichment/pipeline/model/base_image_fallback_reason.dart';
@@ -12,6 +14,48 @@ import 'diagnostics_page_data_fixture.dart';
 
 void main() {
   final ranAt = DateTime.utc(2026, 10, 15, 9, 30);
+
+  group('the image storage lines', () {
+    test('show the last sweep with what it deleted per directory', () {
+      final text = buildDiagnosticsReportText(
+        diagnosticsPageData(
+          lastImageStorageSweep: SpeciesImageStorageSweep(
+            sweptAt: ranAt,
+            trigger: SpeciesImageSweepTrigger.automatic,
+            directories: const {
+              'external_images': ImageDirectorySweep(
+                deletedFiles: 12,
+                freedBytes: 3000,
+              ),
+              'reference_images': ImageDirectorySweep(
+                deletedFiles: 0,
+                freedBytes: 0,
+              ),
+            },
+            neededSpeciesCount: 140,
+            releasedSpeciesCount: 9,
+            duration: const Duration(milliseconds: 820),
+          ),
+        ),
+      );
+
+      expect(
+        text,
+        contains(
+          'image storage last sweep: automatic at 2026-10-15T09:30:00.000Z '
+          'duration=820ms needed=140 released=9\n'
+          '- external_images: 12 deleted, 3000 bytes freed\n'
+          '- reference_images: 0 deleted, 0 bytes freed\n',
+        ),
+      );
+    });
+
+    test('say when no sweep was recorded', () {
+      final text = buildDiagnosticsReportText(diagnosticsPageData());
+
+      expect(text, contains('image storage last sweep: none\n'));
+    });
+  });
 
   group('the reference ID lines', () {
     test('show the update, the applied version and a successful run with '
