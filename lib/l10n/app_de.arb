@@ -145,14 +145,7 @@
   "flashcardNoPhotoFoundHint": "Für diese Art konnte kein Foto gefunden werden",
   "flashcardRemoveSpeciesButton": "Aus Deck entfernen",
   "flashcardRemoveSpeciesConfirmTitle": "Art aus Deck entfernen?",
-  "flashcardRemoveSpeciesConfirmMessage": "\"{speciesName}\" wird aus diesem Deck entfernt und nicht mehr abgefragt.",
-  "@flashcardRemoveSpeciesConfirmMessage": {
-    "placeholders": {
-      "speciesName": {
-        "type": "String"
-      }
-    }
-  },
+  "flashcardRemoveSpeciesConfirmMessage": "Diese Art wird aus diesem Deck entfernt und nicht mehr abgefragt.",
   "noPhotoGapsDialogTitle": "Kein Foto für einige Arten gefunden",
   "noPhotoGapsDialogMessage": "Für {count} {count, plural, =1 {Art} other {Arten}} in diesem Deck konnte weder ein Referenzbild noch ein Foto über iNaturalist gefunden werden. Wähle aus, welche du aus dem Deck entfernen möchtest.",
   "@noPhotoGapsDialogMessage": {

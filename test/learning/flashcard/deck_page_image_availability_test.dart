@@ -545,6 +545,48 @@ void main() {
   );
 
   testWidgets(
+    'does not name the species in the remove confirmation, since the card '
+    'front asks for that name',
+    (tester) async {
+      final loc = lookupAppLocalizations(const Locale('en'));
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
+        flashcards: [_flashcardWithoutImage('sp2', 'Genus2', 'two')],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
+          flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(
+            imageStagesComplete: true,
+          ),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('remove_species_button')));
+      await tester.pumpAndSettle();
+
+      final dialog = find.byKey(const Key('remove_species_confirm_dialog'));
+      Finder inDialog(Finder finder) =>
+          find.descendant(of: dialog, matching: finder);
+      expect(inDialog(find.textContaining('Genus2')), findsNothing);
+      expect(inDialog(find.textContaining('two')), findsNothing);
+      expect(
+        inDialog(find.text(loc.flashcardRemoveSpeciesConfirmMessage)),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'offers the no-photo-gaps dialog once enrichment completes with gaps, '
     'and removes checked species',
     (tester) async {

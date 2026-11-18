@@ -52,7 +52,6 @@ class FlashcardFront extends StatelessWidget {
         controller: flipController,
         child: NoPhotoPlaceholder(
           speciesId: species.id,
-          speciesName: species.scientificName,
           watchlistKey: watchlistKey,
           onRemoveSpecies: onRemoveSpecies,
         ),

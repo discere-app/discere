@@ -13,35 +13,44 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-SpeciesWithLocalImages _speciesWithImages(String id) {
-  return SpeciesWithLocalImages(
-    Species(
-      id,
-      id,
-      'fishbase',
-      'species',
+Species _species(String id, String genus, String epithet) {
+  return Species(
+    id,
+    id,
+    'fishbase',
+    epithet,
+    const {},
+    Classification(
+      genus,
       const {},
-      Classification(
-        'Genus',
-        const {},
-        null,
-        'Family',
-        const {},
-        'Order',
-        const {},
-        'Class',
-        const {},
-        null,
-      ),
-      const [],
+      null,
+      'Family',
+      const {},
+      'Order',
+      const {},
+      'Class',
+      const {},
+      null,
     ),
-    [
-      LocalPicture(
-        Picture(id: 'pic1', species: id, origin: 'fishbase', isUsable: 1),
-        '1.jpg',
-      ),
-    ],
+    const [],
   );
+}
+
+SpeciesWithLocalImages _speciesWithImages(String id) {
+  return SpeciesWithLocalImages(_species(id, 'Genus', 'species'), [
+    LocalPicture(
+      Picture(id: 'pic1', species: id, origin: 'fishbase', isUsable: 1),
+      '1.jpg',
+    ),
+  ]);
+}
+
+SpeciesWithLocalImages _speciesWithoutImages(
+  String id,
+  String genus,
+  String epithet,
+) {
+  return SpeciesWithLocalImages(_species(id, genus, epithet), const []);
 }
 
 void main() {
@@ -54,7 +63,10 @@ void main() {
     watchlistService = WatchlistService(await SharedPreferences.getInstance());
   });
 
-  Widget buildApp(SpeciesWithLocalImages species) {
+  Widget buildApp(
+    SpeciesWithLocalImages species, {
+    Future<void> Function(String speciesId)? onRemoveSpecies,
+  }) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
@@ -63,7 +75,10 @@ void main() {
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: FlashcardImageHeader(speciesWithLocalImages: species),
+          body: FlashcardImageHeader(
+            speciesWithLocalImages: species,
+            onRemoveSpecies: onRemoveSpecies,
+          ),
         ),
       ),
     );
@@ -82,6 +97,34 @@ void main() {
       expect(
         carousel.restoreOrientationsOnFullscreenClose,
         DeviceOrientation.values,
+      );
+    },
+  );
+
+  testWidgets(
+    'does not name the species in the remove confirmation of an imageless '
+    'card, since the multiple-choice front asks for that name',
+    (tester) async {
+      final loc = lookupAppLocalizations(const Locale('en'));
+      await tester.pumpWidget(
+        buildApp(
+          _speciesWithoutImages('sp1', 'Genus1', 'one'),
+          onRemoveSpecies: (_) async {},
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('remove_species_button')));
+      await tester.pumpAndSettle();
+
+      final dialog = find.byKey(const Key('remove_species_confirm_dialog'));
+      Finder inDialog(Finder finder) =>
+          find.descendant(of: dialog, matching: finder);
+      expect(inDialog(find.textContaining('Genus1')), findsNothing);
+      expect(inDialog(find.textContaining('one')), findsNothing);
+      expect(
+        inDialog(find.text(loc.flashcardRemoveSpeciesConfirmMessage)),
+        findsOneWidget,
       );
     },
   );
