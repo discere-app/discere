@@ -86,6 +86,7 @@ buildEnrichmentServices({
     iNatPhotos: iNatPhotos,
     iNatCacheRepository: iNatCacheRepository,
     taxonResolver: taxonResolver,
+    higherTaxonIdResolver: taxonIdResolvers.higherRanks,
     externalIdCacheRepository: externalIdCacheRepository,
   );
   final runtimeCommonNameRepository = RuntimeCommonNameRepository(

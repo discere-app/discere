@@ -373,8 +373,13 @@ den Live-Abruf der Artseite (`SpeciesPhotoService`) und die Vorschaubilder
 der Artlisten — Suche, Taxonomie-Listen, Arten hinzufügen
 (`SpeciesThumbnailService`, nach den schon gecachten Fotos); höhere Ränge
 (Gattung, Familie, Ordnung, Klasse) für `TaxonomyCommonNameEnrichmentService`
-löst `HigherTaxonIdResolver` auf. Beide fragen iNaturalist über
-`INatTaxonIdResolver` (`external/inaturalist/`):
+löst `HigherTaxonIdResolver` auf. Die Vorschaubilder höherer Ränge in Suche
+und Taxonomie-Listen (`HigherTaxonThumbnailService`) nehmen nur eine schon
+bekannte ID (`knownTaxonId`: Referenz-DB, sonst Cache) und suchen nie
+selbst — die Abstammungsprüfung, mit der `HigherTaxonIdResolver` eine
+gefundene ID bestätigt, braucht Arten darunter, die eine Listenzeile nicht
+hat. Beide Resolver fragen iNaturalist über `INatTaxonIdResolver`
+(`external/inaturalist/`):
 
 ```mermaid
 sequenceDiagram
