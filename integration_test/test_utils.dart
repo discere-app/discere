@@ -190,18 +190,59 @@ Future<void> tapWhenHitTestable(
   String? description,
   Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
+}) => _whenHitTestable(
+  tester,
+  finder,
+  tester.tap,
+  description:
+      description ??
+      '${finder.describeMatch(Plurality.many)} to become tappable',
+  timeout: timeout,
+  step: step,
+);
+
+/// Polls until the widget [finder] matches can be hit at its center, then
+/// long-presses it there. Every long press on a widget that has only just
+/// appeared — or that a dialog or sheet still on its way out may cover — goes
+/// through here, for the reasons given at [tapWhenHitTestable], which this
+/// mirrors in everything but the gesture.
+Future<void> longPressWhenHitTestable(
+  WidgetTester tester,
+  Finder finder, {
+  String? description,
+  Duration timeout = const Duration(seconds: 60),
+  Duration step = const Duration(milliseconds: 200),
+}) => _whenHitTestable(
+  tester,
+  finder,
+  tester.longPress,
+  description:
+      description ??
+      '${finder.describeMatch(Plurality.many)} to become pressable',
+  timeout: timeout,
+  step: step,
+);
+
+/// Waits until `finder.hitTestable()` matches, then performs [gesture] on
+/// that narrowed finder — the shared core of [tapWhenHitTestable] and
+/// [longPressWhenHitTestable].
+Future<void> _whenHitTestable(
+  WidgetTester tester,
+  Finder finder,
+  Future<void> Function(Finder hitTestable) gesture, {
+  required String description,
+  required Duration timeout,
+  required Duration step,
 }) async {
   final hitTestable = finder.hitTestable();
   await waitForCondition(
     tester,
     () => hitTestable.evaluate().isNotEmpty,
-    description:
-        description ??
-        '${finder.describeMatch(Plurality.many)} to become tappable',
+    description: description,
     timeout: timeout,
     step: step,
   );
-  await tester.tap(hitTestable);
+  await gesture(hitTestable);
 }
 
 /// Opens the deck named [deckName] from the decks overview.
