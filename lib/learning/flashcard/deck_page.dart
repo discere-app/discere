@@ -85,6 +85,14 @@ class DeckPageState extends State<DeckPage> {
   // stages are complete, that state never changes again for this session.
   bool _hasCheckedPhotoGaps = false;
 
+  /// Set while a rating is graded and the session moves past its card. Both
+  /// steps are async with no frame in between, so a second tap on a rating
+  /// button would still hit the card just graded — grading it again and
+  /// advancing past the next card, which then never gets reviewed. The
+  /// rating buttons live in [ReviewLayout], outside the per-card
+  /// [FlashcardWidget], so the guard sits here rather than in that widget.
+  bool _isLeavingCard = false;
+
   @override
   void initState() {
     super.initState();
@@ -323,8 +331,14 @@ class DeckPageState extends State<DeckPage> {
   }
 
   Future<void> _onGrade(ReviewGrade grade) async {
-    await _gradeCurrentCard(grade);
-    await _showNextFlashcard();
+    if (_isLeavingCard) return;
+    _isLeavingCard = true;
+    try {
+      await _gradeCurrentCard(grade);
+      await _showNextFlashcard();
+    } finally {
+      _isLeavingCard = false;
+    }
   }
 
   /// Called as soon as the user taps an option in multiple-choice mode —

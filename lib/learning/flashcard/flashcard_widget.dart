@@ -125,6 +125,13 @@ class FlashcardWidgetState extends State<FlashcardWidget>
   /// be raced by the user tapping Continue.
   Future<void>? _gradingFuture;
 
+  /// Set by the first Continue tap, so that only that tap advances. Advancing
+  /// is async and the next card replaces this one only once it is done — a
+  /// second tap in between would advance a second time and skip a card.
+  /// Like [_selectedOption], it belongs to this card and is cleared when
+  /// another card takes its place.
+  bool _isLeavingCard = false;
+
   bool get _isMultipleChoice => widget.reviewMode == ReviewMode.multipleChoice;
 
   FlashcardFlipController get flipController => FlashcardFlipController(
@@ -213,6 +220,8 @@ class FlashcardWidgetState extends State<FlashcardWidget>
   }
 
   Future<void> _handleContinuePressed() async {
+    if (_isLeavingCard) return;
+    _isLeavingCard = true;
     await _gradingFuture;
     if (mounted) widget.onContinue?.call();
   }
@@ -379,6 +388,7 @@ class FlashcardWidgetState extends State<FlashcardWidget>
     if (widget.speciesWithLocalImage != oldWidget.speciesWithLocalImage) {
       _revealTimer?.cancel();
       _gradingFuture = null;
+      _isLeavingCard = false;
       _settleController.stop();
       _dragStartTurns = null;
       setState(() {

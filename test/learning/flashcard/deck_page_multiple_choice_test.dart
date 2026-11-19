@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -41,6 +43,8 @@ import '../../mocks.mocks.dart';
 /// flip mode when a card lacks enough distinct distractors, together with the
 /// notice such a card shows, and the interaction between multiple-choice
 /// auto-grading and the learning/relearning re-queue in _gradeCurrentCard.
+/// Alongside them, how grading moves through a session: a rating tapped
+/// twice counts once, and notifications are rescheduled once per session.
 class TestFlashcardService extends Fake implements FlashcardService {
   TestFlashcardService({required this.deckConfig});
 
@@ -128,6 +132,28 @@ class TestFlashcardReviewService extends Fake
     String deckId,
     Set<String> speciesIds,
   ) async {}
+}
+
+/// Holds every grading write open until [release], so a test can tap again
+/// while the page is still grading the first tap's card.
+class _GatedFlashcardReviewService extends TestFlashcardReviewService {
+  _GatedFlashcardReviewService({required super.flashcards});
+
+  final _gate = Completer<void>();
+
+  void release() => _gate.complete();
+
+  @override
+  Future<FlashcardStat> reviewCard(
+    String speciesId,
+    String deckId,
+    DeckConfig config,
+    ReviewGrade grade,
+  ) async {
+    final stat = await super.reviewCard(speciesId, deckId, config, grade);
+    await _gate.future;
+    return stat;
+  }
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
@@ -720,6 +746,63 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
       expect(flashcardService.rescheduleNotificationsCallCount, 1);
+    },
+  );
+
+  testWidgets(
+    'a rating tapped twice grades the card once and moves on by exactly one '
+    'card, whose own rating then counts',
+    (tester) async {
+      when(decksService.getSpeciesByDeckId('deck-1')).thenAnswer(
+        (_) async => [
+          _species('sp1', 'Genus1', 'one'),
+          _species('sp2', 'Genus2', 'two'),
+          _species('sp3', 'Genus3', 'three'),
+        ],
+      );
+      final flashcardReviewService = _GatedFlashcardReviewService(
+        flashcards: [
+          _flashcard('sp1', 'Genus1', 'one'),
+          _flashcard('sp2', 'Genus2', 'two'),
+          _flashcard('sp3', 'Genus3', 'three'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
+          flashcardService: TestFlashcardService(
+            deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+          ),
+          flashcardReviewService: flashcardReviewService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The second tap comes while the first one's grading is still being
+      // written, so the first card is still the current one.
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pump();
+      flashcardReviewService.release();
+      await tester.pumpAndSettle();
+
+      expect(flashcardReviewService.reviews, [('sp1', ReviewGrade.easy)]);
+      expect(find.byKey(const ValueKey('flashcard_1')), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pumpAndSettle();
+
+      expect(flashcardReviewService.reviews, [
+        ('sp1', ReviewGrade.easy),
+        ('sp2', ReviewGrade.easy),
+      ]);
+      expect(find.byKey(const ValueKey('flashcard_2')), findsOneWidget);
     },
   );
 
