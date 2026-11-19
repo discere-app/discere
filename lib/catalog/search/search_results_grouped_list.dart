@@ -22,6 +22,8 @@ class SearchResultsGroupedList extends StatelessWidget {
   final List<SearchResult> results;
   final Language selectedLanguage;
   final Future<String?> Function(String speciesId) resolveThumbnailUrl;
+  final Future<String?> Function(String entityKey)
+  resolveHigherTaxonThumbnailUrl;
   final void Function(SearchResult result) onResultTap;
 
   const SearchResultsGroupedList({
@@ -29,6 +31,7 @@ class SearchResultsGroupedList extends StatelessWidget {
     required this.results,
     required this.selectedLanguage,
     required this.resolveThumbnailUrl,
+    required this.resolveHigherTaxonThumbnailUrl,
     required this.onResultTap,
   });
 
@@ -74,6 +77,7 @@ class SearchResultsGroupedList extends StatelessWidget {
           result: entry.result!,
           selectedLanguage: selectedLanguage,
           resolveThumbnailUrl: resolveThumbnailUrl,
+          resolveHigherTaxonThumbnailUrl: resolveHigherTaxonThumbnailUrl,
           onTap: () => onResultTap(entry.result!),
         );
       },

@@ -194,6 +194,13 @@ for the full design.
   `SpeciesThumbnailPort`: a cached iNaturalist photo if enrichment has one,
   else the photo of the taxon `INatTaxonResolver` assigns, by the same rules
   as enrichment and the species page
+- `HigherTaxonThumbnailService` (`media/service/`) — the thumbnail of a
+  genus, family, order or class row in search and the taxonomy page's child
+  list, behind `catalog`'s `HigherTaxonThumbnailPort`, looked up by the
+  taxon's name key (`genus:massaria`): the photo of the iNaturalist taxon
+  `HigherTaxonIdResolver.knownTaxonId` already knows, else none — whether a
+  found taxon is the right one only `HigherTaxonIdResolver.resolve` decides,
+  from species below it a list row does not have
 - `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)

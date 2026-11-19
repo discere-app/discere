@@ -1,3 +1,4 @@
+import 'package:discere/learning/decks/edit/subdeck_section.dart';
 import 'package:discere/learning/decks/edit/subdeck_target_sheet.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -35,7 +36,10 @@ Future<void> _importDeck(WidgetTester tester) async {
   // pump() first: the Online tab opens with a loading spinner.
   await tester.pump(const Duration(milliseconds: 500));
   await safePumpAndSettle(tester);
-  await tester.tap(find.byKey(const ValueKey('import_tab_text')));
+  await tapWhenHitTestable(
+    tester,
+    find.byKey(const ValueKey('import_tab_text')),
+  );
   await safePumpAndSettle(tester);
   await tester.enterText(
     find.byKey(const ValueKey('import_text_field')),
@@ -54,7 +58,7 @@ Future<void> _importDeck(WidgetTester tester) async {
     200,
     scrollable: find.byType(Scrollable).first,
   );
-  await tester.tap(submitButton);
+  await tapWhenHitTestable(tester, submitButton);
   await tester.pump(const Duration(milliseconds: 500));
   await dismissDownloadDialog(tester);
   await waitForFinder(tester, find.text(_deckName));
@@ -65,7 +69,8 @@ Future<void> _openSession(WidgetTester tester) async {
   await openDeck(tester, _deckName);
   final activation = find.byKey(const Key('activation_dialog_title'));
   if (activation.evaluate().isNotEmpty) {
-    await tester.tap(
+    await tapWhenHitTestable(
+      tester,
       find.byKey(const Key('activation_dialog_yes_button')),
     );
     await waitForAbsence(
@@ -183,12 +188,25 @@ void main() {
           'Giants',
         );
         await safePumpAndSettle(tester);
-        await tester.tap(
+        await tapWhenHitTestable(
+          tester,
           find.byKey(const Key('edit_deck_subdeck_name_confirm_button')),
+        );
+        // The dialog's text field holds the same name, so the subdeck counts
+        // as listed only once the dialog is gone and the name shows up inside
+        // the subdeck section.
+        await waitForAbsence(
+          tester,
+          find.byKey(const Key('edit_deck_subdeck_name_field')),
+          description: 'the subdeck name dialog to close',
+        );
+        final giantsInSection = find.descendant(
+          of: find.byType(SubdeckSection, skipOffstage: false),
+          matching: find.text('Giants', skipOffstage: false),
         );
         await waitForFinder(
           tester,
-          find.text('Giants'),
+          giantsInSection,
           description: 'the new subdeck',
         );
 
@@ -200,18 +218,24 @@ void main() {
         );
         await tester.ensureVisible(whaleSharkRow);
         await safePumpAndSettle(tester);
-        await tester.longPress(whaleSharkRow);
+        await longPressWhenHitTestable(
+          tester,
+          whaleSharkRow,
+          description: 'the whale shark row',
+        );
         await tapWhenHitTestable(
           tester,
           find.byKey(const Key('edit_deck_selection_assign_button')),
           description: 'the selection app bar',
         );
         await safePumpAndSettle(tester);
-        await tester.tap(
+        await tapWhenHitTestable(
+          tester,
           find.descendant(
             of: find.byType(SubdeckTargetSheet),
             matching: find.text('Giants'),
           ),
+          description: 'the new subdeck in the target sheet',
         );
         await waitForFinder(
           tester,
@@ -222,12 +246,16 @@ void main() {
 
         // Switch it off and save.
         final giantsSwitch = find.ancestor(
-          of: find.text('Giants', skipOffstage: false).first,
+          of: giantsInSection,
           matching: find.byType(SwitchListTile, skipOffstage: false),
         );
         await tester.ensureVisible(giantsSwitch);
         await safePumpAndSettle(tester);
-        await tester.tap(giantsSwitch);
+        await tapWhenHitTestable(
+          tester,
+          giantsSwitch,
+          description: 'the new subdeck switch',
+        );
         await safePumpAndSettle(tester);
         await tester.tap(find.byKey(const Key('edit_deck_save_button')));
         await safePumpAndSettle(tester);

@@ -1,20 +1,24 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:discere/catalog/search/search_result_thumbnail_placeholder.dart';
 import 'package:discere/shared/extensions/image_request_headers_extension.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Small asynchronous thumbnail for species search results.
+/// Small asynchronous thumbnail for a row of a species or taxon list.
 ///
 /// The widget fetches a single remote iNaturalist thumbnail on demand and keeps
 /// a shared in-memory future cache so list rebuilds do not repeatedly trigger
-/// the same network request. Both go by the species id, not its displayed
+/// the same network request. Both go by [thumbnailKey], not the displayed
 /// name: two species can show the same name (homonyms, a species shown by
 /// its epithet alone) and must not share a picture.
 class SearchResultThumbnail extends StatefulWidget {
-  final String speciesId;
-  final Future<String?> Function(String speciesId) resolveThumbnailUrl;
+  /// What [resolveThumbnailUrl] looks the picture up by: a species' id, or
+  /// a higher taxon's name key (`genus:massaria`). A name key starts with
+  /// its rank, which no species id does, so both share the one cache.
+  final String thumbnailKey;
+  final Future<String?> Function(String thumbnailKey) resolveThumbnailUrl;
   final double size;
   final Color accentColor;
   final Color backgroundColor;
@@ -22,7 +26,7 @@ class SearchResultThumbnail extends StatefulWidget {
 
   const SearchResultThumbnail({
     super.key,
-    required this.speciesId,
+    required this.thumbnailKey,
     required this.resolveThumbnailUrl,
     required this.size,
     required this.accentColor,
@@ -50,7 +54,7 @@ class SearchResultThumbnail extends StatefulWidget {
 
 class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   static final _log = Logger.forType(_SearchResultThumbnailState);
-  // LRU-ish cache: a search session can touch far more distinct species
+  // LRU-ish cache: a search session can touch far more distinct taxa
   // than are ever shown again, so this is capped instead of growing
   // unbounded for the process lifetime.
   static const int _maxCachedThumbnails = 300;
@@ -71,7 +75,7 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   @override
   void didUpdateWidget(covariant SearchResultThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.speciesId != widget.speciesId) {
+    if (oldWidget.thumbnailKey != widget.thumbnailKey) {
       _thumbnailFuture = _resolveThumbnailFuture();
     }
   }
@@ -91,7 +95,7 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
           builder: (context, snapshot) {
             final url = snapshot.data;
             if (url == null || url.isEmpty) {
-              return _ThumbnailPlaceholder(
+              return SearchResultThumbnailPlaceholder(
                 backgroundColor: widget.backgroundColor,
                 accentColor: widget.accentColor,
               );
@@ -118,14 +122,14 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
                         );
                       },
                   errorBuilder: (context, error, stackTrace) {
-                    return _ThumbnailPlaceholder(
+                    return SearchResultThumbnailPlaceholder(
                       backgroundColor: widget.backgroundColor,
                       accentColor: widget.accentColor,
                     );
                   },
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
-                    return _ThumbnailPlaceholder(
+                    return SearchResultThumbnailPlaceholder(
                       backgroundColor: widget.backgroundColor,
                       accentColor: widget.accentColor,
                       showLoader: true,
@@ -141,18 +145,18 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   }
 
   Future<String?> _resolveThumbnailFuture() {
-    final speciesId = widget.speciesId;
+    final thumbnailKey = widget.thumbnailKey;
 
-    final cached = _thumbnailCache.remove(speciesId);
+    final cached = _thumbnailCache.remove(thumbnailKey);
     if (cached != null) {
       // Re-insert so it's ordered as most-recently-used and survives
       // eviction longer.
-      _thumbnailCache[speciesId] = cached;
+      _thumbnailCache[thumbnailKey] = cached;
       return cached;
     }
 
     final future = _fetchThumbnail();
-    _thumbnailCache[speciesId] = future;
+    _thumbnailCache[thumbnailKey] = future;
     while (_thumbnailCache.length > _maxCachedThumbnails) {
       _thumbnailCache.remove(_thumbnailCache.keys.first);
     }
@@ -164,16 +168,16 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
     await _acquireThumbnailSlot();
     waitStopwatch.stop();
     _log.debug(
-      'Search thumbnail: fetching remote image for ${widget.speciesId} '
+      'Search thumbnail: fetching remote image for ${widget.thumbnailKey} '
       '(queueWait=${waitStopwatch.elapsedMilliseconds}ms, '
       'active=$_activeThumbnailFetches)',
     );
     try {
-      final url = await widget.resolveThumbnailUrl(widget.speciesId);
+      final url = await widget.resolveThumbnailUrl(widget.thumbnailKey);
       _log.debug(
         url == null || url.isEmpty
-            ? 'Search thumbnail: no image for ${widget.speciesId}'
-            : 'Search thumbnail: resolved image for ${widget.speciesId}',
+            ? 'Search thumbnail: no image for ${widget.thumbnailKey}'
+            : 'Search thumbnail: resolved image for ${widget.thumbnailKey}',
       );
       return url;
     } finally {
@@ -204,60 +208,5 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
     if (_activeThumbnailFetches > 0) {
       _activeThumbnailFetches--;
     }
-  }
-}
-
-class _ThumbnailPlaceholder extends StatelessWidget {
-  final Color backgroundColor;
-  final Color accentColor;
-  final bool showLoader;
-
-  const _ThumbnailPlaceholder({
-    required this.backgroundColor,
-    required this.accentColor,
-    this.showLoader = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(color: backgroundColor),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Align(
-            alignment: Alignment.topLeft,
-            child: Container(
-              margin: const EdgeInsets.all(10),
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.85),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Center(
-            child: Icon(
-              Icons.image_search_rounded,
-              size: 22,
-              color: accentColor.withValues(alpha: 0.85),
-            ),
-          ),
-          if (showLoader)
-            const Align(
-              alignment: Alignment.bottomRight,
-              child: Padding(
-                padding: EdgeInsets.all(10),
-                child: SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 }

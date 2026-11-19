@@ -9,17 +9,20 @@ import 'package:material_ui/material_ui.dart';
 
 /// One row of the search result list, and the choice of which row it is.
 ///
-/// A hit above species rank has no photo and no binomial name to show, so
-/// the two ranks get different presentations: species rows carry a thumbnail
-/// and the species list item's layout, everything else the text-first
-/// [TaxonomySearchResultCard]. Both are filled from the same view model, so
-/// the choice is the only thing this widget makes.
+/// A hit above species rank has no binomial name to show and its picture is
+/// looked up by name rather than id, so the two ranks get different
+/// presentations: species rows the species list item's layout, everything
+/// else the [TaxonomySearchResultCard] with its rank badge. Both are filled
+/// from the same view model, so the choice is the only thing this widget
+/// makes.
 class SearchResultListItem extends StatelessWidget {
   static const _presenter = SpeciesListItemPresenter();
 
   final SearchResult result;
   final Language selectedLanguage;
   final Future<String?> Function(String speciesId) resolveThumbnailUrl;
+  final Future<String?> Function(String entityKey)
+  resolveHigherTaxonThumbnailUrl;
   final VoidCallback onTap;
 
   const SearchResultListItem({
@@ -27,6 +30,7 @@ class SearchResultListItem extends StatelessWidget {
     required this.result,
     required this.selectedLanguage,
     required this.resolveThumbnailUrl,
+    required this.resolveHigherTaxonThumbnailUrl,
     required this.onTap,
   });
 
@@ -40,7 +44,7 @@ class SearchResultListItem extends StatelessWidget {
         onTap: onTap,
         margin: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
         leading: SearchResultThumbnail(
-          speciesId: result.id,
+          thumbnailKey: result.id,
           resolveThumbnailUrl: resolveThumbnailUrl,
           size: 64,
           accentColor: Theme.of(context).colorScheme.tertiary,
@@ -63,6 +67,7 @@ class SearchResultListItem extends StatelessWidget {
       scientificName: result.name.trim(),
       additionalNames: item.additionalNames,
       entityType: result.type,
+      resolveThumbnailUrl: resolveHigherTaxonThumbnailUrl,
       onTap: onTap,
     );
   }

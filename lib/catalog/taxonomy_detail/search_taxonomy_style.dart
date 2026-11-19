@@ -35,6 +35,42 @@ class SearchTaxonomyStyle {
     }
   }
 
+  /// The rank's foreground color on a search result card, drawn from the
+  /// theme — shared by the card's rank badge and its thumbnail placeholder.
+  static Color accentFor(ColorScheme colorScheme, SearchEntityType entityType) {
+    switch (entityType) {
+      case SearchEntityType.species:
+        return colorScheme.tertiary;
+      case SearchEntityType.genus:
+        return colorScheme.primary;
+      case SearchEntityType.family:
+        return colorScheme.secondary;
+      case SearchEntityType.order:
+        return colorScheme.onSurfaceVariant;
+      case SearchEntityType.classType:
+        return colorScheme.onSurface;
+    }
+  }
+
+  /// The background [accentFor] sits on.
+  static Color accentContainerFor(
+    ColorScheme colorScheme,
+    SearchEntityType entityType,
+  ) {
+    switch (entityType) {
+      case SearchEntityType.species:
+        return colorScheme.tertiaryContainer.withValues(alpha: 0.7);
+      case SearchEntityType.genus:
+        return colorScheme.primaryContainer.withValues(alpha: 0.7);
+      case SearchEntityType.family:
+        return colorScheme.secondaryContainer.withValues(alpha: 0.75);
+      case SearchEntityType.order:
+        return colorScheme.surfaceContainerHighest;
+      case SearchEntityType.classType:
+        return colorScheme.surfaceContainerHigh;
+    }
+  }
+
   static IconData iconFor(SearchEntityType entityType) {
     switch (entityType) {
       case SearchEntityType.species:

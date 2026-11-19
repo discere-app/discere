@@ -1,7 +1,9 @@
 import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
+import 'package:discere/catalog/search/higher_taxon_thumbnail_port.dart';
 import 'package:discere/catalog/search/search_result_card.dart';
+import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_children_section.dart';
@@ -24,6 +26,11 @@ final _family = SearchResult(
   commonNames: const {},
   type: SearchEntityType.family,
 );
+
+class _NoThumbnails implements HigherTaxonThumbnailPort {
+  @override
+  Future<String?> thumbnailUrl(String entityKey) async => null;
+}
 
 class _FakeTaxonomyService extends Fake implements TaxonomyService {
   @override
@@ -109,6 +116,7 @@ void main() {
         providers: [
           Provider<TaxonomyService>.value(value: _FakeTaxonomyService()),
           ChangeNotifierProvider<LanguageService>.value(value: languageService),
+          Provider<HigherTaxonThumbnailPort>.value(value: _NoThumbnails()),
         ],
         child: MaterialApp(
           locale: const Locale('en'),
@@ -122,6 +130,9 @@ void main() {
   }
 
   setUp(() async {
+    // The thumbnail cache is static and shared across every test in this
+    // shard, so a picture resolved here must not leak into the next test.
+    SearchResultThumbnail.resetCacheForTesting();
     SharedPreferences.setMockInitialValues({
       LanguageService.sharedPreferencesLanguageKey: Language.de.value,
     });

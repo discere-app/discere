@@ -1,6 +1,7 @@
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/search/higher_taxon_thumbnail_port.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/species_thumbnail_port.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
@@ -116,7 +117,7 @@ class TaxonomyChildrenSection extends StatelessWidget {
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: SearchResultThumbnail(
-            speciesId: child.id,
+            thumbnailKey: child.id,
             resolveThumbnailUrl: resolveThumbnailUrl,
             size: 64,
             accentColor: colorScheme.tertiary,
@@ -136,13 +137,15 @@ class TaxonomyChildrenSection extends StatelessWidget {
     }
 
     // A rank placeholder is still the way down to its children, but its
-    // name and any names attached to it are the source's "Not assigned".
+    // name and any names attached to it are the source's "Not assigned" —
+    // no taxon to look a picture up for.
     if (child.isPlaceholder) {
       return TaxonomySearchResultCard(
         primaryName: context.loc.classificationUnassigned,
         scientificName: '',
         additionalNames: null,
         entityType: child.type,
+        resolveThumbnailUrl: null,
         onTap: () => onNavigate(child),
       );
     }
@@ -152,6 +155,9 @@ class TaxonomyChildrenSection extends StatelessWidget {
       scientificName: child.name,
       additionalNames: item.additionalNames,
       entityType: child.type,
+      resolveThumbnailUrl: context
+          .read<HigherTaxonThumbnailPort>()
+          .thumbnailUrl,
       onTap: () => onNavigate(child),
     );
   }

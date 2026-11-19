@@ -232,7 +232,7 @@ class _AddSpeciesSheetState extends State<AddSpeciesSheet> {
           child: SpeciesListItem(
             item: item,
             leading: SearchResultThumbnail(
-              speciesId: r.id,
+              thumbnailKey: r.id,
               resolveThumbnailUrl: resolveThumbnailUrl,
               size: 56,
               accentColor: colorScheme.tertiary,
