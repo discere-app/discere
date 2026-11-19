@@ -48,20 +48,9 @@ void main() {
           await safePumpAndSettle(tester);
         }
 
-        // 3. Review the first card: answer "Good" (Thumb up)
-        debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
-        await tapWhenHitTestable(
-          tester,
-          find.byIcon(Icons.thumb_up_rounded),
-          description: 'the card and its grading buttons to render',
-        );
-        await safePumpAndSettle(tester);
-
-        // Since there are 2 cards in the batch, it should show the 2nd one.
-        // Answer "Good" on the 2nd one too.
-        debugPrint('-- TEST: tapping thumb_up_rounded for 2nd card --');
-        await tester.tap(find.byIcon(Icons.thumb_up_rounded));
-        await safePumpAndSettle(tester);
+        // 3. Review both cards of the batch: answer "Easy" (thumb up) on each.
+        debugPrint('-- TEST: grading both cards Easy --');
+        await _reviewCardsWithEasy(tester, count: 2);
 
         // Now all 2 cards in the batch are finished.
         // Since there are no more uninitialized cards in the deck (total 2),
@@ -233,10 +222,11 @@ void main() {
 ///
 /// Waits for the *next card* between taps, not merely for a grading button.
 /// A button is on screen for the card that was just graded too, and the
-/// advance to the next one is asynchronous with no frame in between — so a
-/// loop that only waits for the button grades the same card twice whenever
-/// the advance is slower than the loop. The batch then ends one card short
-/// and the session never reaches its end state, which is what #130 was.
+/// advance to the next one is asynchronous with no frame in between. The page
+/// ignores a rating tapped before that advance is done, so a loop that only
+/// waits for the button loses a tap whenever the advance is slower than the
+/// loop. The batch then ends one card short and the session never reaches its
+/// end state.
 ///
 /// Easy is used because it graduates a card straight to Review: no learning
 /// requeue, so [count] cards really is the whole batch.
