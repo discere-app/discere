@@ -233,6 +233,40 @@ void main() {
   );
 
   testWidgets(
+    'a second Continue tap on the same card does not fire onContinue again',
+    (tester) async {
+      var continueCount = 0;
+
+      await tester.pumpWidget(
+        _buildApp(
+          FlashcardWidget(
+            speciesWithLocalImage: _speciesWithImages('sp1'),
+            language: Language.en,
+            reviewMode: ReviewMode.multipleChoice,
+            multipleChoiceOptions: _options,
+            onMultipleChoiceAnswered: (isCorrect) async {},
+            onContinue: () => continueCount++,
+          ),
+          watchlistService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Correct Name'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      // The card stays in place here, as it does in the app until advancing
+      // has finished — so both taps land on the same card.
+      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pump();
+
+      expect(continueCount, 1);
+    },
+  );
+
+  testWidgets(
     'after the reveal, flipping back to the front lets the image be viewed '
     'again without letting the answer be changed',
     (tester) async {
