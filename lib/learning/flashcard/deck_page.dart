@@ -6,6 +6,7 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/flashcard/activate_more_cards_dialog.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
+import 'package:discere/learning/flashcard/empty_session_state.dart';
 import 'package:discere/learning/flashcard/flashcard_tutorial.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
@@ -405,7 +406,7 @@ class DeckPageState extends State<DeckPage> {
     return ReviewLayout(
       cardArea: _session.hasCards
           ? _buildCard()
-          : _EmptySessionState(isWaitingForImages: _session.isWaitingForImages),
+          : EmptySessionState(isWaitingForImages: _session.isWaitingForImages),
       showRatingButtons:
           _session.hasCards && _session.effectiveReviewMode == ReviewMode.flip,
       flipController: _railFlipController,
@@ -504,42 +505,6 @@ class DeckPageState extends State<DeckPage> {
       easyKey: _easyKey,
       watchlistButtonKey: _watchlistButtonKey,
     ).show(context);
-  }
-}
-
-/// What a session shows instead of a card: a spinner while images for the
-/// due cards are still being fetched, and otherwise the plain "nothing to
-/// review" message.
-class _EmptySessionState extends StatelessWidget {
-  final bool isWaitingForImages;
-
-  const _EmptySessionState({required this.isWaitingForImages});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: AppSpacing.emptyStatePaddingAll,
-      child: Center(
-        child: isWaitingForImages
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  AppSpacing.heightS24,
-                  Text(
-                    context.loc.flashcardImagesDownloading,
-                    key: const Key('images_downloading_empty_state_text'),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              )
-            : Text(
-                context.loc.commonNoFlashcardsAvailable,
-                key: const Key('no_flashcards_empty_state_text'),
-                textAlign: TextAlign.center,
-              ),
-      ),
-    );
   }
 }
 
