@@ -22,6 +22,8 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   final LanguageService _languageService;
   final Future<List<SearchResult>> Function(String term) _searchOnline;
   final Future<String?> Function(String speciesId) _resolveThumbnailUrl;
+  final Future<String?> Function(String entityKey)
+  _resolveHigherTaxonThumbnailUrl;
   final Widget Function(String speciesId) _buildSpeciesDetailPage;
   final Future<bool> Function(
     BuildContext context,
@@ -42,6 +44,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     this._languageService,
     this._searchOnline,
     this._resolveThumbnailUrl,
+    this._resolveHigherTaxonThumbnailUrl,
     this._buildSpeciesDetailPage, [
     this._onAddToDeck,
   ]);
@@ -138,6 +141,8 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                         results: state.results,
                         selectedLanguage: _languageService.getLanguage(),
                         resolveThumbnailUrl: _resolveThumbnailUrl,
+                        resolveHigherTaxonThumbnailUrl:
+                            _resolveHigherTaxonThumbnailUrl,
                         onResultTap: (result) =>
                             _openSearchDetailView(context, result),
                       ),
