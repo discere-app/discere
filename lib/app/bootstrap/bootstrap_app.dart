@@ -357,6 +357,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
     imageService: shared.imageService,
+    languageService: shared.languageService,
     iNatSearch: external.iNatSearch,
     sharedHttpClient: shared.sharedHttpClient,
     serializationWorker: const DeckSerializationWorker(),
@@ -419,8 +420,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     session: AppSession(
       notificationService: notifications,
       enrichmentQueue: enrichment.iNatEnrichmentQueueService,
-      deckRepository: learning.deckRepository,
-      remoteDeckService: learning.remoteDeckService,
       deckUpdateService: learning.deckUpdateService,
       shared: shared,
       searchWorker: catalog.searchWorker,

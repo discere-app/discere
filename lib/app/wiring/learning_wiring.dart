@@ -31,6 +31,7 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
@@ -46,17 +47,12 @@ typedef LearningDeckServices = ({
   FlashcardStatRepository flashcardStatRepository,
   FlashcardStatModeRepository flashcardStatModeRepository,
   AnswerableCardsService answerableCardsService,
-  // Exposed only so startDeferred() in the bootstrap can wire up the
-  // temporary DeckSourceIdBackfillService. Remove this field too if nothing
-  // else needs the raw repository by the time that service is deleted.
-  DeckRepository deckRepository,
   DeckConfigRepository deckConfigRepository,
   SpeciesPhotoGapAckRepository speciesPhotoGapAckRepository,
   DecksService deckService,
   DeckImportService deckImportService,
   DeckLifecycleWiring deckLifecycle,
   DeckUpdateApplier deckUpdateApplier,
-  RemoteDeckService remoteDeckService,
   DeckUpdateService deckUpdateService,
   DeckExportService deckExportService,
   FavoriteService favoriteService,
@@ -78,6 +74,7 @@ LearningDeckServices buildLearningDeckServices({
   required SpeciesRepository speciesRepository,
   required TaxonomyRepository taxonomyRepository,
   required ImageService imageService,
+  required LanguageService languageService,
   required INatSearchApi iNatSearch,
   required LoggingHttpClient sharedHttpClient,
   required DeckSerializationWorker serializationWorker,
@@ -116,6 +113,7 @@ LearningDeckServices buildLearningDeckServices({
   );
   final remoteDeckService = RemoteDeckService(
     client: sharedHttpClient,
+    appLanguage: languageService.getLanguage,
     serializationWorker: serializationWorker,
   );
   final deckImportService = DeckImportService(
@@ -124,7 +122,10 @@ LearningDeckServices buildLearningDeckServices({
     userDataWrites: userDataWrites,
     iNatSearch: iNatSearch,
   );
-  final importTextRecognizer = ImportTextRecognizer(serializationWorker);
+  final importTextRecognizer = ImportTextRecognizer(
+    serializationWorker,
+    appLanguage: languageService.getLanguage,
+  );
   final deckUpdateApplier = DeckUpdateApplier(
     deckService,
     speciesRepository,
@@ -155,14 +156,12 @@ LearningDeckServices buildLearningDeckServices({
     flashcardStatRepository: flashcardStatRepository,
     flashcardStatModeRepository: flashcardStatModeRepository,
     answerableCardsService: answerableCardsService,
-    deckRepository: deckRepository,
     deckConfigRepository: deckConfigRepository,
     speciesPhotoGapAckRepository: speciesPhotoGapAckRepository,
     deckService: deckService,
     deckLifecycle: deckLifecycle,
     deckImportService: deckImportService,
     deckUpdateApplier: deckUpdateApplier,
-    remoteDeckService: remoteDeckService,
     deckUpdateService: deckUpdateService,
     deckExportService: deckExportService,
     favoriteService: favoriteService,

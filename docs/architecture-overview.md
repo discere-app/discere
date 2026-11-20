@@ -804,11 +804,15 @@ deck as text, file or QR code (`CreateDeck`):
   "formatVersion": 2,
   "name": "Red Sea",
   "description": "…",
+  "translations": {
+    "de": {"name": "Rotes Meer", "description": "…"},
+    "fr": {"name": "Mer Rouge"}
+  },
   "sourceId": "red-sea",
   "updatedAt": "2026-10-01T00:00:00+02:00",
   "speciesNames": ["Amphiprion bicinctus", "Pterois miles", "Carcharhinus longimanus"],
   "subdecks": [
-    {"id": "level-1", "name": "Level 1", "speciesNames": ["Amphiprion bicinctus", "Pterois miles"]},
+    {"id": "level-1", "name": "Level 1", "translations": {"de": {"name": "Stufe 1"}}, "speciesNames": ["Amphiprion bicinctus", "Pterois miles"]},
     {"id": "level-2", "name": "Level 2", "speciesNames": ["Carcharhinus longimanus"]}
   ],
   "supersedes": ["red-sea-level-1", "red-sea-level-2"],
@@ -861,6 +865,26 @@ deck as text, file or QR code (`CreateDeck`):
   replaces — a changed id, levels joined into one deck, a deck split in
   two. Like `sourceId` and `updatedAt`, it is read from the catalog only,
   never written into a shared deck.
+- `translations` is optional, on the deck and on each subdeck: per
+  language (`de`/`en`/`fr`/`es`, the app's languages), the deck's `name`
+  and `description` or the subdeck's `name` in that language
+  (`DeckTranslations`). Both readers — the catalog (`RemoteDeckService`)
+  and the shared import (`ImportTextRecognizer`) — resolve it while reading,
+  in the language the app is displayed in, not the deck's learning
+  language: the deck's texts are app text like any around them. Each field
+  is picked on its own, from the app language, then English, then the
+  untranslated field, and `translations` is gone afterwards, so everything
+  downstream — the online list, onboarding, the update and merge dialogs —
+  sees one plain text. An import stores the text it was read in, and the
+  deck keeps it when the app language changes, as it keeps any name; a deck
+  update takes the catalog's subdeck names in the app language of the
+  update check. A shared deck carries no translations, only the texts the
+  sharer's deck has. The untranslated fields stay plain strings, so an older
+  app skips `translations` and shows them; no new format version is needed.
+  A language the app does not carry is skipped quietly, since the catalog
+  serves every app version and may add a language before an app carries
+  it; a translation that is no non-empty string is skipped with a warning
+  rather than failing the deck.
 - `learningMode` (`species|genus|family`), `nameType`
   (`commonName|scientificName`) and `reviewMode` (`flip|multipleChoice`)
   are optional, each what an imported deck starts with; one left out starts

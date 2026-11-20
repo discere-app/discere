@@ -55,7 +55,10 @@ void main() {
             ),
           ),
           Provider<ImportTextRecognizer>.value(
-            value: const ImportTextRecognizer(_InlineSerializationWorker()),
+            value: ImportTextRecognizer(
+              const _InlineSerializationWorker(),
+              appLanguage: () => Language.en,
+            ),
           ),
         ],
         child: MaterialApp(

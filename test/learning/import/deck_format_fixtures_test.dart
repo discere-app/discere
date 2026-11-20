@@ -17,6 +17,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -92,7 +93,10 @@ void _expectSharedDeckOf(CreateDeck deck, Map<String, dynamic> json) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const worker = DeckSerializationWorker();
-  const recognizer = ImportTextRecognizer(worker);
+  final recognizer = ImportTextRecognizer(
+    worker,
+    appLanguage: () => Language.en,
+  );
 
   test('every format version the app reads has a fixture deck', () {
     final versions = <int>{};
@@ -196,6 +200,7 @@ void main() {
       for (final file in _fixtures) jsonDecode(file.readAsStringSync()),
     ];
     final service = RemoteDeckService(
+      appLanguage: () => Language.en,
       client: MockClient(
         (request) async =>
             http.Response.bytes(utf8.encode(jsonEncode(entries)), 200),

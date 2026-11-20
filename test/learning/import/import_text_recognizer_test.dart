@@ -8,6 +8,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
@@ -17,7 +18,10 @@ import '../../mocks.mocks.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const worker = DeckSerializationWorker();
-  const recognizer = ImportTextRecognizer(worker);
+  final recognizer = ImportTextRecognizer(
+    worker,
+    appLanguage: () => Language.en,
+  );
 
   final deck = CreateDeck(
     name: 'Reef Sharks',
@@ -34,6 +38,25 @@ void main() {
       expect(recognized.name, 'Reef Sharks');
       expect(recognized.description, 'Sharks of the reef');
       expect(recognized.speciesNames, deck.speciesNames);
+    });
+
+    test('is read in the app language', () async {
+      final german = ImportTextRecognizer(
+        worker,
+        appLanguage: () => Language.de,
+      );
+      final json = {
+        ...deck.toJson(),
+        'translations': {
+          'de': {'name': 'Riffhaie'},
+        },
+      };
+
+      final result = await german.recognize(jsonEncode(json));
+
+      final recognized = (result as RecognizedDeckJson).deck;
+      expect(recognized.name, 'Riffhaie');
+      expect(recognized.description, 'Sharks of the reef');
     });
 
     test('broken JSON is unrecognized, not a species list', () async {

@@ -4,9 +4,6 @@ import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
-import 'package:discere/learning/import/remote_deck_service.dart';
-import 'package:discere/learning/repository/deck_repository.dart';
-import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/network_availability.dart';
@@ -28,16 +25,12 @@ class AppSession {
   AppSession({
     required NotificationService notificationService,
     required INatEnrichmentQueueService enrichmentQueue,
-    required DeckRepository deckRepository,
-    required RemoteDeckService remoteDeckService,
     required DeckUpdateService deckUpdateService,
     required SharedServices shared,
     required SearchWorker searchWorker,
     required LocalDiagnostics localDiagnostics,
   }) : _notificationService = notificationService,
        _enrichmentQueue = enrichmentQueue,
-       _deckRepository = deckRepository,
-       _remoteDeckService = remoteDeckService,
        _deckUpdateService = deckUpdateService,
        _networkAvailability = shared.networkAvailability,
        userDataWrites = shared.userDataWrites,
@@ -46,8 +39,6 @@ class AppSession {
 
   final NotificationService _notificationService;
   final INatEnrichmentQueueService _enrichmentQueue;
-  final DeckRepository _deckRepository;
-  final RemoteDeckService _remoteDeckService;
   final DeckUpdateService _deckUpdateService;
   final ConnectivityNetworkAvailability _networkAvailability;
   final SearchWorker _searchWorker;
@@ -72,12 +63,6 @@ class AppSession {
     _log.debug('deferred setup: starting');
     await _notificationService.initNotification();
     await _enrichmentQueue.initialize();
-    // DeckSourceIdBackfillService is @Deprecated as a marker for when to
-    // delete it (and this call) — see its class doc for the removal plan.
-    await DeckSourceIdBackfillService(
-      _deckRepository,
-      _remoteDeckService,
-    ).runIfNeeded();
     // Reads only; nothing to wait for when stopping.
     unawaited(_deckUpdateService.checkForUpdates());
     _log.debug('deferred setup: done');

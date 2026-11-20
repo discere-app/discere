@@ -37,8 +37,6 @@ void main() {
     session = AppSession(
       notificationService: notifications,
       enrichmentQueue: enrichmentQueue,
-      deckRepository: deckRepository,
-      remoteDeckService: remoteDeckService,
       deckUpdateService: DeckUpdateService(deckRepository, remoteDeckService),
       shared: buildSharedServices(
         sharedPreferences: await SharedPreferences.getInstance(),
