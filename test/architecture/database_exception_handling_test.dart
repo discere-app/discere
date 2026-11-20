@@ -38,10 +38,6 @@ const _fallbackCallers = <String, String>{
       'Matches iNaturalist search hits back to reference rows for the same '
       'search; without a match the hit is still shown as an iNaturalist-only '
       'row.',
-  'lib/learning/service/deck_source_id_backfill_service.dart':
-      'The bootstrap awaits this one-time backfill before the deck update '
-      'check; a failure leaves it not-done for the next start instead of '
-      'cutting the remaining deferred setup short.',
 };
 
 /// A catch clause: `on DatabaseException` after a closing brace, or opening

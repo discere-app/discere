@@ -419,8 +419,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     session: AppSession(
       notificationService: notifications,
       enrichmentQueue: enrichment.iNatEnrichmentQueueService,
-      deckRepository: learning.deckRepository,
-      remoteDeckService: learning.remoteDeckService,
       deckUpdateService: learning.deckUpdateService,
       shared: shared,
       searchWorker: catalog.searchWorker,

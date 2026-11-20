@@ -44,9 +44,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 @GenerateNiceMocks([
   MockSpec<SharedPreferences>(),
   MockSpec<DeckRepository>(),
-  // Added for deck_source_id_backfill_service_test.dart. If that's the only
-  // remaining consumer when DeckSourceIdBackfillService is deleted, remove
-  // this too.
   MockSpec<RemoteDeckService>(),
   MockSpec<DeckConfigRepository>(),
   MockSpec<SpeciesRepository>(),
