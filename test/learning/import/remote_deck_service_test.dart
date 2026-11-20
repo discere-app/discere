@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/deck_format.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -13,7 +14,10 @@ void main() {
 
   group('RemoteDeckService', () {
     test('uses a patient default timeout for GitHub loading', () {
-      final service = RemoteDeckService(client: http.Client());
+      final service = RemoteDeckService(
+        client: http.Client(),
+        appLanguage: () => Language.en,
+      );
 
       expect(service.indexTimeout, const Duration(seconds: 20));
     });
@@ -43,7 +47,10 @@ void main() {
         );
       });
 
-      final service = RemoteDeckService(client: mockClient);
+      final service = RemoteDeckService(
+        client: mockClient,
+        appLanguage: () => Language.en,
+      );
       final decks = await service.fetchRemoteDecks();
 
       expect(requestCount, 1);
@@ -63,7 +70,10 @@ void main() {
         );
       });
 
-      final service = RemoteDeckService(client: mockClient);
+      final service = RemoteDeckService(
+        client: mockClient,
+        appLanguage: () => Language.en,
+      );
       final decks = await service.fetchRemoteDecks();
 
       expect(decks, hasLength(1));
@@ -77,6 +87,52 @@ void main() {
       );
     });
 
+    group('translations', () {
+      final entry = {
+        'name': 'Haie und Rochen',
+        'description': 'Knorpelfische',
+        'translations': {
+          'en': {
+            'name': 'Sharks and Rays',
+            'description': 'Cartilaginous fishes',
+          },
+        },
+        'subdecks': [
+          {
+            'id': 'level-1',
+            'name': 'Stufe 1',
+            'translations': {
+              'en': {'name': 'Level 1'},
+            },
+            'speciesNames': ['Carcharodon carcharias'],
+          },
+        ],
+      };
+
+      RemoteDeckService serviceIn(Language language) => RemoteDeckService(
+        appLanguage: () => language,
+        client: MockClient(
+          (request) async => http.Response(jsonEncode([entry]), 200),
+        ),
+      );
+
+      test('reads each deck in the app language', () async {
+        final deck = (await serviceIn(Language.en).fetchRemoteDecks()).single;
+
+        expect(deck.name, 'Sharks and Rays');
+        expect(deck.description, 'Cartilaginous fishes');
+        expect(deck.subdecks!.single.name, 'Level 1');
+      });
+
+      test('reads a deck not translated into the app language in '
+          'English', () async {
+        final deck = (await serviceIn(Language.es).fetchRemoteDecks()).single;
+
+        expect(deck.name, 'Sharks and Rays');
+        expect(deck.subdecks!.single.name, 'Level 1');
+      });
+    });
+
     group('format version', () {
       final newerVersion = DeckFormat.supportedVersion + 1;
 
@@ -88,6 +144,7 @@ void main() {
       };
 
       RemoteDeckService serviceFor(List<Object?> entries) => RemoteDeckService(
+        appLanguage: () => Language.en,
         client: MockClient(
           (request) async => http.Response(jsonEncode(entries), 200),
         ),

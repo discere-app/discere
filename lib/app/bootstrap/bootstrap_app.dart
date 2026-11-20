@@ -357,6 +357,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
     imageService: shared.imageService,
+    languageService: shared.languageService,
     iNatSearch: external.iNatSearch,
     sharedHttpClient: shared.sharedHttpClient,
     serializationWorker: const DeckSerializationWorker(),

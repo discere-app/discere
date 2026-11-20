@@ -31,6 +31,7 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
@@ -73,6 +74,7 @@ LearningDeckServices buildLearningDeckServices({
   required SpeciesRepository speciesRepository,
   required TaxonomyRepository taxonomyRepository,
   required ImageService imageService,
+  required LanguageService languageService,
   required INatSearchApi iNatSearch,
   required LoggingHttpClient sharedHttpClient,
   required DeckSerializationWorker serializationWorker,
@@ -111,6 +113,7 @@ LearningDeckServices buildLearningDeckServices({
   );
   final remoteDeckService = RemoteDeckService(
     client: sharedHttpClient,
+    appLanguage: languageService.getLanguage,
     serializationWorker: serializationWorker,
   );
   final deckImportService = DeckImportService(
@@ -119,7 +122,10 @@ LearningDeckServices buildLearningDeckServices({
     userDataWrites: userDataWrites,
     iNatSearch: iNatSearch,
   );
-  final importTextRecognizer = ImportTextRecognizer(serializationWorker);
+  final importTextRecognizer = ImportTextRecognizer(
+    serializationWorker,
+    appLanguage: languageService.getLanguage,
+  );
   final deckUpdateApplier = DeckUpdateApplier(
     deckService,
     speciesRepository,

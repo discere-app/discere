@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:discere/learning/decks/species_name_line.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_format.dart';
+import 'package:discere/learning/model/deck_translations.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:discere/shared/model/language.dart';
 
 /// What [ImportTextRecognizer] made of a pasted, picked or scanned text.
 sealed class RecognizedImport {
@@ -78,7 +80,15 @@ class ImportTextRecognizer {
 
   final DeckSerializationWorker _serializationWorker;
 
-  const ImportTextRecognizer(this._serializationWorker);
+  /// The language the app is displayed in, which a deck's texts are read in
+  /// (see [DeckTranslations]) — a deck copied from the catalog reads as it
+  /// does there.
+  final Language Function() _appLanguage;
+
+  const ImportTextRecognizer(
+    this._serializationWorker, {
+    required Language Function() appLanguage,
+  }) : _appLanguage = appLanguage;
 
   Future<RecognizedImport> recognize(String text) async {
     final trimmed = text.trim();
@@ -127,7 +137,9 @@ class ImportTextRecognizer {
     try {
       final json = await decode();
       return switch (DeckFormat.declaredIn(json)) {
-        ReadableDeckFormat() => recognized(CreateDeck.fromJson(json)),
+        ReadableDeckFormat() => recognized(
+          CreateDeck.fromJson(DeckTranslations.resolve(json, _appLanguage())),
+        ),
         NewerDeckFormat() => const UnsupportedDeckFormat(),
         MalformedDeckFormat() => const UnrecognizedImport(),
       };

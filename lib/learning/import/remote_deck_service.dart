@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_format.dart';
+import 'package:discere/learning/model/deck_translations.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -19,11 +21,18 @@ class RemoteDeckService {
   final DeckSerializationWorker _serializationWorker;
   final Duration _indexTimeout;
 
+  /// The language the app is displayed in, which the decks' texts are read
+  /// in (see [DeckTranslations]) — asked on every fetch, as the user may
+  /// change it in between.
+  final Language Function() _appLanguage;
+
   RemoteDeckService({
     required http.Client client,
+    required Language Function() appLanguage,
     DeckSerializationWorker? serializationWorker,
     Duration indexTimeout = _defaultIndexTimeout,
   }) : _client = client,
+       _appLanguage = appLanguage,
        _indexTimeout = indexTimeout,
        _serializationWorker =
            serializationWorker ?? const DeckSerializationWorker();
@@ -51,6 +60,7 @@ class RemoteDeckService {
           await _serializationWorker.decodeJsonBytes(response.bodyBytes)
               as List<dynamic>;
 
+      final language = _appLanguage();
       final decks = <CreateDeck>[];
       // The index holds the decks up to this app's format version; an entry
       // of a newer one is skipped as a safeguard, and is no format error.
@@ -62,7 +72,9 @@ class RemoteDeckService {
           );
           switch (DeckFormat.declaredIn(map)) {
             case ReadableDeckFormat():
-              decks.add(CreateDeck.fromJson(map));
+              decks.add(
+                CreateDeck.fromJson(DeckTranslations.resolve(map, language)),
+              );
             case NewerDeckFormat(:final version):
               newerEntries++;
               _log.warn(

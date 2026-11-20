@@ -11,6 +11,7 @@ library;
 import 'dart:io';
 
 import 'package:discere/learning/import/remote_deck_service.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/dev_data_source_override.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -32,7 +33,10 @@ void main() {
     final client = http.Client();
     addTearDown(client.close);
 
-    final decks = await RemoteDeckService(client: client).fetchRemoteDecks();
+    final decks = await RemoteDeckService(
+      client: client,
+      appLanguage: () => Language.en,
+    ).fetchRemoteDecks();
 
     expect(decks, isNotEmpty);
   });
